@@ -1,0 +1,18 @@
+# Share — deploy to Netlify → share.myendeavors.me
+#
+# 1) Create a NEW Netlify site from this repo (don't reuse apex if apex is another project)
+# 2) Domain management → Add domain → share.myendeavors.me
+# 3) In Hover DNS for myendeavors.me, add CNAME (see chat for exact row)
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = ".netlify/functions-internal"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

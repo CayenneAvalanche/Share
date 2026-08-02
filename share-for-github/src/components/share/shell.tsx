@@ -1,0 +1,186 @@
+import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  Home,
+  Car,
+  Package,
+  User,
+  ArrowLeft,
+  MessageCircle,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ShareWordmark } from "./logo";
+import { Button } from "@/components/ui/button";
+import { useShareStore } from "@/lib/share/store";
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  match?: (path: string) => boolean;
+  badge?: number;
+};
+
+/** Landing / marketing pages (no bottom app nav) */
+export function MarketingShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-dvh bg-[var(--color-bg)] text-[var(--color-fg)]">
+      <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md safe-pt">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <Link to="/" className="shrink-0">
+            <ShareWordmark />
+          </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/apply">Apply</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link to="/app">Open app</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
+
+export function AppShell({
+  children,
+  title,
+  subtitle,
+  backTo,
+  hideNav = false,
+  action,
+  solidHeader = false,
+}: {
+  children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
+  backTo?: string;
+  hideNav?: boolean;
+  action?: React.ReactNode;
+  solidHeader?: boolean;
+}) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const unread = useShareStore((s) =>
+    s.threads.reduce((n, t) => n + t.unread, 0),
+  );
+
+  const NAV: NavItem[] = [
+    {
+      to: "/app",
+      label: "Home",
+      icon: Home,
+      match: (p) => p === "/app" || p === "/about" || p.startsWith("/volunteer"),
+    },
+    {
+      to: "/rides",
+      label: "Rides",
+      icon: Car,
+      match: (p) => p.startsWith("/rides") || p.startsWith("/local"),
+    },
+    {
+      to: "/messages",
+      label: "Chat",
+      icon: MessageCircle,
+      match: (p) => p.startsWith("/messages"),
+      badge: unread,
+    },
+    {
+      to: "/deliveries",
+      label: "Deliver",
+      icon: Package,
+      match: (p) => p.startsWith("/deliveries") || p.startsWith("/track"),
+    },
+    {
+      to: "/profile",
+      label: "You",
+      icon: User,
+      match: (p) =>
+        p.startsWith("/profile") ||
+        p.startsWith("/apply") ||
+        p.startsWith("/earnings") ||
+        p.startsWith("/checkout") ||
+        p.startsWith("/trips"),
+    },
+  ];
+
+  return (
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--color-bg)]">
+      {(title || solidHeader) && (
+        <header
+          className={cn(
+            "sticky top-0 z-30 safe-pt",
+            solidHeader
+              ? "border-b border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur-md"
+              : "bg-transparent",
+          )}
+        >
+          <div className="flex items-center gap-2 px-4 py-3">
+            {backTo ? (
+              <Button variant="ghost" size="icon" asChild className="-ml-1">
+                <Link to={backTo} aria-label="Back">
+                  <ArrowLeft className="size-5" />
+                </Link>
+              </Button>
+            ) : (
+              <ShareWordmark className="shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              {title && (
+                <h1 className="truncate font-display text-lg font-semibold">
+                  {title}
+                </h1>
+              )}
+              {subtitle && (
+                <p className="truncate text-xs text-[var(--color-fg-muted)]">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            {action}
+          </div>
+        </header>
+      )}
+
+      <main className={cn("flex-1 px-4", hideNav ? "pb-8" : "pb-24")}>
+        {children}
+      </main>
+
+      {!hideNav && (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-border)] bg-[var(--color-bg-elevated)]/95 backdrop-blur-md safe-pb">
+          <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5 overflow-x-auto px-0.5 pt-1">
+            {NAV.map((item) => {
+              const active = item.match
+                ? item.match(pathname)
+                : pathname === item.to;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "relative flex min-h-14 min-w-[3.4rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-md)] px-1 text-[10px] font-medium transition-colors sm:min-w-[4rem] sm:text-[11px]",
+                    active
+                      ? "text-[var(--color-primary)]"
+                      : "text-[var(--color-fg-subtle)] hover:text-[var(--color-fg)]",
+                  )}
+                >
+                  <Icon
+                    className={cn("size-5", active && "stroke-[2.25]")}
+                  />
+                  {item.label}
+                  {item.badge ? (
+                    <span className="absolute right-1/2 top-1 translate-x-3.5 flex size-4 items-center justify-center rounded-full bg-[var(--color-accent)] text-[9px] font-bold text-white">
+                      {item.badge > 9 ? "9+" : item.badge}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+    </div>
+  );
+}

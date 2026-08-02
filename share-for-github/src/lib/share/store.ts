@@ -1,0 +1,1051 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import {
+  BORROW_REQUESTS,
+  CAR_LISTINGS,
+  DEFAULT_SAVED_PLACES,
+  OPEN_DELIVERIES,
+  PILOT_INVITE_CODES,
+  RENTAL_LISTINGS,
+  SEED_DRIVER_APPS,
+  SEED_MESSAGES,
+  SEED_RIDER_APPS,
+  SEED_THREADS,
+  SEED_VOLUNTEERS,
+  SEED_RIDE_REQUESTS,
+  TRIPS,
+  type ApplicationStatus,
+  type Booking,
+  type BorrowRequest,
+  type CarShareListing,
+  type ChatMessage,
+  type ChatThread,
+  type DeliveryRequest,
+  type DeliveryTrackStatus,
+  type DriverApplication,
+  type DriverPreference,
+  type LocalRideRequest,
+  type PaymentRecord,
+  type RentalListing,
+  type RiderApplication,
+  type SavedPlace,
+  type TrackEvent,
+  type Trip,
+  type VolunteerRide,
+  type CorridorRideRequest,
+  type RideOffer,
+} from "./data";
+import { fakeStripeId } from "./payments";
+import { makeTrackingCode, shouldEscalate, trackLabel } from "./tracking";
+import { matchedFare } from "./corridor";
+
+type CarBooking = {
+  id: string;
+  carId: string;
+  days: number;
+  total: number;
+  status: string;
+  createdAt: string;
+};
+
+type ShareState = {
+  trips: Trip[];
+  bookings: Booking[];
+  deliveries: DeliveryRequest[];
+  driverApps: DriverApplication[];
+  riderApps: RiderApplication[];
+  rentals: RentalListing[];
+  borrowRequests: BorrowRequest[];
+  localRides: LocalRideRequest[];
+  volunteerRides: VolunteerRide[];
+  carListings: CarShareListing[];
+  carBookings: CarBooking[];
+  rideRequests: CorridorRideRequest[];
+  waitlistEmails: string[];
+  threads: ChatThread[];
+  messages: ChatMessage[];
+  savedPlaces: SavedPlace[];
+  payments: PaymentRecord[];
+  inviteCodeUsed: string | null;
+  referralCode: string;
+  referralCount: number;
+  notifications: string[];
+  riderName: string;
+  isDriverApproved: boolean;
+  isRiderApproved: boolean;
+  favoriteDriverIds: string[];
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  idVerified: boolean;
+  tripRatings: Record<string, number>;
+  setEmergencyContact: (name: string, phone: string) => void;
+  setIdVerified: (v: boolean) => void;
+  rateTrip: (bookingId: string, stars: number) => void;
+  postRideRequest: (
+    req: Omit<
+      CorridorRideRequest,
+      "id" | "status" | "createdAt" | "offers" | "matchedOfferId" | "matchedAmount" | "matchedDriverName"
+    >,
+  ) => CorridorRideRequest;
+  offerOnRideRequest: (
+    requestId: string,
+    offer: { driverName: string; driverId?: string; amount: number; note: string },
+  ) => RideOffer | null;
+  acceptRideOffer: (requestId: string, offerId: string) => boolean;
+  cancelRideRequest: (requestId: string) => void;
+  claimDeliveryOnTrip: (deliveryId: string, tripId: string, driverName?: string) => void;
+  bookRide: (
+    tripId: string,
+    seats: number,
+    cargoNote: string,
+    opts?: { driverPreference?: DriverPreference; preferredDriverId?: string },
+  ) => Booking | null;
+  bookDelivery: (tripId: string, cargoNote: string) => Booking | null;
+  postTrip: (trip: Trip) => void;
+  requestDelivery: (
+    req: Omit<
+      DeliveryRequest,
+      "id" | "status" | "events" | "trackingCode" | "driverName"
+    >,
+  ) => DeliveryRequest;
+  advanceDelivery: (
+    id: string,
+    status: DeliveryTrackStatus,
+    note?: string,
+    driverName?: string,
+    photoNote?: string,
+  ) => void;
+  submitDriverApp: (
+    app: Omit<
+      DriverApplication,
+      "id" | "status" | "createdAt" | "interviewAt" | "adminNote"
+    > & { inviteCode?: string },
+  ) => DriverApplication;
+  submitRiderApp: (
+    app: Omit<
+      RiderApplication,
+      "id" | "status" | "createdAt" | "interviewAt" | "adminNote"
+    > & { inviteCode?: string },
+  ) => RiderApplication;
+  listRental: (item: Omit<RentalListing, "id" | "available">) => void;
+  requestBorrow: (
+    req: Omit<BorrowRequest, "id" | "status" | "createdAt">,
+  ) => void;
+  requestLocalRide: (
+    req: Omit<LocalRideRequest, "id" | "status" | "createdAt" | "adminNote">,
+  ) => LocalRideRequest;
+  listCar: (
+    car: Omit<CarShareListing, "id" | "available" | "tripsHosted" | "rating">,
+  ) => void;
+  bookCar: (carId: string, days: number) => void;
+  requestVolunteerRide: (
+    req: Omit<
+      VolunteerRide,
+      "id" | "status" | "createdAt" | "escalatedAt" | "matchedDriverName"
+    >,
+  ) => VolunteerRide;
+  claimVolunteer: (id: string, driverName: string) => void;
+  processVolunteerEscalations: () => number;
+  forceEscalateVolunteer: (id: string) => void;
+  joinWaitlist: (email: string) => void;
+  setRiderName: (name: string) => void;
+  applyAsDriver: () => void;
+  cancelBooking: (id: string) => void;
+  toggleFavoriteDriver: (id: string) => void;
+  setDriverAppStatus: (
+    id: string,
+    status: ApplicationStatus,
+    extra?: { interviewAt?: string; adminNote?: string },
+  ) => void;
+  setRiderAppStatus: (
+    id: string,
+    status: ApplicationStatus,
+    extra?: { interviewAt?: string; adminNote?: string },
+  ) => void;
+  setDeliveryStatus: (
+    id: string,
+    status: DeliveryTrackStatus,
+    adminNote?: string,
+  ) => void;
+  setLocalRideStatus: (
+    id: string,
+    status: LocalRideRequest["status"],
+    adminNote?: string,
+  ) => void;
+  sendMessage: (threadId: string, body: string, from?: string) => void;
+  openThread: (threadId: string) => void;
+  startThread: (opts: {
+    subject: string;
+    withName: string;
+    relatedType: ChatThread["relatedType"];
+    relatedId?: string;
+    firstMessage?: string;
+  }) => string;
+  addSavedPlace: (label: string, address: string) => void;
+  removeSavedPlace: (id: string) => void;
+  redeemInvite: (code: string) => boolean;
+  recordReferral: () => void;
+  demoCheckout: (
+    label: string,
+    amount: number,
+    bookingId?: string,
+  ) => PaymentRecord;
+  pushNotification: (text: string) => void;
+  clearNotifications: () => void;
+  resetDemo: () => void;
+};
+
+export const SHARE_PERSIST_KEY = "share-app-v8";
+
+
+function uid(prefix: string) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function pushEvent(
+  d: DeliveryRequest,
+  status: DeliveryTrackStatus,
+  note?: string,
+): TrackEvent[] {
+  const ev: TrackEvent = {
+    id: uid("ev"),
+    status,
+    label: trackLabel(status),
+    at: new Date().toISOString(),
+    note,
+  };
+  return [...(d.events ?? []), ev];
+}
+
+function systemNotify(
+  set: (fn: (s: ShareState) => Partial<ShareState>) => void,
+  text: string,
+) {
+  set((state) => ({
+    notifications: [text, ...state.notifications].slice(0, 20),
+  }));
+}
+
+export const useShareStore = create<ShareState>()(
+  persist(
+    (set, get) => ({
+      trips: TRIPS,
+      bookings: [],
+      deliveries: OPEN_DELIVERIES,
+      driverApps: SEED_DRIVER_APPS,
+      riderApps: SEED_RIDER_APPS,
+      rentals: RENTAL_LISTINGS,
+      borrowRequests: BORROW_REQUESTS,
+      localRides: [],
+      volunteerRides: SEED_VOLUNTEERS,
+      carListings: CAR_LISTINGS,
+      carBookings: [],
+      rideRequests: SEED_RIDE_REQUESTS,
+      waitlistEmails: [],
+      threads: SEED_THREADS,
+      messages: SEED_MESSAGES,
+      savedPlaces: DEFAULT_SAVED_PLACES,
+      payments: [],
+      inviteCodeUsed: null,
+      referralCode:
+        "SHARE-" + Math.random().toString(36).slice(2, 6).toUpperCase(),
+      referralCount: 0,
+      notifications: [
+        "In-app messages are saved for safety. Prefer chat over off-app texts.",
+      ],
+      riderName: "Guest",
+      isDriverApproved: false,
+      isRiderApproved: false,
+      favoriteDriverIds: ["d2", "d4"],
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+      idVerified: false,
+      tripRatings: {},
+
+      bookRide: (tripId, seats, cargoNote, opts) => {
+        const trip = get().trips.find((t) => t.id === tripId);
+        if (!trip || seats < 1 || seats > trip.seatsAvailable) return null;
+        const booking: Booking = {
+          id: uid("bk"),
+          tripId,
+          kind: "ride",
+          seats,
+          cargoNote,
+          status: "confirmed",
+          createdAt: new Date().toISOString(),
+          total: seats * trip.pricePerSeat,
+          driverPreference: opts?.driverPreference ?? "any",
+          preferredDriverId: opts?.preferredDriverId,
+        };
+        set((state) => ({
+          trips: state.trips.map((t) =>
+            t.id === tripId
+              ? { ...t, seatsAvailable: t.seatsAvailable - seats }
+              : t,
+          ),
+          bookings: [booking, ...state.bookings],
+        }));
+        systemNotify(
+          set,
+          `Ride reserved · $${booking.total}. Pay in Checkout when ready.`,
+        );
+        return booking;
+      },
+
+      bookDelivery: (tripId, cargoNote) => {
+        const trip = get().trips.find((t) => t.id === tripId);
+        if (!trip) return null;
+        const booking: Booking = {
+          id: uid("bk"),
+          tripId,
+          kind: "delivery",
+          seats: 0,
+          cargoNote,
+          status: "confirmed",
+          createdAt: new Date().toISOString(),
+          total: trip.deliveryRate,
+        };
+        set((state) => ({ bookings: [booking, ...state.bookings] }));
+        return booking;
+      },
+
+      postTrip: (trip) => set((state) => ({ trips: [trip, ...state.trips] })),
+
+      requestDelivery: (req) => {
+        const now = new Date().toISOString();
+        const delivery: DeliveryRequest = {
+          ...req,
+          id: uid("del"),
+          status: "open",
+          trackingCode: makeTrackingCode(),
+          events: [
+            {
+              id: uid("ev"),
+              status: "open",
+              label: "Posted",
+              at: now,
+              note: "Waiting for a Share driver",
+            },
+          ],
+        };
+        set((state) => ({ deliveries: [delivery, ...state.deliveries] }));
+        systemNotify(set, `Delivery posted · track ${delivery.trackingCode}`);
+        return delivery;
+      },
+
+      advanceDelivery: (id, status, note, driverName, photoNote) => {
+        const combined = [note, photoNote ? `📷 ${photoNote}` : null]
+          .filter(Boolean)
+          .join(" · ");
+        set((state) => ({
+          deliveries: state.deliveries.map((d) => {
+            if (d.id !== id) return d;
+            return {
+              ...d,
+              status,
+              driverName: driverName ?? d.driverName,
+              trackingCode: d.trackingCode ?? makeTrackingCode(),
+              events: pushEvent(d, status, combined || undefined),
+              adminNote: note ?? d.adminNote,
+            };
+          }),
+        }));
+        if (status === "matched") {
+          systemNotify(set, "SMS/email demo: driver matched — check Messages");
+        }
+      },
+
+      submitDriverApp: (app) => {
+        const { inviteCode, ...rest } = app as typeof app & {
+          inviteCode?: string;
+        };
+        if (inviteCode) get().redeemInvite(inviteCode);
+        const full: DriverApplication = {
+          ...rest,
+          id: uid("da"),
+          status: "pending_interview",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          driverApps: [full, ...state.driverApps],
+          isDriverApproved: false,
+        }));
+        systemNotify(set, "Driver application received — interview next");
+        return full;
+      },
+
+      submitRiderApp: (app) => {
+        const { inviteCode, ...rest } = app as typeof app & {
+          inviteCode?: string;
+        };
+        if (inviteCode) get().redeemInvite(inviteCode);
+        const full: RiderApplication = {
+          ...rest,
+          id: uid("ra"),
+          status: "pending_interview",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({ riderApps: [full, ...state.riderApps] }));
+        return full;
+      },
+
+      listRental: (item) => {
+        set((state) => ({
+          rentals: [
+            { ...item, id: uid("r"), available: true },
+            ...state.rentals,
+          ],
+        }));
+      },
+
+      requestBorrow: (req) => {
+        set((state) => ({
+          borrowRequests: [
+            {
+              ...req,
+              id: uid("br"),
+              status: "open",
+              createdAt: new Date().toISOString(),
+            },
+            ...state.borrowRequests,
+          ],
+        }));
+      },
+
+      requestLocalRide: (req) => {
+        const ride: LocalRideRequest = {
+          ...req,
+          id: uid("lr"),
+          status: "broadcasting",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({ localRides: [ride, ...state.localRides] }));
+        systemNotify(set, "Local drivers notified (demo push/SMS)");
+        return ride;
+      },
+
+      listCar: (car) => {
+        set((state) => ({
+          carListings: [
+            {
+              ...car,
+              id: uid("car"),
+              available: true,
+              tripsHosted: 0,
+              rating: 5,
+            },
+            ...state.carListings,
+          ],
+        }));
+        systemNotify(set, "Car listed for Share a car");
+      },
+
+      bookCar: (carId, days) => {
+        const car = get().carListings.find((c) => c.id === carId);
+        if (!car || days < 1) return;
+        const total = car.ratePerDay * days;
+        set((state) => ({
+          carBookings: [
+            {
+              id: uid("cb"),
+              carId,
+              days,
+              total,
+              status: "reserved",
+              createdAt: new Date().toISOString(),
+            },
+            ...state.carBookings,
+          ],
+        }));
+        systemNotify(
+          set,
+          `Car reserved ${days}d · $${total} (Share ~10% when live payments)`,
+        );
+      },
+
+      requestVolunteerRide: (req) => {
+        const ride: VolunteerRide = {
+          ...req,
+          id: uid("vol"),
+          status: "seeking_volunteer",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          volunteerRides: [ride, ...state.volunteerRides],
+        }));
+        return ride;
+      },
+
+      claimVolunteer: (id, driverName) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id
+              ? { ...r, status: "matched", matchedDriverName: driverName }
+              : r,
+          ),
+        }));
+        systemNotify(set, `Volunteer ride matched with ${driverName}`);
+      },
+
+      processVolunteerEscalations: () => {
+        const now = Date.now();
+        let count = 0;
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) => {
+            if (!shouldEscalate(r, now)) return r;
+            count += 1;
+            return {
+              ...r,
+              status: "escalated_paid" as const,
+              escalatedAt: new Date().toISOString(),
+            };
+          }),
+        }));
+        return count;
+      },
+
+      forceEscalateVolunteer: (id) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id && r.status === "seeking_volunteer"
+              ? {
+                  ...r,
+                  status: "escalated_paid" as const,
+                  escalatedAt: new Date().toISOString(),
+                }
+              : r,
+          ),
+        }));
+      },
+
+      joinWaitlist: (email) => {
+        const cleaned = email.trim().toLowerCase();
+        if (!cleaned) return;
+        set((state) => ({
+          waitlistEmails: state.waitlistEmails.includes(cleaned)
+            ? state.waitlistEmails
+            : [cleaned, ...state.waitlistEmails],
+        }));
+      },
+
+      setRiderName: (name) => set({ riderName: name }),
+      applyAsDriver: () => set({ isDriverApproved: true }),
+
+      cancelBooking: (id) => {
+        const booking = get().bookings.find((b) => b.id === id);
+        if (!booking) return;
+        set((state) => ({
+          bookings: state.bookings.filter((b) => b.id !== id),
+          trips:
+            booking.kind === "ride"
+              ? state.trips.map((t) =>
+                  t.id === booking.tripId
+                    ? {
+                        ...t,
+                        seatsAvailable: t.seatsAvailable + booking.seats,
+                      }
+                    : t,
+                )
+              : state.trips,
+        }));
+      },
+
+      toggleFavoriteDriver: (id) => {
+        set((state) => ({
+          favoriteDriverIds: state.favoriteDriverIds.includes(id)
+            ? state.favoriteDriverIds.filter((x) => x !== id)
+            : [...state.favoriteDriverIds, id],
+        }));
+      },
+
+      setDriverAppStatus: (id, status, extra) => {
+        set((state) => ({
+          driverApps: state.driverApps.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  status,
+                  interviewAt: extra?.interviewAt ?? a.interviewAt,
+                  adminNote: extra?.adminNote ?? a.adminNote,
+                }
+              : a,
+          ),
+          isDriverApproved:
+            status === "approved" ? true : state.isDriverApproved,
+        }));
+        if (status === "approved") {
+          systemNotify(set, "Driver approved — SMS/email demo sent");
+        }
+      },
+
+      setRiderAppStatus: (id, status, extra) => {
+        set((state) => ({
+          riderApps: state.riderApps.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  status,
+                  interviewAt: extra?.interviewAt ?? a.interviewAt,
+                  adminNote: extra?.adminNote ?? a.adminNote,
+                }
+              : a,
+          ),
+          isRiderApproved:
+            status === "approved" ? true : state.isRiderApproved,
+        }));
+      },
+
+      setDeliveryStatus: (id, status, adminNote) => {
+        get().advanceDelivery(id, status, adminNote);
+      },
+
+      setLocalRideStatus: (id, status, adminNote) => {
+        set((state) => ({
+          localRides: state.localRides.map((r) =>
+            r.id === id
+              ? { ...r, status, adminNote: adminNote ?? r.adminNote }
+              : r,
+          ),
+        }));
+      },
+
+      sendMessage: (threadId, body, from) => {
+        const text = body.trim();
+        if (!text) return;
+        const sender = from ?? (get().riderName || "You");
+        const msg: ChatMessage = {
+          id: uid("m"),
+          threadId,
+          from: sender,
+          body: text,
+          at: new Date().toISOString(),
+          kind: "text",
+        };
+        set((state) => ({
+          messages: [...state.messages, msg],
+          threads: state.threads.map((t) =>
+            t.id === threadId ? { ...t, updatedAt: msg.at, unread: 0 } : t,
+          ),
+        }));
+      },
+
+      openThread: (threadId) => {
+        set((state) => ({
+          threads: state.threads.map((t) =>
+            t.id === threadId ? { ...t, unread: 0 } : t,
+          ),
+        }));
+      },
+
+      startThread: ({
+        subject,
+        withName,
+        relatedType,
+        relatedId,
+        firstMessage,
+      }) => {
+        const id = uid("th");
+        const now = new Date().toISOString();
+        const thread: ChatThread = {
+          id,
+          subject,
+          participants: ["You", withName],
+          relatedType,
+          relatedId,
+          updatedAt: now,
+          unread: 0,
+        };
+        const msgs: ChatMessage[] = [
+          {
+            id: uid("m"),
+            threadId: id,
+            from: "Share Ops",
+            body: "This conversation is logged for safety. Keep trip talk in Share.",
+            at: now,
+            kind: "system",
+          },
+        ];
+        if (firstMessage) {
+          msgs.push({
+            id: uid("m"),
+            threadId: id,
+            from: get().riderName || "You",
+            body: firstMessage,
+            at: now,
+            kind: "text",
+          });
+        }
+        set((state) => ({
+          threads: [thread, ...state.threads],
+          messages: [...state.messages, ...msgs],
+        }));
+        return id;
+      },
+
+      addSavedPlace: (label, address) => {
+        if (!label.trim() || !address.trim()) return;
+        set((state) => ({
+          savedPlaces: [
+            { id: uid("sp"), label: label.trim(), address: address.trim() },
+            ...state.savedPlaces,
+          ],
+        }));
+      },
+
+      removeSavedPlace: (id) => {
+        set((state) => ({
+          savedPlaces: state.savedPlaces.filter((p) => p.id !== id),
+        }));
+      },
+
+      redeemInvite: (code) => {
+        const c = code.trim().toUpperCase();
+        const ok = (PILOT_INVITE_CODES as readonly string[]).includes(c);
+        if (ok) {
+          set({ inviteCodeUsed: c });
+          systemNotify(set, `Invite ${c} accepted — pilot access`);
+        }
+        return ok;
+      },
+
+      recordReferral: () => {
+        set((state) => ({ referralCount: state.referralCount + 1 }));
+        systemNotify(set, "Referral recorded (demo)");
+      },
+
+      demoCheckout: (label, amount, bookingId) => {
+        const payment: PaymentRecord = {
+          id: uid("pay"),
+          label,
+          amount,
+          status: "demo_paid",
+          createdAt: new Date().toISOString(),
+          bookingId,
+          stripeLikeId: fakeStripeId(),
+        };
+        set((state) => ({ payments: [payment, ...state.payments] }));
+        systemNotify(
+          set,
+          `Demo Stripe paid $${amount} · ${payment.stripeLikeId}`,
+        );
+        return payment;
+      },
+
+      postRideRequest: (req) => {
+        const full: CorridorRideRequest = {
+          ...req,
+          id: uid("req"),
+          status: "open",
+          createdAt: new Date().toISOString(),
+          offers: [],
+        };
+        set((state) => ({
+          rideRequests: [full, ...state.rideRequests],
+        }));
+        systemNotify(
+          set,
+          `Ride request ${req.from.split(",")[0]} → ${req.to.split(",")[0]} · max $${req.maxBid}`,
+        );
+        return full;
+      },
+
+      offerOnRideRequest: (requestId, offer) => {
+        const req = get().rideRequests.find((r) => r.id === requestId);
+        if (!req || req.status !== "open") return null;
+        if (offer.amount <= 0) return null;
+        const o: RideOffer = {
+          id: uid("off"),
+          requestId,
+          driverName: offer.driverName,
+          driverId: offer.driverId,
+          amount: offer.amount,
+          note: offer.note,
+          status: "open",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          rideRequests: state.rideRequests.map((r) =>
+            r.id === requestId ? { ...r, offers: [o, ...r.offers] } : r,
+          ),
+        }));
+        systemNotify(
+          set,
+          `${offer.driverName} offered $${offer.amount} on ${req.requesterName}'s request`,
+        );
+        // Auto-notify if under bid
+        if (matchedFare(req.maxBid, offer.amount) != null) {
+          systemNotify(
+            set,
+            `Offer $${offer.amount} is within Amy-style max bid $${req.maxBid} — ready to accept`,
+          );
+        }
+        return o;
+      },
+
+      acceptRideOffer: (requestId, offerId) => {
+        const req = get().rideRequests.find((r) => r.id === requestId);
+        if (!req || req.status !== "open") return false;
+        const offer = req.offers.find((o) => o.id === offerId);
+        if (!offer || offer.status !== "open") return false;
+        const fare = matchedFare(req.maxBid, offer.amount);
+        if (fare == null) return false;
+
+        // Build a trip from the deal so it appears in rides
+        const depart = new Date(req.neededBy);
+        const hours =
+          req.from.includes("Lafayette") && req.to.includes("Shreveport")
+            ? 3.2
+            : 3.5;
+        const arrive = new Date(depart.getTime() + hours * 3600_000);
+        const short = (c: string) => {
+          const m: Record<string, string> = {
+            "Lafayette, LA": "LFT",
+            "Shreveport, LA": "SHV",
+            "Houston, TX": "HOU",
+            "Alexandria, LA": "AEX",
+            "New Orleans, LA": "MSY",
+            "Dallas, TX": "DFW",
+          };
+          return m[c] ?? c.slice(0, 3).toUpperCase();
+        };
+        const trip: Trip = {
+          id: uid("user"),
+          type: "ride",
+          from: req.from,
+          to: req.to,
+          fromShort: short(req.from),
+          toShort: short(req.to),
+          departAt: depart.toISOString(),
+          arriveAt: arrive.toISOString(),
+          seatsAvailable: Math.max(0, 3 - req.seats),
+          seatsTotal: 3,
+          cargoCapacity: "2 bags",
+          pricePerSeat: fare,
+          deliveryRate: Math.max(10, Math.round(fare * 0.6)),
+          stops:
+            req.from.includes("Lafayette") && req.to.includes("Shreveport")
+              ? ["Alexandria, LA"]
+              : [],
+          schedule: "flexible",
+          notes: `Matched from request · ${offer.note || "Deal closed"}`,
+          driverId: offer.driverId ?? "d1",
+          distanceMiles: 215,
+          durationHours: hours,
+        };
+        const booking: Booking = {
+          id: uid("bk"),
+          tripId: trip.id,
+          kind: "ride",
+          seats: req.seats,
+          cargoNote: req.notes,
+          status: "confirmed",
+          createdAt: new Date().toISOString(),
+          total: fare * req.seats,
+        };
+        set((state) => ({
+          rideRequests: state.rideRequests.map((r) =>
+            r.id === requestId
+              ? {
+                  ...r,
+                  status: "matched" as const,
+                  matchedOfferId: offerId,
+                  matchedAmount: fare,
+                  matchedDriverName: offer.driverName,
+                  offers: r.offers.map((o) =>
+                    o.id === offerId
+                      ? { ...o, status: "accepted" as const }
+                      : o.status === "open"
+                        ? { ...o, status: "declined" as const }
+                        : o,
+                  ),
+                }
+              : r,
+          ),
+          trips: [trip, ...state.trips],
+          bookings: [booking, ...state.bookings],
+        }));
+        systemNotify(
+          set,
+          `Deal! ${req.requesterName} × ${offer.driverName} @ $${fare}`,
+        );
+        return true;
+      },
+
+      cancelRideRequest: (requestId) => {
+        set((state) => ({
+          rideRequests: state.rideRequests.map((r) =>
+            r.id === requestId ? { ...r, status: "cancelled" as const } : r,
+          ),
+        }));
+      },
+
+      claimDeliveryOnTrip: (deliveryId, tripId, driverName) => {
+        const trip = get().trips.find((t) => t.id === tripId);
+        const name = driverName ?? "Driver";
+        get().advanceDelivery(
+          deliveryId,
+          "matched",
+          trip
+            ? `Matched to ${trip.fromShort}→${trip.toShort} corridor trip`
+            : "Matched on corridor",
+          name,
+        );
+      },
+
+      pushNotification: (text) => systemNotify(set, text),
+      clearNotifications: () => set({ notifications: [] }),
+
+      resetDemo: () => {
+        try {
+          localStorage.removeItem("share-app-v8");
+          // also clear any older keys from prior demos
+          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8"].forEach(
+            (k) => localStorage.removeItem(k),
+          );
+        } catch {
+          /* ignore */
+        }
+        if (typeof window !== "undefined") {
+          window.location.href = "/app";
+        }
+      },
+
+      setEmergencyContact: (name, phone) =>
+        set({
+          emergencyContactName: name.trim(),
+          emergencyContactPhone: phone.trim(),
+        }),
+      setIdVerified: (v) => set({ idVerified: v }),
+      rateTrip: (bookingId, stars) => {
+        set((state) => ({
+          tripRatings: { ...state.tripRatings, [bookingId]: stars },
+        }));
+        systemNotify(set, `Rated trip ${stars}★`);
+      },
+    }),
+    {
+      name: "share-app-v8",
+      partialize: (s) => ({
+        bookings: s.bookings,
+        deliveries: s.deliveries,
+        trips: s.trips.filter((t) => t.id.startsWith("user_")),
+        driverApps: s.driverApps,
+        riderApps: s.riderApps,
+        rentals: s.rentals.filter((r) => r.id.startsWith("r_")),
+        borrowRequests: s.borrowRequests.filter((b) => b.id.startsWith("br_")),
+        localRides: s.localRides,
+        volunteerRides: s.volunteerRides,
+        carListings: s.carListings.filter((c) => c.id.startsWith("car_")),
+        carBookings: s.carBookings,
+        rideRequests: s.rideRequests,
+        waitlistEmails: s.waitlistEmails,
+        threads: s.threads,
+        messages: s.messages,
+        savedPlaces: s.savedPlaces,
+        payments: s.payments,
+        inviteCodeUsed: s.inviteCodeUsed,
+        referralCode: s.referralCode,
+        referralCount: s.referralCount,
+        notifications: s.notifications,
+        riderName: s.riderName,
+        isDriverApproved: s.isDriverApproved,
+        isRiderApproved: s.isRiderApproved,
+        favoriteDriverIds: s.favoriteDriverIds,
+        emergencyContactName: s.emergencyContactName,
+        emergencyContactPhone: s.emergencyContactPhone,
+        idVerified: s.idVerified,
+        tripRatings: s.tripRatings,
+      }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<ShareState>;
+        const userTrips = p.trips ?? [];
+        const baseIds = new Set(TRIPS.map((t) => t.id));
+        const mergedTrips = [
+          ...userTrips.filter((t) => !baseIds.has(t.id)),
+          ...TRIPS.map((base) => {
+            const booked = (p.bookings ?? [])
+              .filter((b) => b.tripId === base.id && b.kind === "ride")
+              .reduce((sum, b) => sum + b.seats, 0);
+            return {
+              ...base,
+              seatsAvailable: Math.max(0, base.seatsAvailable - booked),
+            };
+          }),
+        ];
+        const userRentals = (p.rentals ?? []).filter(
+          (r) => !RENTAL_LISTINGS.some((b) => b.id === r.id),
+        );
+        const userBorrows = (p.borrowRequests ?? []).filter(
+          (b) => !BORROW_REQUESTS.some((x) => x.id === b.id),
+        );
+        const persistedDrivers = p.driverApps ?? [];
+        const persistedRiders = p.riderApps ?? [];
+        const driverApps = [
+          ...persistedDrivers,
+          ...SEED_DRIVER_APPS.filter(
+            (s) => !persistedDrivers.some((x) => x.id === s.id),
+          ),
+        ];
+        const riderApps = [
+          ...persistedRiders,
+          ...SEED_RIDER_APPS.filter(
+            (s) => !persistedRiders.some((x) => x.id === s.id),
+          ),
+        ];
+        const userDeliveries = (p.deliveries ?? []).filter(
+          (d) => !OPEN_DELIVERIES.some((x) => x.id === d.id),
+        );
+        const persistedVol = p.volunteerRides ?? [];
+        const volunteerRides = [
+          ...persistedVol,
+          ...SEED_VOLUNTEERS.filter(
+            (s) => !persistedVol.some((x) => x.id === s.id),
+          ),
+        ];
+        const userCars = (p.carListings ?? []).filter(
+          (c) => !CAR_LISTINGS.some((b) => b.id === c.id),
+        );
+        return {
+          ...current,
+          ...p,
+          trips: mergedTrips,
+          rentals: [...userRentals, ...RENTAL_LISTINGS],
+          borrowRequests: [...userBorrows, ...BORROW_REQUESTS],
+          deliveries: userDeliveries.length
+            ? [
+                ...userDeliveries,
+                ...OPEN_DELIVERIES.filter(
+                  (d) => !userDeliveries.some((u) => u.id === d.id),
+                ),
+              ]
+            : OPEN_DELIVERIES,
+          driverApps,
+          riderApps,
+          localRides: p.localRides ?? [],
+          volunteerRides,
+          carListings: [...userCars, ...CAR_LISTINGS],
+          carBookings: p.carBookings ?? [],
+          rideRequests: (() => {
+            const persisted = p.rideRequests ?? [];
+            const seeds = SEED_RIDE_REQUESTS.filter(
+              (s) => !persisted.some((x) => x.id === s.id),
+            );
+            return [...persisted, ...seeds];
+          })(),
+          waitlistEmails: p.waitlistEmails ?? [],
+          favoriteDriverIds: p.favoriteDriverIds ?? current.favoriteDriverIds,
+          threads:
+            p.threads && p.threads.length > 0 ? p.threads : SEED_THREADS,
+          messages:
+            p.messages && p.messages.length > 0 ? p.messages : SEED_MESSAGES,
+          savedPlaces:
+            p.savedPlaces && p.savedPlaces.length > 0
+              ? p.savedPlaces
+              : DEFAULT_SAVED_PLACES,
+          payments: p.payments ?? [],
+          notifications: p.notifications ?? current.notifications,
+        };
+      },
+    },
+  ),
+);

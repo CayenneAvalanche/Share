@@ -1,0 +1,227 @@
+import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { AppShell } from "@/components/share/shell";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import {
+  HUB_CITIES,
+  RENTAL_CATEGORIES,
+  type RentalCategory,
+} from "@/lib/share/data";
+import { useShareStore } from "@/lib/share/store";
+
+export const Route = createFileRoute("/share-stuff/new")({
+  component: NewShareStuffPage,
+});
+
+function NewShareStuffPage() {
+  const listRental = useShareStore((s) => s.listRental);
+  const requestBorrow = useShareStore((s) => s.requestBorrow);
+  const riderName = useShareStore((s) => s.riderName);
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"list" | "need">("list");
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<RentalCategory>("tools");
+  const [rate, setRate] = useState(15);
+  const [rateUnit, setRateUnit] = useState<"hour" | "day" | "weekend">("day");
+  const [city, setCity] = useState("Lafayette, LA");
+  const [deposit, setDeposit] = useState(20);
+  const [neededBy, setNeededBy] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) {
+      toast.error("Add a title");
+      return;
+    }
+
+    if (mode === "list") {
+      listRental({
+        title: title.trim(),
+        description: description.trim() || "Available to share.",
+        category,
+        rate,
+        rateUnit,
+        city,
+        ownerName: riderName || "Share member",
+        deposit: deposit || undefined,
+      });
+      toast.success("Item listed for Share");
+    } else {
+      requestBorrow({
+        title: title.trim(),
+        description: description.trim() || "Need this soon.",
+        category,
+        offer: rate,
+        rateUnit,
+        city,
+        neededBy: new Date(`${neededBy}T12:00:00`).toISOString(),
+        requesterName: riderName || "Share member",
+      });
+      toast.success("Need posted — neighbors can respond");
+    }
+    navigate({ to: "/share-stuff" });
+  }
+
+  return (
+    <AppShell
+      title={mode === "list" ? "List something" : "Post a need"}
+      subtitle="Garage economy · your terms"
+      backTo="/share-stuff"
+      solidHeader
+    >
+      <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("list")}
+            className={`rounded-[var(--radius-md)] border-2 px-3 py-3 text-sm font-semibold ${
+              mode === "list"
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)]/8 text-[var(--color-primary)]"
+                : "border-[var(--color-border)] text-[var(--color-fg-muted)]"
+            }`}
+          >
+            I have it
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("need")}
+            className={`rounded-[var(--radius-md)] border-2 px-3 py-3 text-sm font-semibold ${
+              mode === "need"
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)]/8 text-[var(--color-accent)]"
+                : "border-[var(--color-border)] text-[var(--color-fg-muted)]"
+            }`}
+          >
+            I need it
+          </button>
+        </div>
+
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <div>
+              <Label htmlFor="title">
+                {mode === "list" ? "What are you sharing?" : "What do you need?"}
+              </Label>
+              <Input
+                id="title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={
+                  mode === "list"
+                    ? "e.g. DeWalt impact drill kit"
+                    : "e.g. Need a trailer Saturday AM"
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="desc">Details</Label>
+              <Textarea
+                id="desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Condition, pickup notes, rules…"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="cat">Category</Label>
+                <Select
+                  id="cat"
+                  value={category}
+                  onChange={(e) =>
+                    setCategory(e.target.value as RentalCategory)
+                  }
+                >
+                  {RENTAL_CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Select
+                  id="city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                >
+                  {HUB_CITIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="rate">
+                  {mode === "list" ? "Rate ($)" : "Your offer ($)"}
+                </Label>
+                <Input
+                  id="rate"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={rate}
+                  onChange={(e) => setRate(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="unit">Per</Label>
+                <Select
+                  id="unit"
+                  value={rateUnit}
+                  onChange={(e) =>
+                    setRateUnit(e.target.value as "hour" | "day" | "weekend")
+                  }
+                >
+                  <option value="hour">Hour</option>
+                  <option value="day">Day</option>
+                  <option value="weekend">Weekend</option>
+                </Select>
+              </div>
+            </div>
+            {mode === "list" ? (
+              <div>
+                <Label htmlFor="deposit">Deposit ($ optional)</Label>
+                <Input
+                  id="deposit"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={deposit}
+                  onChange={(e) => setDeposit(Number(e.target.value))}
+                />
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="needed">Needed by</Label>
+                <Input
+                  id="needed"
+                  type="date"
+                  value={neededBy}
+                  onChange={(e) => setNeededBy(e.target.value)}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Button type="submit" size="xl" className="w-full">
+          {mode === "list" ? "List for Share" : "Post need"}
+        </Button>
+      </form>
+    </AppShell>
+  );
+}

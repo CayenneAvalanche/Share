@@ -92,6 +92,8 @@ type ShareState = {
     offer: { driverName: string; driverId?: string; amount: number; note: string },
   ) => RideOffer | null;
   acceptRideOffer: (requestId: string, offerId: string) => boolean;
+  /** Rider raises private max offer; over-budget bids that now fit become pending_approval */
+  raisePrivateOffer: (requestId: string, newMax: number) => number;
   cancelRideRequest: (requestId: string) => void;
   claimDeliveryOnTrip: (deliveryId: string, tripId: string, driverName?: string) => void;
   bookRide: (
@@ -778,10 +780,14 @@ export const useShareStore = create<ShareState>()(
             `${offer.driverName} bid $${offer.amount} on ${req.requesterName}'s trip — awaiting rider approval`,
           );
         } else {
-          // Do not reveal the private offer amount to the driver.
+          // Driver: no number. Rider: interest signal so they can raise offer.
           systemNotify(
             set,
             `${offer.driverName}: bid $${offer.amount} is above the rider's private offer — lower your bid and try again`,
+          );
+          systemNotify(
+            set,
+            `${req.requesterName}: a driver bid $${offer.amount} but your private offer is lower — raise your offer to unlock, or wait for a lower bid`,
           );
         }
         return o;
@@ -878,6 +884,41 @@ export const useShareStore = create<ShareState>()(
           `Deal! ${req.requesterName} × ${offer.driverName} @ $${fare}`,
         );
         return true;
+      },
+
+
+      raisePrivateOffer: (requestId, newMax) => {
+        const req = get().rideRequests.find((r) => r.id === requestId);
+        if (!req || req.status !== "open") return 0;
+        if (newMax < 5) return 0;
+        let unlocked = 0;
+        const nextOffers = req.offers.map((o) => {
+          if (o.status === "over_budget" && o.amount <= newMax) {
+            unlocked += 1;
+            return { ...o, status: "pending_approval" as const };
+          }
+          if (
+            (o.status === "pending_approval" || o.status === "open") &&
+            o.amount > newMax
+          ) {
+            return { ...o, status: "over_budget" as const };
+          }
+          return o;
+        });
+        set((state) => ({
+          rideRequests: state.rideRequests.map((r) =>
+            r.id === requestId
+              ? { ...r, maxBid: newMax, offers: nextOffers }
+              : r,
+          ),
+        }));
+        systemNotify(
+          set,
+          unlocked
+            ? `Private offer raised to $${newMax} — ${unlocked} bid(s) now ready to approve`
+            : `Private offer set to $${newMax}`,
+        );
+        return unlocked;
       },
 
       cancelRideRequest: (requestId) => {

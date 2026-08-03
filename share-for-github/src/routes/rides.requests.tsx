@@ -61,9 +61,9 @@ function RideRequestsList() {
                 Deal locks at their bid.
               </li>
               <li>
-                If too high → they’re told to{" "}
-                <strong className="text-[var(--color-fg)]">lower the bid</strong>
-                — still no number shown.
+                If too high → driver can lower the bid or walk away. You still
+                see <strong className="text-[var(--color-fg)]">interest</strong>{" "}
+                and can raise your private offer to unlock them.
               </li>
             </ol>
           </div>

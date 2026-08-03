@@ -21,6 +21,7 @@ function RideRequestDetailPage() {
   const rideRequests = useShareStore((s) => s.rideRequests);
   const offerOnRideRequest = useShareStore((s) => s.offerOnRideRequest);
   const acceptRideOffer = useShareStore((s) => s.acceptRideOffer);
+  const raisePrivateOffer = useShareStore((s) => s.raisePrivateOffer);
   const riderName = useShareStore((s) => s.riderName);
   const req = rideRequests.find((r) => r.id === id);
 
@@ -29,6 +30,7 @@ function RideRequestDetailPage() {
     "I was already heading that way — can knock it out Saturday.",
   );
   const [driverName, setDriverName] = useState("Tom K.");
+  const [newOffer, setNewOffer] = useState(0);
   /** Demo role switch — real auth will use account type */
   const [viewAs, setViewAs] = useState<"driver" | "rider">("driver");
 
@@ -81,6 +83,84 @@ function RideRequestDetailPage() {
             View as rider
           </button>
         </div>
+
+        {isRiderView &&
+          req.offers.some((o) => o.status === "over_budget") &&
+          req.status === "open" && (
+            <Card className="border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10">
+              <CardContent className="space-y-3 p-4 text-sm">
+                <p className="font-semibold text-[var(--color-fg)]">
+                  Drivers are interested — your private offer may be low
+                </p>
+                <p className="text-[var(--color-fg-muted)]">
+                  Someone bid higher than your private max. They were told to
+                  lower their bid (they never saw your number). You can{" "}
+                  <strong className="text-[var(--color-fg)]">
+                    raise your offer
+                  </strong>{" "}
+                  to unlock those bids for approval, or wait for a lower bid.
+                </p>
+                <ul className="list-disc space-y-1 pl-5 text-[var(--color-fg-muted)]">
+                  {req.offers
+                    .filter((o) => o.status === "over_budget")
+                    .map((o) => (
+                      <li key={o.id}>
+                        {o.driverName} bid{" "}
+                        <strong className="text-[var(--color-fg)]">
+                          {formatCurrency(o.amount)}
+                        </strong>
+                        {o.note ? ` — “${o.note.slice(0, 60)}”` : ""}
+                      </li>
+                    ))}
+                </ul>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-[8rem] flex-1">
+                    <Label htmlFor="raise">New private offer ($)</Label>
+                    <Input
+                      id="raise"
+                      type="number"
+                      min={req.maxBid + 1}
+                      value={
+                        newOffer ||
+                        Math.max(
+                          req.maxBid + 5,
+                          ...req.offers
+                            .filter((o) => o.status === "over_budget")
+                            .map((o) => o.amount),
+                        )
+                      }
+                      onChange={(e) => setNewOffer(Number(e.target.value))}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => {
+                      const target =
+                        newOffer ||
+                        Math.max(
+                          req.maxBid + 5,
+                          ...req.offers
+                            .filter((o) => o.status === "over_budget")
+                            .map((o) => o.amount),
+                        );
+                      if (target <= req.maxBid) {
+                        toast.error("New offer must be higher than current");
+                        return;
+                      }
+                      const n = raisePrivateOffer(req.id, target);
+                      toast.success(
+                        n
+                          ? `Offer raised to ${formatCurrency(target)} — ${n} bid(s) unlocked`
+                          : `Offer raised to ${formatCurrency(target)}`,
+                      );
+                    }}
+                  >
+                    Raise offer & unlock
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
 
         <Card>
           <CardContent className="space-y-2 p-5">
@@ -154,9 +234,10 @@ function RideRequestDetailPage() {
                 Place your bid
               </h2>
               <p className="text-sm text-[var(--color-fg-muted)]">
-                Bid what you want for the seat. If it fits the rider’s private
-                offer, they’ll get it for approval. If it’s too high, you’ll be
-                asked to lower your bid — we won’t show their number.
+                Bid what you want for the seat. If it fits their private offer,
+                they approve. If it’s high, we ask you to lower it — we never
+                show their number. If you walk away, the rider still sees that
+                someone bid (and can raise their offer).
               </p>
               <div>
                 <Label htmlFor="dn">Your name</Label>
@@ -251,8 +332,8 @@ function RideRequestDetailPage() {
                         {o.status === "over_budget" && (
                           <Badge variant="outline">
                             {isRiderView
-                              ? "Above your private offer"
-                              : "Too high — lower bid"}
+                              ? "Above your offer — raise to unlock"
+                              : "Too high — lower bid or wait"}
                           </Badge>
                         )}
                         {o.status === "accepted" && (

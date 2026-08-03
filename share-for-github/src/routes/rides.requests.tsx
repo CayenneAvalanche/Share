@@ -13,7 +13,6 @@ export const Route = createFileRoute("/rides/requests")({
 
 function RideRequestsLayout() {
   const childMatches = useChildMatches();
-  // Detail routes render themselves; list only when no child
   if (childMatches.length > 0) {
     return <Outlet />;
   }
@@ -27,14 +26,15 @@ function RideRequestsList() {
 
   return (
     <AppShell
-      title="Trip requests"
-      subtitle="Bid max · drivers offer · match"
+      title="Request a ride"
+      subtitle="Under Share a ride · private offer · driver bids"
       solidHeader
+      backTo="/rides"
       action={
         <Button size="sm" asChild>
           <Link to="/rides/request/new">
             <Plus className="size-4" />
-            Request
+            New
           </Link>
         </Button>
       }
@@ -44,13 +44,28 @@ function RideRequestsList() {
           <HandCoins className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" />
           <div className="text-sm text-[var(--color-fg-muted)]">
             <p className="font-semibold text-[var(--color-fg)]">
-              No posted seats? Post a request
+              How offers & bids work
             </p>
-            <p className="mt-1">
-              Amy needs SHV Saturday · max $40. Tom was going anyway · offers
-              $25. She accepts → deal at <strong>$25</strong> (driver offer ≤
-              rider max bid).
-            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4">
+              <li>
+                <strong className="text-[var(--color-fg)]">You offer</strong> a
+                private max you’ll pay (drivers never see the number).
+              </li>
+              <li>
+                <strong className="text-[var(--color-fg)]">Drivers bid</strong>{" "}
+                what they want for the seat.
+              </li>
+              <li>
+                If their bid fits your offer → you{" "}
+                <strong className="text-[var(--color-fg)]">approve</strong>.
+                Deal locks at their bid.
+              </li>
+              <li>
+                If too high → they’re told to{" "}
+                <strong className="text-[var(--color-fg)]">lower the bid</strong>
+                — still no number shown.
+              </li>
+            </ol>
           </div>
         </CardContent>
       </Card>
@@ -65,9 +80,10 @@ function RideRequestsList() {
           </p>
         )}
         {open.map((r) => {
-          const best = [...r.offers]
-            .filter((o) => o.status === "open")
-            .sort((a, b) => a.amount - b.amount)[0];
+          const pending = r.offers.filter(
+            (o) => o.status === "pending_approval" || o.status === "open",
+          );
+          const best = [...pending].sort((a, b) => a.amount - b.amount)[0];
           return (
             <Link
               key={r.id}
@@ -89,24 +105,22 @@ function RideRequestsList() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-[var(--color-fg-subtle)]">
-                        Max bid
+                        Driver view
                       </p>
-                      <p className="font-display text-lg font-semibold text-[var(--color-primary)]">
-                        {formatCurrency(r.maxBid)}
+                      <p className="text-sm font-semibold text-[var(--color-primary)]">
+                        Bid to ride
                       </p>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{r.seats} seat(s)</Badge>
                     <Badge variant="outline">
-                      {r.offers.filter((o) => o.status === "open").length} offer
-                      {r.offers.filter((o) => o.status === "open").length === 1
-                        ? ""
-                        : "s"}
+                      {pending.length} bid
+                      {pending.length === 1 ? "" : "s"} pending
                     </Badge>
                     {best && (
                       <Badge variant="success">
-                        Best offer {formatCurrency(best.amount)}
+                        Lowest bid {formatCurrency(best.amount)}
                       </Badge>
                     )}
                     <ArrowRight className="ml-auto size-4 text-[var(--color-fg-subtle)]" />

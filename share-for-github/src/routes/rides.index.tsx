@@ -116,12 +116,17 @@ function RidesPage() {
             <strong>Need a seat with no listings?</strong>
             <span className="text-[var(--color-fg-muted)]">
               {" "}
-              Bid max $40 like Amy → drivers offer $25 → match.
+              Set a private offer · drivers bid · you approve.
             </span>
           </div>
-          <Button size="sm" variant="secondary" asChild>
-            <Link to="/rides/request/new">Request a trip</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/rides/requests">Browse requests</Link>
+            </Button>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/rides/request/new">Request a trip</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

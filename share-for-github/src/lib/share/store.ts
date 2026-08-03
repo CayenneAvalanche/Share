@@ -744,7 +744,7 @@ export const useShareStore = create<ShareState>()(
         }));
         systemNotify(
           set,
-          `Ride request ${req.from.split(",")[0]} → ${req.to.split(",")[0]} · max $${req.maxBid}`,
+          `Ride request ${req.from.split(",")[0]} → ${req.to.split(",")[0]} — private offer set · drivers can bid`,
         );
         return full;
       },
@@ -753,6 +753,10 @@ export const useShareStore = create<ShareState>()(
         const req = get().rideRequests.find((r) => r.id === requestId);
         if (!req || req.status !== "open") return null;
         if (offer.amount <= 0) return null;
+        // Rider maxOffer is private — drivers never see the number.
+        // Bid ≤ private offer → pending rider approval.
+        // Bid above private offer → over_budget (driver told to lower bid).
+        const within = matchedFare(req.maxBid, offer.amount) != null;
         const o: RideOffer = {
           id: uid("off"),
           requestId,
@@ -760,7 +764,7 @@ export const useShareStore = create<ShareState>()(
           driverId: offer.driverId,
           amount: offer.amount,
           note: offer.note,
-          status: "open",
+          status: within ? "pending_approval" : "over_budget",
           createdAt: new Date().toISOString(),
         };
         set((state) => ({
@@ -768,15 +772,16 @@ export const useShareStore = create<ShareState>()(
             r.id === requestId ? { ...r, offers: [o, ...r.offers] } : r,
           ),
         }));
-        systemNotify(
-          set,
-          `${offer.driverName} offered $${offer.amount} on ${req.requesterName}'s request`,
-        );
-        // Auto-notify if under bid
-        if (matchedFare(req.maxBid, offer.amount) != null) {
+        if (within) {
           systemNotify(
             set,
-            `Offer $${offer.amount} is within Amy-style max bid $${req.maxBid} — ready to accept`,
+            `${offer.driverName} bid $${offer.amount} on ${req.requesterName}'s trip — awaiting rider approval`,
+          );
+        } else {
+          // Do not reveal the private offer amount to the driver.
+          systemNotify(
+            set,
+            `${offer.driverName}: bid $${offer.amount} is above the rider's private offer — lower your bid and try again`,
           );
         }
         return o;
@@ -786,7 +791,11 @@ export const useShareStore = create<ShareState>()(
         const req = get().rideRequests.find((r) => r.id === requestId);
         if (!req || req.status !== "open") return false;
         const offer = req.offers.find((o) => o.id === offerId);
-        if (!offer || offer.status !== "open") return false;
+        if (
+          !offer ||
+          (offer.status !== "pending_approval" && offer.status !== "open")
+        )
+          return false;
         const fare = matchedFare(req.maxBid, offer.amount);
         if (fare == null) return false;
 
@@ -854,7 +863,7 @@ export const useShareStore = create<ShareState>()(
                   offers: r.offers.map((o) =>
                     o.id === offerId
                       ? { ...o, status: "accepted" as const }
-                      : o.status === "open"
+                      : o.status === "open" || o.status === "pending_approval"
                         ? { ...o, status: "declined" as const }
                         : o,
                   ),
@@ -897,9 +906,8 @@ export const useShareStore = create<ShareState>()(
 
       resetDemo: () => {
         try {
-          localStorage.removeItem("share-app-v8");
-          // also clear any older keys from prior demos
-          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8"].forEach(
+          localStorage.removeItem("share-app-v9");
+          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9"].forEach(
             (k) => localStorage.removeItem(k),
           );
         } catch {
@@ -924,7 +932,7 @@ export const useShareStore = create<ShareState>()(
       },
     }),
     {
-      name: "share-app-v8",
+      name: "share-app-v9",
       partialize: (s) => ({
         bookings: s.bookings,
         deliveries: s.deliveries,

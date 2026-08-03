@@ -41,7 +41,7 @@ function NewRideRequestPage() {
       return;
     }
     if (maxBid < 5) {
-      toast.error("Max bid too low");
+      toast.error("Your offer is too low");
       return;
     }
     const req = postRideRequest({
@@ -54,23 +54,24 @@ function NewRideRequestPage() {
       requesterName: riderName && riderName !== "Guest" ? riderName : "You",
       flexibleWindow,
     });
-    toast.success("Trip request live — drivers can offer");
+    toast.success("Request live — your offer is private; drivers will bid");
     navigate({ to: "/rides/requests/$id", params: { id: req.id } });
   }
 
   return (
     <AppShell
       title="Request a trip"
-      subtitle="Your max bid · drivers counter"
+      subtitle="Private offer · drivers bid"
       backTo="/rides/requests"
       solidHeader
     >
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
         <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
           <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-            Like Amy → Shreveport: set a <strong className="text-[var(--color-fg)]">max bid</strong>.
-            Drivers offer lower (or equal). Accept and the deal locks at the{" "}
-            <strong className="text-[var(--color-fg)]">driver’s offer</strong>.
+            Set a <strong className="text-[var(--color-fg)]">private offer</strong> — the
+            most you’ll pay (e.g. $40 to Shreveport). Drivers never see that number.
+            They place a <strong className="text-[var(--color-fg)]">bid</strong>. If it
+            fits, you approve. Deal locks at their bid.
           </CardContent>
         </Card>
         <Card>
@@ -128,7 +129,7 @@ function NewRideRequestPage() {
               </div>
             </div>
             <div>
-              <Label htmlFor="bid">Max you’ll pay ($)</Label>
+              <Label htmlFor="bid">Your private offer — max you’ll pay ($)</Label>
               <Input
                 id="bid"
                 type="number"

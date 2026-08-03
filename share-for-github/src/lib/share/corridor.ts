@@ -128,7 +128,7 @@ export function matchDeliveryToTrips(
   return out.sort((a, b) => b.score - a.score);
 }
 
-/** Deal price: driver offer wins if ≤ rider max bid. */
+/** Deal price: driver bid wins if ≤ rider private max offer. */
 export function matchedFare(maxBid: number, offerAmount: number): number | null {
   if (offerAmount <= 0 || maxBid <= 0) return null;
   if (offerAmount > maxBid) return null;

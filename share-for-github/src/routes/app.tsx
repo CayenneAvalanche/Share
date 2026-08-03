@@ -98,14 +98,7 @@ function AppHomePage() {
                 to="/rides"
                 icon={Car}
                 title="Share a ride"
-                sub="Long distance seats · dashcam drivers"
-                accent
-              />
-              <Choice
-                to="/rides/requests"
-                icon={HandCoins}
-                title="Trip requests & bids"
-                sub="Amy max $40 · Tom offers $25 · match"
+                sub="Post seats · or request a trip (private offer + bids)"
                 accent
               />
               <Choice

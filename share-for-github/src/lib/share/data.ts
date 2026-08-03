@@ -204,13 +204,20 @@ export type BorrowRequest = {
 };
 
 
-export type RideOfferStatus = "open" | "accepted" | "withdrawn" | "declined";
+export type RideOfferStatus =
+  | "pending_approval"
+  | "open"
+  | "accepted"
+  | "withdrawn"
+  | "declined"
+  | "over_budget";
 
 export type RideOffer = {
   id: string;
   requestId: string;
   driverName: string;
   driverId?: string;
+  /** Driver bid — what they want for the seat */
   amount: number;
   note: string;
   status: RideOfferStatus;
@@ -224,7 +231,10 @@ export type CorridorRideRequest = {
   /** Preferred travel day (ISO date or datetime) */
   neededBy: string;
   seats: number;
-  /** Rider max willing to pay (bid ceiling) */
+  /**
+   * Rider private max offer (ceiling they'll pay).
+   * Never show this number to drivers in marketplace UI.
+   */
   maxBid: number;
   notes: string;
   requesterName: string;
@@ -255,7 +265,7 @@ export const SEED_RIDE_REQUESTS: CorridorRideRequest[] = [
     neededBy: nextSaturdayIso(),
     seats: 1,
     maxBid: 40,
-    notes: "Amy needs a seat Saturday morning. Flexible on exact time. Soft bag only.",
+    notes: "Need a seat Saturday morning. Flexible on exact time. Soft bag only.",
     requesterName: "Amy M.",
     status: "open",
     createdAt: new Date().toISOString(),
@@ -267,8 +277,8 @@ export const SEED_RIDE_REQUESTS: CorridorRideRequest[] = [
         driverName: "Tom K.",
         driverId: "d1",
         amount: 25,
-        note: "I was already planning SHV this weekend — can do Saturday ~9am for $25.",
-        status: "open",
+        note: "Already heading SHV this weekend — Saturday ~9am works.",
+        status: "pending_approval",
         createdAt: new Date().toISOString(),
       },
     ],

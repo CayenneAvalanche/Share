@@ -27,319 +27,211 @@ const ACTS: { act: string; mins: string; steps: Step[] }[] = [
     steps: [
       {
         n: "1",
-        title: "Landing / story",
-        why: "What Share is in one breath",
+        title: "Landing + demo popup",
+        why: "First impression",
         href: "/",
         pathLabel: "Landing",
         taps: [
-          "Scroll hero: “Share your life. Share your adventures.”",
-          "Point at Lafayette / corridor positioning",
-          "Tap Apply to join → show driver vs rider paths",
+          "If demo popup shows: waitlist email or “Just explore”",
+          "Big Share logo (no Lafayette badge)",
+          "Drivers: apply now · Open the app",
         ],
-        say: "“Not another national gig app — interviewed people on routes we already drive.”",
+        say: "“Live pilot at share.myendeavors.me — demo data, real product shape.”",
       },
       {
         n: "2",
-        title: "About + logo",
-        why: "Brand credibility",
-        href: "/about",
-        pathLabel: "About",
-        taps: ["Show green S mark", "Mention share.myendeavors.me subdomain plan"],
-      },
-      {
-        n: "3",
-        title: "Legal drafts",
-        why: "You’re serious about pilot ops",
-        href: "/privacy",
-        pathLabel: "Privacy",
+        title: "Legal + logo files",
+        why: "Credibility",
+        href: "/terms",
+        pathLabel: "Terms",
         taps: [
-          "Open Privacy Policy",
-          "Open Terms of Service (link at bottom)",
-          "Note: pilot drafts — attorney before real money",
+          "Terms §9: arbitration + class waiver (draft)",
+          "Privacy linked in footer",
+          "Logo SVGs at /brand/share-mark.svg",
         ],
       },
     ],
   },
   {
-    act: "Act 2 · Amy & Tom — trip request bids (8 min)",
-    mins: "8 min",
+    act: "Act 2 · Private offer + bids (12 min) ★ main show",
+    mins: "12 min",
     steps: [
       {
-        n: "4",
-        title: "Open trip requests",
-        why: "No seats posted? Still demand",
-        href: "/rides/requests",
-        pathLabel: "Trip requests",
+        n: "3",
+        title: "Share a ride hub",
+        why: "Requests live under rides",
+        href: "/rides",
+        pathLabel: "Share a ride",
         taps: [
-          "Home → Trip requests & bids",
-          "Show Amy M. Lafayette → Shreveport, max bid $40, best offer $25",
+          "Show Request a trip / Browse requests (not a top-level tab)",
+          "Optional: browse posted corridor seats",
         ],
-        say: "“Amy needs SHV Saturday. Tom was going anyway.”",
+      },
+      {
+        n: "4",
+        title: "Open Amy’s request as DRIVER",
+        why: "Offer is hidden",
+        href: "/rides/requests/req_amy",
+        pathLabel: "Amy LFT→SHV",
+        taps: [
+          "Toggle View as driver",
+          "Confirm private offer is hidden",
+          "Place bid $25 → pending approval",
+          "Place bid $55 → “too high / lower bid” (no $40 shown)",
+        ],
+        say: "“If drivers saw $40, everyone would bid $40.”",
       },
       {
         n: "5",
-        title: "Accept Tom’s $25",
-        why: "Core match economics",
+        title: "Same request as RIDER",
+        why: "Interest + raise offer",
         href: "/rides/requests/req_amy",
-        pathLabel: "Amy’s request",
+        pathLabel: "Amy as rider",
         taps: [
-          "Open Amy’s request",
-          "Show max bid $40 vs Tom’s offer $25",
-          "Optional: send a second offer as another driver",
-          "Tap Accept @ $25 → deal locks at offer, not max",
-          "Land on My trips",
+          "Toggle View as rider",
+          "See private offer $40",
+          "If high bids: orange interest card",
+          "Raise offer to unlock, or Approve @ $25",
+          "Land on My trips after approve",
         ],
-        say: "“Deal price is the driver’s offer when it’s under her ceiling.”",
+        say: "“Driver can walk away — rider still sees interest and can raise.”",
       },
       {
         n: "6",
-        title: "Post your own request",
-        why: "Friend can role-play",
+        title: "Post a new request",
+        why: "Friend role-play",
         href: "/rides/request/new",
         pathLabel: "New request",
         taps: [
-          "Request a trip: LFT → SHV, set max $35",
-          "Submit → appear in open list",
+          "LFT → SHV, private offer $20",
+          "As driver bid $25 → over budget",
+          "As rider raise to $25 → unlock → approve",
         ],
       },
     ],
   },
   {
-    act: "Act 3 · Posted rides, bios, dashcam (10 min)",
-    mins: "10 min",
+    act: "Act 3 · Drivers who already Uber/Lyft (8 min)",
+    mins: "8 min",
     steps: [
       {
         n: "7",
-        title: "Browse corridor rides",
-        why: "Supply side",
-        href: "/rides",
-        pathLabel: "Rides",
-        taps: [
-          "Filter From Lafayette",
-          "Quick post: Leaving LFT Saturday (optional)",
-          "Open a LFT → SHV trip (Travis / Highlander)",
-        ],
-      },
-      {
-        n: "8",
-        title: "Know your driver",
-        why: "Personal / trust moat",
-        href: "/rides",
-        pathLabel: "Any trip detail",
-        taps: [
-          "Scroll public bio, hometown, other job",
-          "Other platforms: Uber/Lyft years, trips, ratings",
-          "Dashcam badge + photo notes",
-          "Prefer heart for favorite driver",
-        ],
-        say: "“Self-reported gigs + interview — riders know who they’re riding with.”",
-      },
-      {
-        n: "9",
-        title: "Book a seat",
-        why: "Checkout path",
-        href: "/rides",
-        pathLabel: "Trip detail",
-        taps: [
-          "Check dashcam acknowledgment",
-          "Confirm seat → Message driver → Checkout demo pay",
-        ],
-      },
-    ],
-  },
-  {
-    act: "Act 4 · Deliveries & corridor match (8 min)",
-    mins: "8 min",
-    steps: [
-      {
-        n: "10",
-        title: "Alexandria package on LFT→SHV",
-        why: "Tom already on the route",
-        href: "/deliveries",
-        pathLabel: "Deliveries",
-        taps: [
-          "Open “Box of shop fittings” AEX → SHV",
-          "Show Drivers already on this corridor",
-          "Est. pickup / est. drop times",
-          "Claim on this route",
-        ],
-        say: "“Empty trunk miles become paid miles.”",
-      },
-      {
-        n: "11",
-        title: "Live tracking",
-        why: "Ops confidence",
-        href: "/track/SHR-4K2M",
-        pathLabel: "Track SHR-4K2M",
-        taps: [
-          "Timeline: matched → pickup → transit → delivered",
-          "Advance status if demo allows",
-          "Photo note / tracking code",
-        ],
-      },
-      {
-        n: "12",
-        title: "Post a delivery",
-        why: "Business $10 shop handoff",
-        href: "/deliveries/request",
-        pathLabel: "Request delivery",
-        taps: [
-          "Default AEX→SHV or shop part",
-          "Watch corridor preview before submit",
-        ],
-      },
-    ],
-  },
-  {
-    act: "Act 5 · Local Uber competition (5 min)",
-    mins: "5 min",
-    steps: [
-      {
-        n: "13",
-        title: "Local ride vs Uber/Lyft",
-        why: "Price wedge",
-        href: "/local",
-        pathLabel: "Local",
-        taps: [
-          "Walmart → Library (or any spots)",
-          "Show Share vs Uber vs Lyft estimates",
-          "Woman / preferred driver",
-          "Broadcast request",
-        ],
-        say: "“Same city hop — we take ~10%, they take more.”",
-      },
-    ],
-  },
-  {
-    act: "Act 6 · Cars, gear, volunteer (8 min)",
-    mins: "8 min",
-    steps: [
-      {
-        n: "14",
-        title: "Share a car (Turo-style)",
-        why: "Whole car ≠ seat ≠ drill",
-        href: "/cars",
-        pathLabel: "Cars",
-        taps: [
-          "Browse Highlander / F-150",
-          "You → mark ID verified (required)",
-          "Reserve 2 days · show host ~90%",
-        ],
-      },
-      {
-        n: "15",
-        title: "Something else — tools",
-        why: "Ice chest / DeWalt / trailer",
-        href: "/share-stuff",
-        pathLabel: "Something else",
-        taps: [
-          "Browse listings",
-          "List item or post borrow request (need a shovel / drill)",
-        ],
-      },
-      {
-        n: "16",
-        title: "Volunteer → paid escalate",
-        why: "Community care",
-        href: "/volunteer",
-        pathLabel: "Volunteer",
-        taps: [
-          "Elder / veteran free ride",
-          "Show 0–2h escalate to paid if unclaimed",
-          "Admin can force escalate",
-        ],
-      },
-    ],
-  },
-  {
-    act: "Act 7 · Safety & chat (6 min)",
-    mins: "6 min",
-    steps: [
-      {
-        n: "17",
-        title: "Messages",
-        why: "Paper trail",
-        href: "/messages",
-        pathLabel: "Chat",
-        taps: ["Open a thread", "Send a message", "Note system safety line"],
-        say: "“Keep it in-app if something bad happens.”",
-      },
-      {
-        n: "18",
-        title: "SOS + audio",
-        why: "In-trip safety",
-        href: "/trips",
-        pathLabel: "My trips",
-        taps: [
-          "Need a booking first (from Amy accept or ride book)",
-          "SOS button",
-          "Record audio (demo) + LA one-party note",
-          "Rate stars · cancel/rebook",
-        ],
-      },
-      {
-        n: "19",
-        title: "Emergency contact & ID",
-        why: "Rider setup",
-        href: "/profile",
-        pathLabel: "You",
-        taps: [
-          "Save emergency contact",
-          "ID verified toggle",
-          "Invite code / referral",
-          "Saved places",
-        ],
-      },
-    ],
-  },
-  {
-    act: "Act 8 · Supply side & founder ops (8 min)",
-    mins: "8 min",
-    steps: [
-      {
-        n: "20",
         title: "Driver application",
-        why: "Bio + Uber/Lyft stats",
+        why: "Recruit gig drivers",
         href: "/apply/driver",
         pathLabel: "Driver apply",
         taps: [
-          "Fill public bio",
-          "Toggle Uber/Lyft/Spark + years/trips/rating",
-          "Dashcam + docs note + emergency contact",
+          "Public bio",
+          "Uber / Lyft / Spark years, trips, rating",
+          "Dashcam + docs note",
           "Submit → pending interview",
         ],
+        say: "“You already have commercial habits — interview is the moat.”",
       },
       {
-        n: "21",
-        title: "Rider + business apply",
-        why: "Full funnel",
-        href: "/apply",
-        pathLabel: "Apply hub",
-        taps: ["Skim rider form", "Delivery/business request form"],
-      },
-      {
-        n: "22",
-        title: "Founder admin inbox",
-        why: "You run the pilot",
+        n: "8",
+        title: "Founder inbox",
+        why: "You approve people",
         href: "/admin",
         pathLabel: "Admin",
         taps: [
           "PIN: share",
-          "Approve / schedule interview on apps",
-          "Volunteer + delivery tabs",
+          "Schedule / Approve driver app",
+          "Reset demo if needed",
         ],
-        say: "“I interview everyone — that’s the moat.”",
       },
       {
-        n: "23",
-        title: "Earnings & checkout",
+        n: "9",
+        title: "Know your driver on a posted ride",
+        why: "Personal trust",
+        href: "/rides",
+        pathLabel: "Rides list",
+        taps: [
+          "Open a trip → bio + platform history + dashcam",
+          "Book seat (dashcam ack) → checkout demo",
+        ],
+      },
+    ],
+  },
+  {
+    act: "Act 4 · Deliveries & corridor (7 min)",
+    mins: "7 min",
+    steps: [
+      {
+        n: "10",
+        title: "AEX package on LFT→SHV",
+        why: "Empty trunk $",
+        href: "/deliveries",
+        pathLabel: "Deliveries",
+        taps: [
+          "Shop fittings AEX → SHV",
+          "Corridor match + est. times",
+          "Claim on route",
+        ],
+      },
+      {
+        n: "11",
+        title: "Track package",
+        why: "Ops story",
+        href: "/track/SHR-4K2M",
+        pathLabel: "Track",
+        taps: ["Timeline · advance status if available"],
+      },
+    ],
+  },
+  {
+    act: "Act 5 · Local, cars, gear, care (8 min)",
+    mins: "8 min",
+    steps: [
+      {
+        n: "12",
+        title: "Local vs Uber/Lyft",
         why: "10% story",
+        href: "/local",
+        pathLabel: "Local",
+        taps: ["Price compare · preferred driver · broadcast"],
+      },
+      {
+        n: "13",
+        title: "Cars + something else",
+        why: "Turo / tools",
+        href: "/cars",
+        pathLabel: "Cars",
+        taps: ["Reserve car · then /share-stuff tools"],
+      },
+      {
+        n: "14",
+        title: "Volunteer rides",
+        why: "Community",
+        href: "/volunteer",
+        pathLabel: "Volunteer",
+        taps: ["Elder/veteran · escalate 0–2h"],
+      },
+    ],
+  },
+  {
+    act: "Act 6 · Safety & ops (6 min)",
+    mins: "6 min",
+    steps: [
+      {
+        n: "15",
+        title: "Messages + SOS",
+        why: "Paper trail",
+        href: "/messages",
+        pathLabel: "Chat",
+        taps: [
+          "Send message",
+          "My trips → SOS + audio note",
+          "Emergency contact on You",
+        ],
+      },
+      {
+        n: "16",
+        title: "Earnings",
+        why: "Driver pay",
         href: "/earnings",
         pathLabel: "Earnings",
-        taps: [
-          "Driver dashboard ~90% keep",
-          "Checkout demo Stripe payment",
-        ],
+        taps: ["~90% keep · 10% platform"],
       },
     ],
   },
@@ -352,53 +244,48 @@ function DemoGuidePage() {
   return (
     <MarketingShell>
       <div className="mx-auto max-w-2xl px-4 py-10 pb-24">
-        <Badge className="mb-3">Friend demo · ~60 min full run</Badge>
+        <Badge className="mb-3">Friend demo · Aug 2026 · ~50 min full</Badge>
         <h1 className="font-display text-3xl font-semibold tracking-tight">
           Master demo checklist
         </h1>
         <p className="mt-2 text-[var(--color-fg-muted)]">
-          Sit with your friend and run Share end-to-end. Prefer phone-width
-          browser. Full run ~55–70 min; highlights only = Acts 2–4 + 7–8 (~30
-          min).
+          Use{" "}
+          <a
+            href="https://share.myendeavors.me"
+            className="font-medium text-[var(--color-primary)]"
+          >
+            share.myendeavors.me
+          </a>{" "}
+          (or the live preview). Phone-width browser. Full run ~50 min; wow path
+          ~25 min = Acts 2–3.
         </p>
 
         <Card className="mt-6 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
           <CardContent className="space-y-2 p-4 text-sm">
-            <p className="font-semibold text-[var(--color-fg)]">
-              Before you start
-            </p>
+            <p className="font-semibold text-[var(--color-fg)]">Before you start</p>
             <ul className="list-disc space-y-1 pl-5 text-[var(--color-fg-muted)]">
-              <li>Open the live preview (or share.myendeavors.me when live)</li>
-              <li>Use a fresh private window if local storage is messy</li>
+              <li>Reset demo once (fresh Amy / bids)</li>
               <li>
-                Admin PIN for founder inbox:{" "}
-                <code className="text-[var(--color-fg)]">share</code>
+                Admin PIN: <code className="text-[var(--color-fg)]">share</code>
               </li>
               <li>
-                Demo tracking code:{" "}
-                <code className="text-[var(--color-fg)]">SHR-4K2M</code>
+                Track demo: <code className="text-[var(--color-fg)]">SHR-4K2M</code>
               </li>
               <li>{total} stops · check off as you go</li>
             </ul>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button size="sm" asChild>
-                <Link to="/app">Open app hub</Link>
+                <Link to="/app">Open app</Link>
               </Button>
               <Button size="sm" variant="outline" asChild>
-                <Link to="/rides/requests">Amy → Tom bids</Link>
+                <Link to="/rides/requests">Trip requests</Link>
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 className="border-[#b42318]/40 text-[#b42318]"
                 onClick={() => {
-                  if (
-                    confirm(
-                      "Reset demo? Clears your bookings and changes. Amy/Tom seed data returns.",
-                    )
-                  ) {
-                    resetDemo();
-                  }
+                  if (confirm("Reset demo data and reload?")) resetDemo();
                 }}
               >
                 Reset demo
@@ -410,12 +297,12 @@ function DemoGuidePage() {
         <Card className="mt-4">
           <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
             <p className="font-semibold text-[var(--color-fg)]">
-              30-minute “wow” path
+              25-minute “wow” path
             </p>
             <p className="mt-1">
-              Landing → Amy accept $25 → driver bio on a posted ride → AEX
-              corridor claim → track package → SOS on My trips → admin PIN share
-              → earnings 10%.
+              Landing popup → Share a ride → Amy as driver (bid $25 + $55) → as
+              rider approve → driver apply (Uber stats) → admin PIN share → AEX
+              corridor claim → SOS on My trips.
             </p>
           </CardContent>
         </Card>
@@ -453,10 +340,10 @@ function DemoGuidePage() {
                               <ExternalLink className="size-3.5" />
                             </a>
                             <ul className="mt-2 space-y-1 text-sm text-[var(--color-fg-muted)]">
-                              {s.taps.map((t) => (
-                                <li key={t} className="flex gap-2">
+                              {s.taps.map((tap) => (
+                                <li key={tap} className="flex gap-2">
                                   <CheckSquare className="mt-0.5 size-3.5 shrink-0 text-[var(--color-fg-subtle)]" />
-                                  <span>{t}</span>
+                                  <span>{tap}</span>
                                 </li>
                               ))}
                             </ul>
@@ -476,30 +363,18 @@ function DemoGuidePage() {
           ))}
         </div>
 
-        <Card className="mt-10 border-[var(--color-accent)]/30">
+        <Card className="mt-10">
           <CardContent className="space-y-2 p-5 text-sm">
             <h2 className="font-display text-lg font-semibold">
               Closing pitch (2 min)
             </h2>
             <ul className="list-disc space-y-1 pl-5 text-[var(--color-fg-muted)]">
-              <li>~10% take vs big apps</li>
-              <li>Interviewed humans + bios (not anonymous robots)</li>
-              <li>Corridor trips + bids + cargo on the way</li>
-              <li>
-                Robotaxis don’t erase Shreveport Saturday demand or AEX packages
-              </li>
-              <li>
-                Next: subdomain, Stripe, insurance broker, FB group soft launch
-              </li>
+              <li>Live: share.myendeavors.me</li>
+              <li>Uber/Lyft drivers apply → you interview</li>
+              <li>Private offer + bids (not a race to the ceiling)</li>
+              <li>~10% take · in-app chat · SOS</li>
+              <li>Next: real Stripe, insurance broker, FB soft launch</li>
             </ul>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/terms">Terms</Link>
-              </Button>
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/privacy">Privacy</Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>

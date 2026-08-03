@@ -17,8 +17,8 @@ import { ShareMark } from "@/components/share/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useShareStore } from "@/lib/share/store";
+import { DemoNoticeModal } from "@/components/share/demo-notice";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -41,6 +41,7 @@ function LandingPage() {
 
   return (
     <MarketingShell>
+      <DemoNoticeModal />
       <section className="relative overflow-hidden bg-[var(--color-bg-inverse)] text-[var(--color-fg-inverse)]">
         <div
           className="pointer-events-none absolute -right-20 -top-16 size-72 rounded-full opacity-30"
@@ -49,19 +50,16 @@ function LandingPage() {
           }}
         />
         <div className="relative mx-auto max-w-5xl px-4 pb-16 pt-12 sm:pb-20 sm:pt-16">
-          <Badge className="mb-4 border-0 bg-[#2a6b45] text-[var(--color-fg-inverse)]">
-            Lafayette · share.myendeavors.me
-          </Badge>
-          <div className="mb-6 inline-flex items-center gap-3 rounded-[var(--radius-xl)] bg-[#2a6b45] px-4 py-3">
-            <ShareMark inverted className="size-10" />
+          <div className="mb-8 inline-flex items-center gap-4 rounded-[var(--radius-xl)] bg-[#2a6b45] px-5 py-4 shadow-[var(--shadow-md)] sm:px-6 sm:py-5">
+            <ShareMark inverted className="size-14 sm:size-16" />
             <div className="text-left">
-              <p className="font-display text-lg font-semibold leading-tight">
+              <p className="font-display text-2xl font-semibold leading-tight sm:text-3xl">
                 Share
               </p>
-              <p className="text-xs opacity-80">Share Technologies</p>
+              <p className="text-sm opacity-85 sm:text-base">Share Technologies</p>
             </div>
           </div>
-          <h1 className="max-w-2xl font-display text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">
+          <h1 className="max-w-2xl font-display text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
             Share your life.
             <br />
             Share your adventures.
@@ -73,9 +71,14 @@ function LandingPage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button size="lg" variant="inverse" asChild>
-              <Link to="/apply">
-                Apply to join
+              <Link to="/apply/driver">
+                Drivers: apply now
                 <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="inverse" asChild>
+              <Link to="/apply">
+                All applications
               </Link>
             </Button>
             <Button

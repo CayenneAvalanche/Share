@@ -19,7 +19,7 @@ function TermsPage() {
           Terms of Service
         </h1>
         <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
-          Share Technologies · {SHARE_DOMAIN} · Last updated: August 1, 2026
+          Share Technologies · {SHARE_DOMAIN} · Last updated: August 3, 2026
         </p>
         <p className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm text-[var(--color-fg-muted)]">
           Pilot draft for demos and early access. Get a lawyer to finalize before
@@ -153,12 +153,46 @@ function TermsPage() {
 
           <section>
             <h2 className="font-display text-lg font-semibold text-[var(--color-fg)]">
-              9. Disputes
+              9. Disputes · informal resolution · arbitration
             </h2>
             <p className="mt-2">
-              Contact Share Ops first. Governing law: State of Louisiana, USA.
-              Venue: courts in Lafayette Parish or as required by law. (Your
-              attorney may add arbitration or small-claims language.)
+              <strong className="text-[var(--color-fg)]">Informal first.</strong>{" "}
+              Contact Share Ops and try to resolve any dispute in good faith
+              within 30 days before formal action.
+            </p>
+            <p className="mt-2">
+              <strong className="text-[var(--color-fg)]">Binding arbitration.</strong>{" "}
+              Except for the small-claims option below, you and Share agree that
+              any dispute arising out of or relating to these Terms or the
+              service will be resolved by binding individual arbitration
+              administered by the American Arbitration Association (AAA) under
+              its Consumer Arbitration Rules (or equivalent successor rules),
+              rather than in court. The Federal Arbitration Act governs this
+              agreement. The arbitrator may award the same individual relief a
+              court could, but may not consolidate claims or preside over any
+              form of class or representative proceeding.
+            </p>
+            <p className="mt-2">
+              <strong className="text-[var(--color-fg)]">Class action waiver.</strong>{" "}
+              You and Share waive any right to a jury trial and to participate
+              in a class, collective, or representative action. Claims must be
+              brought only in an individual capacity.
+            </p>
+            <p className="mt-2">
+              <strong className="text-[var(--color-fg)]">Small claims & IP.</strong>{" "}
+              Either party may bring an individual action in small-claims court
+              in Lafayette Parish, Louisiana (or your county of residence if
+              required by law) for qualifying claims. Either party may seek
+              injunctive relief in court for intellectual-property misuse or
+              unauthorized access.
+            </p>
+            <p className="mt-2">
+              <strong className="text-[var(--color-fg)]">Governing law.</strong>{" "}
+              These Terms are governed by the laws of the State of Louisiana,
+              USA, without regard to conflict-of-law rules, except that the FAA
+              governs the arbitration agreement. This section is a pilot draft —
+              have counsel review enforceability (especially for Louisiana
+              consumers) before relying on it in a live paid marketplace.
             </p>
           </section>
 

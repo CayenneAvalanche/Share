@@ -16,6 +16,14 @@ import { Input, Label } from "@/components/ui/input";
 import { VOLUNTEER_LABELS } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { formatCurrency } from "@/lib/utils";
+import {
+  listApplicationsFn,
+  setDriverAppStatusFn,
+  setRiderAppStatusFn,
+  dbHealthFn,
+} from "@/lib/share/server-fns";
+import { isDemoMode } from "@/lib/share/mode";
+import type { DriverApplication, RiderApplication } from "@/lib/share/data";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -35,12 +43,19 @@ function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [tab, setTab] = useState<Tab>("drivers");
+  const [cloudDrivers, setCloudDrivers] = useState<DriverApplication[] | null>(null);
+  const [cloudRiders, setCloudRiders] = useState<RiderApplication[] | null>(null);
+  const [cloudWaitlist, setCloudWaitlist] = useState<string[] | null>(null);
+  const [dbOk, setDbOk] = useState("…");
 
-  const driverApps = useShareStore((s) => s.driverApps);
-  const riderApps = useShareStore((s) => s.riderApps);
+  const localDriverApps = useShareStore((s) => s.driverApps);
+  const localRiderApps = useShareStore((s) => s.riderApps);
   const deliveries = useShareStore((s) => s.deliveries);
   const localRides = useShareStore((s) => s.localRides);
-  const waitlistEmails = useShareStore((s) => s.waitlistEmails);
+  const localWaitlist = useShareStore((s) => s.waitlistEmails);
+  const driverApps = cloudDrivers ?? localDriverApps;
+  const riderApps = cloudRiders ?? localRiderApps;
+  const waitlistEmails = cloudWaitlist ?? localWaitlist;
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const claimVolunteer = useShareStore((s) => s.claimVolunteer);
   const forceEscalateVolunteer = useShareStore((s) => s.forceEscalateVolunteer);
@@ -69,6 +84,28 @@ function AdminPage() {
       ).length
     );
   }, [driverApps, riderApps, deliveries, localRides, volunteerRides]);
+
+
+  async function refreshCloud(p: string) {
+    try {
+      const health = await dbHealthFn();
+      setDbOk(
+        health.ok
+          ? `DB: ${health.source}`
+          : `DB error: ${"error" in health ? health.error : "?"}`,
+      );
+      const res = await listApplicationsFn({ data: { pin: p } });
+      setCloudDrivers(res.drivers);
+      setCloudRiders(res.riders);
+      setCloudWaitlist(res.waitlistEmails);
+      toast.message(
+        `Cloud · ${res.drivers.length} drivers · ${res.riders.length} riders`,
+      );
+    } catch (e) {
+      setDbOk("DB offline / local only");
+      console.error(e);
+    }
+  }
 
   if (!unlocked) {
     return (
@@ -107,6 +144,7 @@ function AdminPage() {
                     if (pin === FOUNDER_PIN) {
                       setUnlocked(true);
                       toast.success("Inbox unlocked");
+                      void refreshCloud(pin);
                     } else toast.error("Wrong PIN");
                   }
                 }}
@@ -121,6 +159,7 @@ function AdminPage() {
                 if (pin === FOUNDER_PIN) {
                   setUnlocked(true);
                   toast.success("Inbox unlocked");
+                  void refreshCloud(pin);
                 } else toast.error("Wrong PIN");
               }}
             >
@@ -153,7 +192,7 @@ function AdminPage() {
   return (
     <AppShell
       title="Founder inbox"
-      subtitle={`${pendingCount} items need attention`}
+      subtitle={`${pendingCount} open · ${dbOk} · ${isDemoMode() ? "demo" : "beta"}`}
       backTo="/profile"
       solidHeader
       action={
@@ -216,11 +255,20 @@ function AdminPage() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setDriverAppStatus(a.id, "scheduled", {
-                        interviewAt: new Date(
-                          Date.now() + 86400000,
-                        ).toISOString(),
-                      });
+                      const interviewAt = new Date(
+                        Date.now() + 86400000,
+                      ).toISOString();
+                      setDriverAppStatus(a.id, "scheduled", { interviewAt });
+                      void setDriverAppStatusFn({
+                        data: {
+                          pin,
+                          id: a.id,
+                          status: "scheduled",
+                          interviewAt,
+                        },
+                      })
+                        .then(() => refreshCloud(pin))
+                        .catch(() => {});
                       toast.success("Interview scheduled");
                     }}
                   >
@@ -232,6 +280,11 @@ function AdminPage() {
                     variant="secondary"
                     onClick={() => {
                       setDriverAppStatus(a.id, "approved");
+                      void setDriverAppStatusFn({
+                        data: { pin, id: a.id, status: "approved" },
+                      })
+                        .then(() => refreshCloud(pin))
+                        .catch(() => {});
                       toast.success("Driver approved");
                     }}
                   >
@@ -243,6 +296,11 @@ function AdminPage() {
                     variant="ghost"
                     onClick={() => {
                       setDriverAppStatus(a.id, "declined");
+                      void setDriverAppStatusFn({
+                        data: { pin, id: a.id, status: "declined" },
+                      })
+                        .then(() => refreshCloud(pin))
+                        .catch(() => {});
                       toast.message("Declined");
                     }}
                   >
@@ -271,14 +329,28 @@ function AdminPage() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    onClick={() => setRiderAppStatus(a.id, "approved")}
+                    onClick={() => {
+                      setRiderAppStatus(a.id, "approved");
+                      void setRiderAppStatusFn({
+                        data: { pin, id: a.id, status: "approved" },
+                      })
+                        .then(() => refreshCloud(pin))
+                        .catch(() => {});
+                    }}
                   >
                     Approve
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setRiderAppStatus(a.id, "declined")}
+                    onClick={() => {
+                      setRiderAppStatus(a.id, "declined");
+                      void setRiderAppStatusFn({
+                        data: { pin, id: a.id, status: "declined" },
+                      })
+                        .then(() => refreshCloud(pin))
+                        .catch(() => {});
+                    }}
                   >
                     Decline
                   </Button>

@@ -246,7 +246,16 @@ export type CorridorRideRequest = {
   matchedDriverName?: string;
   offers: RideOffer[];
   flexibleWindow?: string;
+  /** hub = gas station / exit; door = needs pickup/drop help */
+  meetStyle?: "hub" | "door";
+  /** optional final address beyond corridor drop */
+  extensionDestination?: string;
+  extensionOffer?: number;
+  firstMileNeeded?: boolean;
 };
+
+export type MeetStyle = "hub" | "door";
+
 
 function nextSaturdayIso() {
   const d = new Date();

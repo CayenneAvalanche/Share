@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bell, CheckCircle2, MapPinned } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,10 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { formatCurrency } from "@/lib/utils";
+import {
+  countAvailableDriversFn,
+  setDriverAvailableFn,
+} from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/local")({
   component: LocalRidePage,
@@ -38,6 +42,15 @@ function LocalRidePage() {
     favorites[0] ?? DRIVERS[0].id,
   );
   const [doneId, setDoneId] = useState<string | null>(null);
+  const [available, setAvailable] = useState(false);
+  const [availCount, setAvailCount] = useState(0);
+  const [presenceId, setPresenceId] = useState<string | undefined>();
+
+  useEffect(() => {
+    void countAvailableDriversFn()
+      .then((r) => setAvailCount(r.availableCount))
+      .catch(() => {});
+  }, []);
 
   const fares = useMemo(
     () => estimateLocalFares(pickup, dropoff),
@@ -144,6 +157,43 @@ function LocalRidePage() {
             under Deliveries, or request a local seat with driver preferences
             (woman driver, favorite driver).
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="font-semibold">Driver Available</p>
+            <p className="text-xs text-[var(--color-fg-muted)]">
+              {availCount} Share driver{availCount === 1 ? "" : "s"} online nearby
+              (demo radius · Lafayette hub)
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant={available ? "default" : "outline"}
+            onClick={async () => {
+              const next = !available;
+              setAvailable(next);
+              try {
+                const res = await setDriverAvailableFn({
+                  data: {
+                    displayName: riderName || "Driver",
+                    city: "Lafayette, LA",
+                    available: next,
+                    presenceId,
+                  },
+                });
+                setPresenceId(res.presenceId);
+                setAvailCount(res.availableCount);
+                toast.success(next ? "You're Available" : "Went offline");
+              } catch {
+                toast.message(next ? "Available (local)" : "Offline (local)");
+              }
+            }}
+          >
+            {available ? "● Available" : "Go available"}
+          </Button>
         </CardContent>
       </Card>
 

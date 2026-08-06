@@ -19,6 +19,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
 import { DemoNoticeModal } from "@/components/share/demo-notice";
+import { joinWaitlistFn } from "@/lib/share/server-fns";
+import { getAppMode } from "@/lib/share/mode";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -28,14 +30,19 @@ function LandingPage() {
   const joinWaitlist = useShareStore((s) => s.joinWaitlist);
   const [email, setEmail] = useState("");
 
-  function onWaitlist(e: React.FormEvent) {
+  async function onWaitlist(e: React.FormEvent) {
     e.preventDefault();
     if (!email.includes("@")) {
       toast.error("Enter a valid email");
       return;
     }
     joinWaitlist(email);
-    toast.success("You're on the early access list");
+    try {
+      await joinWaitlistFn({ data: { email, source: "landing" } });
+      toast.success("You're on the early access list");
+    } catch {
+      toast.success("Saved locally — we'll sync when online");
+    }
     setEmail("");
   }
 
@@ -50,6 +57,9 @@ function LandingPage() {
           }}
         />
         <div className="relative mx-auto max-w-5xl px-4 pb-16 pt-12 sm:pb-20 sm:pt-16">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-inverse)]/70">
+            {getAppMode() === "beta" ? "Public beta · real applications" : "Demo tour · sample data"}
+          </p>
           <div className="mb-8 inline-flex items-center gap-4 rounded-[var(--radius-xl)] bg-[#2a6b45] px-5 py-4 shadow-[var(--shadow-md)] sm:px-6 sm:py-5">
             <ShareMark inverted className="size-14 sm:size-16" />
             <div className="text-left">

@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { HUB_CITIES, type InterviewMode } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { submitRiderAppFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/apply/rider")({
   component: RiderApplyPage,
@@ -32,7 +33,7 @@ function RiderApplyPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.includes("@") || !form.phone.trim()) {
       toast.error("Name, email, and phone are required");
@@ -40,7 +41,12 @@ function RiderApplyPage() {
     }
     submit(form);
     setRiderName(form.fullName.trim());
-    toast.success("Rider application received");
+    try {
+      await submitRiderAppFn({ data: form as unknown as Record<string, unknown> });
+      toast.success("Rider application saved to Share HQ");
+    } catch {
+      toast.message("Saved on this device — cloud sync pending");
+    }
     setDone(true);
   }
 

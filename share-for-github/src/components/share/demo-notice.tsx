@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
 import { ShareMark } from "@/components/share/logo";
+import { joinWaitlistFn } from "@/lib/share/server-fns";
+import { isDemoMode } from "@/lib/share/mode";
 
 const STORAGE_KEY = "share-demo-notice-v1";
 
@@ -22,6 +24,7 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
       setOpen(true);
       return;
     }
+    // Demo tour: full popup. Beta: lighter first-visit notice still OK.
     try {
       if (!localStorage.getItem(STORAGE_KEY)) setOpen(true);
     } catch {
@@ -38,13 +41,18 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
     setOpen(false);
   }
 
-  function onWaitlist(e: React.FormEvent) {
+  async function onWaitlist(e: React.FormEvent) {
     e.preventDefault();
     if (!email.includes("@")) {
       toast.error("Enter a valid email");
       return;
     }
     joinWaitlist(email);
+    try {
+      await joinWaitlistFn({ data: { email, source: "demo-popup" } });
+    } catch {
+      /* local only */
+    }
     toast.success("You're on the waitlist");
     setEmail("");
     dismiss();
@@ -77,11 +85,18 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
           </div>
         </div>
         <p className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
-          This is a <strong className="text-[var(--color-fg)]">working demo</strong> of
-          Share for early access and interviews. Data is sample/local, payments are
-          demo-only, and rides are not live insurance-backed marketplace trips yet.
-          Explore freely — or join the waitlist to be first when we open seats in
-          Hub City.
+          {isDemoMode() ? (
+            <>
+              This is a <strong className="text-[var(--color-fg)]">working demo</strong> with
+              sample trips (Amy, Tom…). Payments are demo-only. Explore freely or join the waitlist.
+            </>
+          ) : (
+            <>
+              You're on the <strong className="text-[var(--color-fg)]">public beta</strong>.
+              Applications save to Share HQ. Marketplace starts empty — post real requests.
+              Payments still demo until Stripe goes live. Not insurance-backed TNC trips yet.
+            </>
+          )}
         </p>
         <form onSubmit={onWaitlist} className="mt-4 flex flex-col gap-2">
           <Input

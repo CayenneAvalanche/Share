@@ -15,6 +15,7 @@ import {
   type InterviewMode,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { submitDriverAppFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/apply/driver")({
   component: DriverApplyPage,
@@ -64,7 +65,7 @@ function DriverApplyPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.includes("@") || !form.phone.trim()) {
       toast.error("Name, email, and phone are required");
@@ -81,7 +82,7 @@ function DriverApplyPage() {
     });
 
     const { hasDashcam, inviteCode, ...rest } = form;
-    submit({
+    const payload = {
       ...rest,
       inviteCode: inviteCode || undefined,
       hasDashcam,
@@ -93,8 +94,18 @@ function DriverApplyPage() {
       ]
         .filter(Boolean)
         .join(" | "),
-    });
-    toast.success("Driver application received — bio goes public after interview");
+    };
+    // Always keep local store for offline UX; Neon when available
+    submit(payload);
+    try {
+      await submitDriverAppFn({ data: payload as Record<string, unknown> });
+      toast.success("Saved to Share HQ — bio goes public after interview");
+    } catch (err) {
+      console.error(err);
+      toast.message("Saved on this device — cloud sync pending", {
+        description: "Founder can still see local apps; Neon will catch up after deploy.",
+      });
+    }
     setDone(true);
   }
 

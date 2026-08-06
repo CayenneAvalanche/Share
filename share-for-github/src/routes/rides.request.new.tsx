@@ -33,6 +33,10 @@ function NewRideRequestPage() {
     "Need a seat Saturday. Flexible on exact time.",
   );
   const [flexibleWindow, setWindow] = useState("Saturday morning–afternoon");
+  const [meetStyle, setMeetStyle] = useState<"hub" | "door">("hub");
+  const [firstMileNeeded, setFirstMile] = useState(false);
+  const [extensionDestination, setExtDest] = useState("");
+  const [extensionOffer, setExtOffer] = useState(0);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,15 +48,27 @@ function NewRideRequestPage() {
       toast.error("Your offer is too low");
       return;
     }
+    const hubNote =
+      meetStyle === "hub"
+        ? "Meet: highway hub / gas station near exit (driver stays on route)."
+        : "Door help requested — first/last mile may need extra pay.";
+    const extNote =
+      extensionDestination.trim()
+        ? ` Extension beyond hub: ${extensionDestination.trim()}${extensionOffer ? ` (+$${extensionOffer} offer)` : ""}.`
+        : "";
     const req = postRideRequest({
       from,
       to,
       neededBy: new Date(`${neededBy}T09:00:00`).toISOString(),
       seats,
       maxBid,
-      notes: notes.trim(),
+      notes: [notes.trim(), hubNote + extNote].filter(Boolean).join(" "),
       requesterName: riderName && riderName !== "Guest" ? riderName : "You",
       flexibleWindow,
+      meetStyle,
+      firstMileNeeded,
+      extensionDestination: extensionDestination.trim() || undefined,
+      extensionOffer: extensionOffer > 0 ? extensionOffer : undefined,
     });
     toast.success("Request live — your offer is private; drivers will bid");
     navigate({ to: "/rides/requests/$id", params: { id: req.id } });
@@ -150,6 +166,53 @@ function NewRideRequestPage() {
                 onChange={(e) => setWindow(e.target.value)}
                 placeholder="Anytime Saturday / morning only…"
               />
+            </div>
+            <div>
+              <Label htmlFor="meet">Pickup / drop style</Label>
+              <Select
+                id="meet"
+                value={meetStyle}
+                onChange={(e) => setMeetStyle(e.target.value as "hub" | "door")}
+              >
+                <option value="hub">
+                  Hub meet — gas station / exit (easiest on driver)
+                </option>
+                <option value="door">
+                  Need help to/from door (first/last mile add-on)
+                </option>
+              </Select>
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Default is hub. Door service is optional paid convenience — not free
+                detours to Ft Worth when the car is stopping in Pearland.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={firstMileNeeded}
+                onChange={(e) => setFirstMile(e.target.checked)}
+              />
+              I need a local first-mile to the hub (no car to the gas station)
+            </label>
+            <div>
+              <Label htmlFor="ext">Beyond hub? (optional extension)</Label>
+              <Input
+                id="ext"
+                placeholder="e.g. Fort Worth after Houston hub drop"
+                value={extensionDestination}
+                onChange={(e) => setExtDest(e.target.value)}
+              />
+              <div className="mt-2">
+                <Label htmlFor="ext$">What you'll pay for extension ($)</Label>
+                <Input
+                  id="ext$"
+                  type="number"
+                  min={0}
+                  value={extensionOffer || ""}
+                  onChange={(e) => setExtOffer(Number(e.target.value) || 0)}
+                  placeholder="0 = hub drop only"
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>

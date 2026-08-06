@@ -38,6 +38,7 @@ import {
 import { fakeStripeId } from "./payments";
 import { makeTrackingCode, shouldEscalate, trackLabel } from "./tracking";
 import { matchedFare } from "./corridor";
+import { isDemoMode } from "./mode";
 
 type CarBooking = {
   id: string;
@@ -197,8 +198,58 @@ type ShareState = {
   resetDemo: () => void;
 };
 
-export const SHARE_PERSIST_KEY = "share-app-v8";
+export const SHARE_PERSIST_KEY = "share-app-v10";
 
+const DEMO =
+  typeof window !== "undefined"
+    ? isDemoMode()
+    : !import.meta.env.PROD; // SSR: demo in dev, beta in prod build
+
+function emptySeed() {
+  return {
+    trips: [] as typeof TRIPS,
+    bookings: [] as Booking[],
+    deliveries: [] as DeliveryRequest[],
+    driverApps: [] as DriverApplication[],
+    riderApps: [] as RiderApplication[],
+    rentals: [] as RentalListing[],
+    borrowRequests: [] as BorrowRequest[],
+    localRides: [] as LocalRideRequest[],
+    volunteerRides: [] as VolunteerRide[],
+    carListings: [] as CarShareListing[],
+    carBookings: [] as { id: string; carId: string; days: number; total: number; status: string; createdAt: string }[],
+    rideRequests: [] as CorridorRideRequest[],
+    waitlistEmails: [] as string[],
+    threads: [] as ChatThread[],
+    messages: [] as ChatMessage[],
+    savedPlaces: DEFAULT_SAVED_PLACES,
+    payments: [] as PaymentRecord[],
+  };
+}
+
+function demoSeed() {
+  return {
+    trips: TRIPS,
+    bookings: [] as Booking[],
+    deliveries: OPEN_DELIVERIES,
+    driverApps: SEED_DRIVER_APPS,
+    riderApps: SEED_RIDER_APPS,
+    rentals: RENTAL_LISTINGS,
+    borrowRequests: BORROW_REQUESTS,
+    localRides: [] as LocalRideRequest[],
+    volunteerRides: SEED_VOLUNTEERS,
+    carListings: CAR_LISTINGS,
+    carBookings: [] as { id: string; carId: string; days: number; total: number; status: string; createdAt: string }[],
+    rideRequests: SEED_RIDE_REQUESTS,
+    waitlistEmails: [] as string[],
+    threads: SEED_THREADS,
+    messages: SEED_MESSAGES,
+    savedPlaces: DEFAULT_SAVED_PLACES,
+    payments: [] as PaymentRecord[],
+  };
+}
+
+const initialMarket = DEMO ? demoSeed() : emptySeed();
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
@@ -231,23 +282,7 @@ function systemNotify(
 export const useShareStore = create<ShareState>()(
   persist(
     (set, get) => ({
-      trips: TRIPS,
-      bookings: [],
-      deliveries: OPEN_DELIVERIES,
-      driverApps: SEED_DRIVER_APPS,
-      riderApps: SEED_RIDER_APPS,
-      rentals: RENTAL_LISTINGS,
-      borrowRequests: BORROW_REQUESTS,
-      localRides: [],
-      volunteerRides: SEED_VOLUNTEERS,
-      carListings: CAR_LISTINGS,
-      carBookings: [],
-      rideRequests: SEED_RIDE_REQUESTS,
-      waitlistEmails: [],
-      threads: SEED_THREADS,
-      messages: SEED_MESSAGES,
-      savedPlaces: DEFAULT_SAVED_PLACES,
-      payments: [],
+      ...initialMarket,
       inviteCodeUsed: null,
       referralCode:
         "SHARE-" + Math.random().toString(36).slice(2, 6).toUpperCase(),
@@ -947,8 +982,8 @@ export const useShareStore = create<ShareState>()(
 
       resetDemo: () => {
         try {
-          localStorage.removeItem("share-app-v9");
-          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9"].forEach(
+          localStorage.removeItem("share-app-v10");
+          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9", "share-app-v10"].forEach(
             (k) => localStorage.removeItem(k),
           );
         } catch {
@@ -973,7 +1008,7 @@ export const useShareStore = create<ShareState>()(
       },
     }),
     {
-      name: "share-app-v9",
+      name: "share-app-v10",
       partialize: (s) => ({
         bookings: s.bookings,
         deliveries: s.deliveries,

@@ -58,7 +58,7 @@ function AppHomePage() {
               <Choice to="/rides" icon={Car} title="Ride" />
               <Choice to="/deliveries" icon={Package} title="Delivery" />
               <Choice to="/cars" icon={KeyRound} title="Car" />
-              <Choice to="/share-stuff" icon={Boxes} title="Something else" />
+              <Choice to="/share-stuff" icon={Boxes} title="Lagniappe" />
             </div>
 
             {/* 5th tile — volunteer, full width */}

@@ -8,7 +8,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ShareWordmark } from "./logo";
+import { ShareMark, ShareWordmark } from "./logo";
 import { Button } from "@/components/ui/button";
 import { useShareStore } from "@/lib/share/store";
 
@@ -26,7 +26,7 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh bg-[var(--color-bg)] text-[var(--color-fg)]">
       <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md safe-pt">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/" className="shrink-0">
+          <Link to="/" className="shrink-0 rounded-[var(--radius-md)] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]" aria-label="Share home">
             <ShareWordmark />
           </Link>
           <div className="flex items-center gap-2">
@@ -116,29 +116,47 @@ export function AppShell({
               : "bg-transparent",
           )}
         >
-          <div className="flex items-center gap-2 px-4 py-3">
-            {backTo ? (
-              <Button variant="ghost" size="icon" asChild className="-ml-1">
-                <Link to={backTo} aria-label="Back">
-                  <ArrowLeft className="size-5" />
+          <div className="grid grid-cols-[minmax(2.75rem,auto)_1fr_minmax(2.75rem,auto)] items-center gap-2 px-3 py-3 sm:px-4">
+            {/* Left: back OR logo → home (instinctive brand tap) */}
+            <div className="flex min-w-0 items-center justify-start">
+              {backTo ? (
+                <Button variant="ghost" size="icon" asChild className="-ml-1">
+                  <Link to={backTo} aria-label="Back">
+                    <ArrowLeft className="size-5" />
+                  </Link>
+                </Button>
+              ) : (
+                <Link
+                  to="/app"
+                  aria-label="Share home"
+                  className="flex min-h-10 min-w-10 items-center gap-1.5 rounded-[var(--radius-md)] pr-1 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] active:opacity-80"
+                >
+                  <ShareMark className="size-8 shrink-0" />
+                  <span className="font-display text-lg font-semibold tracking-tight">
+                    Share
+                  </span>
                 </Link>
-              </Button>
-            ) : (
-              <ShareWordmark className="shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
+              )}
+            </div>
+
+            {/* Center: page title */}
+            <div className="min-w-0 text-center">
               {title && (
-                <h1 className="truncate font-display text-lg font-semibold">
+                <h1 className="truncate font-display text-base font-semibold sm:text-lg">
                   {title}
                 </h1>
               )}
               {subtitle && (
-                <p className="truncate text-xs text-[var(--color-fg-muted)]">
+                <p className="truncate text-[11px] text-[var(--color-fg-muted)] sm:text-xs">
                   {subtitle}
                 </p>
               )}
             </div>
-            {action}
+
+            {/* Right: action (or spacer so title stays centered) */}
+            <div className="flex min-w-0 items-center justify-end">
+              {action ?? <span className="size-10 shrink-0" aria-hidden />}
+            </div>
           </div>
         </header>
       )}

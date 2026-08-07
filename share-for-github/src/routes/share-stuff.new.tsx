@@ -11,6 +11,8 @@ import {
   type RentalCategory,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { createBorrowFn, createRentalFn } from "@/lib/share/server-fns";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/share-stuff/new")({
   component: NewShareStuffPage,
@@ -20,6 +22,7 @@ function NewShareStuffPage() {
   const listRental = useShareStore((s) => s.listRental);
   const requestBorrow = useShareStore((s) => s.requestBorrow);
   const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"list" | "need">("list");
 
@@ -36,12 +39,18 @@ function NewShareStuffPage() {
     return d.toISOString().slice(0, 10);
   });
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Add a title");
       return;
     }
+
+    const ownerName =
+      user?.displayName ||
+      riderName ||
+      "Share member";
+    const ownerEmail = user?.primaryEmail ?? undefined;
 
     if (mode === "list") {
       listRental({
@@ -51,11 +60,29 @@ function NewShareStuffPage() {
         rate,
         rateUnit,
         city,
-        ownerName: riderName || "Share member",
+        ownerName,
         deposit: deposit || undefined,
       });
-      toast.success("Item listed for Share");
+      try {
+        await createRentalFn({
+          data: {
+            title: title.trim(),
+            description: description.trim() || "Available to share.",
+            category,
+            rate,
+            rateUnit,
+            city,
+            ownerName,
+            ownerEmail,
+            deposit: deposit || undefined,
+          },
+        });
+        toast.success("Listed for everyone on Share");
+      } catch {
+        toast.message("Saved on this phone — cloud sync pending");
+      }
     } else {
+      const needed = new Date(`${neededBy}T12:00:00`).toISOString();
       requestBorrow({
         title: title.trim(),
         description: description.trim() || "Need this soon.",
@@ -63,10 +90,27 @@ function NewShareStuffPage() {
         offer: rate,
         rateUnit,
         city,
-        neededBy: new Date(`${neededBy}T12:00:00`).toISOString(),
-        requesterName: riderName || "Share member",
+        neededBy: needed,
+        requesterName: ownerName,
       });
-      toast.success("Need posted — neighbors can respond");
+      try {
+        await createBorrowFn({
+          data: {
+            title: title.trim(),
+            description: description.trim() || "Need this soon.",
+            category,
+            offer: rate,
+            rateUnit,
+            city,
+            neededBy: needed,
+            requesterName: ownerName,
+            requesterEmail: ownerEmail,
+          },
+        });
+        toast.success("Need posted for everyone on Share");
+      } catch {
+        toast.message("Saved on this phone — cloud sync pending");
+      }
     }
     navigate({ to: "/share-stuff" });
   }

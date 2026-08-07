@@ -152,6 +152,10 @@ export type DriverApplication = {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   docsNote?: string;
+  /** Compressed data URLs for founder review (pilot) */
+  licenseFront?: string;
+  licenseBack?: string;
+  insuranceCard?: string;
 };
 
 export type RiderApplication = {

@@ -16,6 +16,7 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
+import { fileToCompressedDataUrl } from "@/lib/share/image";
 
 export const Route = createFileRoute("/apply/driver")({
   component: DriverApplyPage,
@@ -49,6 +50,10 @@ function DriverApplyPage() {
     emergencyContactPhone: "",
     docsNote: "",
   });
+  const [licenseFront, setLicenseFront] = useState("");
+  const [licenseBack, setLicenseBack] = useState("");
+  const [insuranceCard, setInsuranceCard] = useState("");
+  const [uploading, setUploading] = useState<string | null>(null);
   /** never = not listed · active · inactive (used to drive but not now) */
   const [platformStatus, setPlatformStatus] = useState<
     Record<string, "never" | "active" | "inactive">
@@ -87,6 +92,10 @@ function DriverApplyPage() {
       toast.error("Please agree to the Terms and Privacy Policy to continue");
       return;
     }
+    if (!licenseFront || !licenseBack || !insuranceCard) {
+      toast.error("Upload front & back of your license and your insurance card");
+      return;
+    }
 
     const platformLines = PLATFORMS.filter(
       (p) => platformStatus[p] && platformStatus[p] !== "never",
@@ -102,10 +111,14 @@ function DriverApplyPage() {
       inviteCode: inviteCode || undefined,
       hasDashcam,
       platformsText: platformLines.join(" · ") || "None listed",
+      licenseFront,
+      licenseBack,
+      insuranceCard,
+      docsNote: form.docsNote || "License front/back + insurance uploaded",
       notes: [
         rest.notes,
         hasDashcam ? "Dashcam: yes" : "Dashcam: no",
-        form.docsNote ? `Docs: ${form.docsNote}` : "",
+        "Docs: license front/back + insurance card attached",
       ]
         .filter(Boolean)
         .join(" | "),
@@ -431,14 +444,68 @@ function DriverApplyPage() {
                 onChange={(e) => set("corridors", e.target.value)}
               />
             </div>
-            <div>
-              <Label htmlFor="docs">Docs ready (license / insurance / reg)</Label>
-              <Input
-                id="docs"
-                placeholder="License + insurance PDF ready for interview"
-                value={form.docsNote}
-                onChange={(e) => set("docsNote", e.target.value)}
-              />
+            <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)]/50 p-3">
+              <div>
+                <p className="text-sm font-semibold">Required ID documents</p>
+                <p className="text-xs text-[var(--color-fg-muted)]">
+                  Clear photos of your driver license (front and back) and insurance
+                  card. Only Share HQ sees these during review.
+                </p>
+              </div>
+              {(
+                [
+                  ["licenseFront", "License — front", licenseFront, setLicenseFront],
+                  ["licenseBack", "License — back", licenseBack, setLicenseBack],
+                  ["insuranceCard", "Insurance card", insuranceCard, setInsuranceCard],
+                ] as const
+              ).map(([key, label, value, setter]) => (
+                <div key={key}>
+                  <Label htmlFor={key}>{label} *</Label>
+                  <Input
+                    id={key}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    disabled={!!uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploading(key);
+                      try {
+                        const dataUrl = await fileToCompressedDataUrl(file);
+                        setter(dataUrl);
+                        toast.success(`${label} attached`);
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Could not read photo",
+                        );
+                      } finally {
+                        setUploading(null);
+                      }
+                    }}
+                  />
+                  {value ? (
+                    <img
+                      src={value}
+                      alt={label}
+                      className="mt-2 max-h-36 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] object-contain bg-white"
+                    />
+                  ) : (
+                    <p className="mt-1 text-[11px] text-[var(--color-fg-subtle)]">
+                      {uploading === key ? "Compressing…" : "No photo yet"}
+                    </p>
+                  )}
+                </div>
+              ))}
+              <div>
+                <Label htmlFor="docs">Optional note</Label>
+                <Input
+                  id="docs"
+                  placeholder="e.g. insurance expires March 2027"
+                  value={form.docsNote}
+                  onChange={(e) => set("docsNote", e.target.value)}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>

@@ -55,6 +55,9 @@ type DriverRow = {
   emergency_contact_name: string;
   emergency_contact_phone: string;
   docs_note: string;
+  license_front?: string;
+  license_back?: string;
+  insurance_card?: string;
   interview_at: string | Date | null;
   admin_note: string | null;
   created_at: string | Date;
@@ -109,6 +112,9 @@ function mapDriver(r: DriverRow): DriverApplication {
     emergencyContactName: r.emergency_contact_name,
     emergencyContactPhone: r.emergency_contact_phone,
     docsNote: r.docs_note,
+    licenseFront: r.license_front || undefined,
+    licenseBack: r.license_back || undefined,
+    insuranceCard: r.insurance_card || undefined,
   };
 }
 
@@ -142,7 +148,8 @@ export const submitDriverAppFn = createServerFn({ method: "POST" })
         years_driving, corridors, interview_mode, preferred_time, notes,
         gender, status, public_bio, hometown, other_job, platforms_text,
         has_dashcam, emergency_contact_name, emergency_contact_phone,
-        docs_note, invite_code, created_at, updated_at
+        docs_note, license_front, license_back, insurance_card,
+        invite_code, created_at, updated_at
       ) values (
         ${id},
         ${String(data.fullName ?? "").trim()},
@@ -166,6 +173,9 @@ export const submitDriverAppFn = createServerFn({ method: "POST" })
         ${String(data.emergencyContactName ?? "")},
         ${String(data.emergencyContactPhone ?? "")},
         ${String(data.docsNote ?? "")},
+        ${String(data.licenseFront ?? "")},
+        ${String(data.licenseBack ?? "")},
+        ${String(data.insuranceCard ?? "")},
         ${data.inviteCode ? String(data.inviteCode) : null},
         ${createdAt},
         ${createdAt}
@@ -358,3 +368,122 @@ export const dbHealthFn = createServerFn({ method: "GET" }).handler(
     }
   },
 );
+
+export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const sql = await getSql();
+    const rentals = await sql.query<{
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      rate: number;
+      rate_unit: string;
+      city: string;
+      owner_name: string;
+      deposit: number | null;
+      available: boolean;
+    }>(
+      `select id, title, description, category, rate, rate_unit, city, owner_name, deposit, available
+       from share_rentals where available = true order by created_at desc limit 100`,
+    );
+    const borrows = await sql.query<{
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      offer: number;
+      rate_unit: string;
+      city: string;
+      needed_by: string | Date | null;
+      requester_name: string;
+      status: string;
+      created_at: string | Date;
+    }>(
+      `select id, title, description, category, offer, rate_unit, city, needed_by, requester_name, status, created_at
+       from share_borrows where status = 'open' order by created_at desc limit 100`,
+    );
+    return {
+      rentals: rentals.map((r) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        category: r.category,
+        rate: Number(r.rate),
+        rateUnit: r.rate_unit as "hour" | "day" | "weekend",
+        city: r.city,
+        ownerName: r.owner_name,
+        deposit: r.deposit ?? undefined,
+        available: r.available,
+      })),
+      borrows: borrows.map((b) => ({
+        id: b.id,
+        title: b.title,
+        description: b.description,
+        category: b.category,
+        offer: Number(b.offer),
+        rateUnit: b.rate_unit as "hour" | "day" | "weekend",
+        city: b.city,
+        neededBy: iso(b.needed_by) ?? new Date().toISOString(),
+        requesterName: b.requester_name,
+        status: (b.status === "matched" ? "matched" : "open") as "open" | "matched",
+        createdAt: iso(b.created_at) ?? new Date().toISOString(),
+      })),
+    };
+  },
+);
+
+export const createRentalFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const id = uid("r");
+    await sql`
+      insert into share_rentals (
+        id, title, description, category, rate, rate_unit, city,
+        owner_name, owner_email, deposit, available, created_at
+      ) values (
+        ${id},
+        ${String(data.title ?? "").trim()},
+        ${String(data.description ?? "")},
+        ${String(data.category ?? "other")},
+        ${Number(data.rate ?? 0)},
+        ${String(data.rateUnit ?? "day")},
+        ${String(data.city ?? "Lafayette, LA")},
+        ${String(data.ownerName ?? "Share member")},
+        ${data.ownerEmail ? String(data.ownerEmail) : null},
+        ${data.deposit != null ? Number(data.deposit) : null},
+        ${true},
+        ${new Date().toISOString()}
+      )
+    `;
+    return { id };
+  });
+
+export const createBorrowFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const id = uid("br");
+    await sql`
+      insert into share_borrows (
+        id, title, description, category, offer, rate_unit, city,
+        needed_by, requester_name, requester_email, status, created_at
+      ) values (
+        ${id},
+        ${String(data.title ?? "").trim()},
+        ${String(data.description ?? "")},
+        ${String(data.category ?? "other")},
+        ${Number(data.offer ?? 0)},
+        ${String(data.rateUnit ?? "day")},
+        ${String(data.city ?? "Lafayette, LA")},
+        ${data.neededBy ? String(data.neededBy) : null},
+        ${String(data.requesterName ?? "Share member")},
+        ${data.requesterEmail ? String(data.requesterEmail) : null},
+        ${"open"},
+        ${new Date().toISOString()}
+      )
+    `;
+    return { id };
+  });
+

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Plus, Search, Wrench, HandHelping } from "lucide-react";
 import { AppShell } from "@/components/share/shell";
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
 import { formatCurrency } from "@/lib/utils";
+import { listMarketplaceFn } from "@/lib/share/server-fns";
+import type { BorrowRequest, RentalListing } from "@/lib/share/data";
 
 export const Route = createFileRoute("/share-stuff")({
   component: ShareStuffLayout,
@@ -20,10 +22,46 @@ function ShareStuffLayout() {
 }
 
 function ShareStuffPage() {
-  const rentals = useShareStore((s) => s.rentals);
-  const borrows = useShareStore((s) => s.borrowRequests);
+  const localRentals = useShareStore((s) => s.rentals);
+  const localBorrows = useShareStore((s) => s.borrowRequests);
+  const [cloudRentals, setCloudRentals] = useState<RentalListing[]>([]);
+  const [cloudBorrows, setCloudBorrows] = useState<BorrowRequest[]>([]);
+  const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "offline">(
+    "loading",
+  );
   const [tab, setTab] = useState<"list" | "need">("list");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    listMarketplaceFn()
+      .then((data) => {
+        if (cancelled) return;
+        setCloudRentals(data.rentals as RentalListing[]);
+        setCloudBorrows(data.borrows as BorrowRequest[]);
+        setCloudStatus("ok");
+      })
+      .catch(() => {
+        if (!cancelled) setCloudStatus("offline");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rentals = useMemo(() => {
+    const byId = new Map<string, RentalListing>();
+    for (const r of cloudRentals) byId.set(r.id, r);
+    for (const r of localRentals) byId.set(r.id, r);
+    return Array.from(byId.values());
+  }, [cloudRentals, localRentals]);
+
+  const borrows = useMemo(() => {
+    const byId = new Map<string, BorrowRequest>();
+    for (const b of cloudBorrows) byId.set(b.id, b);
+    for (const b of localBorrows) byId.set(b.id, b);
+    return Array.from(byId.values());
+  }, [cloudBorrows, localBorrows]);
 
   const filteredListings = useMemo(() => {
     return rentals.filter((r) => {
@@ -64,6 +102,16 @@ function ShareStuffPage() {
     >
       <p className="mt-3 text-sm text-[var(--color-fg-muted)]">
         The little extra — tools, bikes, trailers, grills. List or request.
+        {cloudStatus === "ok" && (
+          <span className="block text-xs text-[var(--color-primary)]">
+            Live board · posts sync for everyone
+          </span>
+        )}
+        {cloudStatus === "offline" && (
+          <span className="block text-xs text-[var(--color-fg-subtle)]">
+            Cloud offline — posts on this phone only until connection returns
+          </span>
+        )}
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-2">

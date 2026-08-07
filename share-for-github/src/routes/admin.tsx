@@ -205,16 +205,18 @@ function AdminPage() {
       backTo="/profile"
       solidHeader
       action={
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-[#b42318]/40 text-[#b42318]"
-          onClick={() => {
-            if (confirm("Reset all demo data and reload?")) resetDemo();
-          }}
-        >
-          Reset
-        </Button>
+        isDemoMode() ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-[#b42318]/40 text-[#b42318]"
+            onClick={() => {
+              if (confirm("Reset all demo data and reload?")) resetDemo();
+            }}
+          >
+            Reset
+          </Button>
+        ) : undefined
       }
     >
       <div className="mt-3 flex gap-1 overflow-x-auto pb-2">
@@ -259,6 +261,46 @@ function AdminPage() {
                   <p className="text-xs text-[var(--color-fg-subtle)]">
                     {a.platformsText}
                   </p>
+                )}
+                {(a.licenseFront || a.licenseBack || a.insuranceCard) && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {a.licenseFront && (
+                      <a href={a.licenseFront} target="_blank" rel="noreferrer">
+                        <img
+                          src={a.licenseFront}
+                          alt="License front"
+                          className="h-20 w-full rounded border object-cover"
+                        />
+                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                          License front
+                        </p>
+                      </a>
+                    )}
+                    {a.licenseBack && (
+                      <a href={a.licenseBack} target="_blank" rel="noreferrer">
+                        <img
+                          src={a.licenseBack}
+                          alt="License back"
+                          className="h-20 w-full rounded border object-cover"
+                        />
+                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                          License back
+                        </p>
+                      </a>
+                    )}
+                    {a.insuranceCard && (
+                      <a href={a.insuranceCard} target="_blank" rel="noreferrer">
+                        <img
+                          src={a.insuranceCard}
+                          alt="Insurance"
+                          className="h-20 w-full rounded border object-cover"
+                        />
+                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                          Insurance
+                        </p>
+                      </a>
+                    )}
+                  </div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button

@@ -22,6 +22,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { signOut, authEnabled } from "@/lib/auth/client";
+import { isDemoMode } from "@/lib/share/mode";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
 import { SHARE_DOMAIN } from "@/lib/share/tracking";
 import { useState } from "react";
@@ -59,6 +62,12 @@ function ProfilePage() {
   const setIdVerified = useShareStore((s) => s.setIdVerified);
   const [ecName, setEcName] = useState(emergencyContactName);
   const [ecPhone, setEcPhone] = useState(emergencyContactPhone);
+  const demo = isDemoMode();
+  const { user, isPending } = useCurrentUserState();
+  const accountLabel =
+    user?.displayName ||
+    user?.primaryEmail ||
+    (riderName && riderName !== "Guest" ? riderName : null);
 
   const latestDriver = driverApps[0];
   const latestRider = riderApps[0];
@@ -71,29 +80,37 @@ function ProfilePage() {
     ).length;
 
   return (
-    <AppShell title="You" subtitle="Trust, places & pilot tools" solidHeader>
+    <AppShell title="You" subtitle="Account · trust · places" solidHeader>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" asChild>
-          <Link to="/demo">Demo guide</Link>
-        </Button>
         <Button size="sm" variant="ghost" asChild>
           <Link to="/privacy">Privacy</Link>
         </Button>
         <Button size="sm" variant="ghost" asChild>
           <Link to="/terms">Terms</Link>
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-[#b42318]/40 text-[#b42318]"
-          onClick={() => {
-            if (confirm("Reset demo data? Bookings, accepts, and apps you added will clear. Seed data comes back.")) {
-              resetDemo();
-            }
-          }}
-        >
-          Reset demo
-        </Button>
+        {demo && (
+          <>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/demo">Demo guide</Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#b42318]/40 text-[#b42318]"
+              onClick={() => {
+                if (
+                  confirm(
+                    "Reset demo data? Bookings, accepts, and apps you added will clear. Seed data comes back.",
+                  )
+                ) {
+                  resetDemo();
+                }
+              }}
+            >
+              Reset demo
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="space-y-4 py-3 pb-8">
@@ -117,7 +134,7 @@ function ProfilePage() {
                   Founder admin inbox
                 </p>
                 <p className="text-sm text-[var(--color-fg-muted)]">
-                  {pending} apps need review · PIN: share
+                  {pending} apps need review · founders only
                 </p>
               </div>
               <ChevronRight className="size-5 text-[var(--color-primary)]" />
@@ -126,40 +143,85 @@ function ProfilePage() {
         </Link>
 
         <Card>
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] font-display text-2xl font-semibold text-[var(--color-primary-fg)]">
-              {riderName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-xl font-semibold">{riderName}</p>
-              <p className="text-sm text-[var(--color-fg-muted)]">
-                {SHARE_DOMAIN} · pilot
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {latestRider ? (
-                  <Badge variant="secondary" className="capitalize">
-                    Rider: {latestRider.status.replace("_", " ")}
-                  </Badge>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-center gap-4">
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary)] font-display text-2xl font-semibold text-[var(--color-primary-fg)]">
+                {user?.profileImageUrl ? (
+                  <img
+                    src={user.profileImageUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
                 ) : (
-                  <Badge variant="outline">Rider not applied</Badge>
-                )}
-                {latestDriver ? (
-                  <Badge variant="default" className="capitalize">
-                    Driver: {latestDriver.status.replace("_", " ")}
-                  </Badge>
-                ) : isDriverApproved ? (
-                  <Badge variant="success">
-                    <BadgeCheck className="mr-1 size-3" />
-                    Driver approved
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">Driver not applied</Badge>
-                )}
-                {inviteCodeUsed && (
-                  <Badge variant="accent">Invite {inviteCodeUsed}</Badge>
+                  (accountLabel ?? "G").charAt(0).toUpperCase()
                 )}
               </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-xl font-semibold">
+                  {isPending
+                    ? "…"
+                    : accountLabel ?? "Guest"}
+                </p>
+                <p className="text-sm text-[var(--color-fg-muted)]">
+                  {user?.primaryEmail
+                    ? user.primaryEmail
+                    : `${SHARE_DOMAIN} · public beta`}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {user ? (
+                    <Badge variant="success">Signed in</Badge>
+                  ) : (
+                    <Badge variant="outline">Not signed in</Badge>
+                  )}
+                  {latestRider ? (
+                    <Badge variant="secondary" className="capitalize">
+                      Rider: {latestRider.status.replace("_", " ")}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Rider not applied</Badge>
+                  )}
+                  {latestDriver ? (
+                    <Badge variant="default" className="capitalize">
+                      Driver: {latestDriver.status.replace("_", " ")}
+                    </Badge>
+                  ) : isDriverApproved ? (
+                    <Badge variant="success">
+                      <BadgeCheck className="mr-1 size-3" />
+                      Driver approved
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Driver not applied</Badge>
+                  )}
+                  {inviteCodeUsed && (
+                    <Badge variant="accent">Invite {inviteCodeUsed}</Badge>
+                  )}
+                </div>
+              </div>
             </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {!user && !isPending && (
+                <Button className="flex-1" asChild>
+                  <Link to="/login">Sign in / create account</Link>
+                </Button>
+              )}
+              {user && authEnabled && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => void signOut("/app")}
+                >
+                  Sign out
+                </Button>
+              )}
+              <Button variant="secondary" className="flex-1" asChild>
+                <Link to="/apply">Apply rider or driver</Link>
+              </Button>
+            </div>
+            <p className="text-xs text-[var(--color-fg-subtle)]">
+              Use one account per person. On your business phone apply as rider;
+              on your personal phone sign in as yourself and apply as driver. Both
+              roles can live on the same account if you prefer.
+            </p>
           </CardContent>
         </Card>
 
@@ -243,18 +305,27 @@ function ProfilePage() {
                 Save emergency contact
               </Button>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--color-primary)]"
-                checked={idVerified}
-                onChange={(e) => setIdVerified(e.target.checked)}
-              />
-              Demo: mark ID verified (license selfie checked)
-            </label>
+            <div className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2 text-sm">
+              <span>ID verification</span>
+              <Badge variant={idVerified ? "success" : "outline"}>
+                {idVerified ? "Verified" : "Pending interview"}
+              </Badge>
+            </div>
             <p className="text-xs text-[var(--color-fg-subtle)]">
-              Docs (license, insurance, reg) reviewed in interview — list them on driver apply.
+              Drivers upload license (front & back) + insurance on the driver application.
+              Founders mark verified after review.
             </p>
+            {demo && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--color-primary)]"
+                  checked={idVerified}
+                  onChange={(e) => setIdVerified(e.target.checked)}
+                />
+                Demo only: mark ID verified
+              </label>
+            )}
           </CardContent>
         </Card>
 
@@ -361,7 +432,7 @@ function ProfilePage() {
                 Low platform take so drivers keep more than Uber.
               </li>
             </ul>
-            {!isDriverApproved && !latestDriver && (
+            {demo && !isDriverApproved && !latestDriver && (
               <Button
                 className="mt-4 w-full"
                 variant="outline"

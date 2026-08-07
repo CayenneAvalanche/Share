@@ -20,6 +20,7 @@ import { Route as DeliveriesRouteImport } from './routes/deliveries'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as LocalRouteImport } from './routes/local'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -40,6 +41,7 @@ import { Route as RidesRequestsRouteImport } from './routes/rides.requests'
 import { Route as ShareStuffNewRouteImport } from './routes/share-stuff.new'
 import { Route as TrackCodeRouteImport } from './routes/track.$code'
 import { Route as VolunteerNewRouteImport } from './routes/volunteer.new'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as RidesRequestNewRouteImport } from './routes/rides.request.new'
 import { Route as RidesRequestsIdRouteImport } from './routes/rides.requests.$id'
 
@@ -96,6 +98,11 @@ const EarningsRoute = EarningsRouteImport.update({
 const LocalRoute = LocalRouteImport.update({
   id: '/local',
   path: '/local',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -198,6 +205,11 @@ const VolunteerNewRoute = VolunteerNewRouteImport.update({
   path: '/new',
   getParentRoute: () => VolunteerRoute,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesRequestNewRoute = RidesRequestNewRouteImport.update({
   id: '/rides/request/new',
   path: '/rides/request/new',
@@ -221,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/local': typeof LocalRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -241,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -256,6 +270,7 @@ export interface FileRoutesByTo {
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/local': typeof LocalRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -276,6 +291,7 @@ export interface FileRoutesByTo {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides': typeof RidesIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -292,6 +308,7 @@ export interface FileRoutesById {
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/local': typeof LocalRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
@@ -312,6 +329,7 @@ export interface FileRoutesById {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -329,6 +347,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/earnings'
     | '/local'
+    | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
@@ -349,6 +368,7 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/new'
     | '/rides/'
+    | '/api/auth/$'
     | '/rides/request/new'
     | '/rides/requests/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -364,6 +384,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/earnings'
     | '/local'
+    | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
@@ -384,6 +405,7 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/new'
     | '/rides'
+    | '/api/auth/$'
     | '/rides/request/new'
     | '/rides/requests/$id'
   id:
@@ -399,6 +421,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/earnings'
     | '/local'
+    | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
@@ -419,6 +442,7 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/new'
     | '/rides/'
+    | '/api/auth/$'
     | '/rides/request/new'
     | '/rides/requests/$id'
   fileRoutesById: FileRoutesById
@@ -435,6 +459,7 @@ export interface RootRouteChildren {
   DemoRoute: typeof DemoRoute
   EarningsRoute: typeof EarningsRoute
   LocalRoute: typeof LocalRoute
+  LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
@@ -447,6 +472,7 @@ export interface RootRouteChildren {
   RidesRequestsRoute: typeof RidesRequestsRouteWithChildren
   TrackCodeRoute: typeof TrackCodeRoute
   RidesIndexRoute: typeof RidesIndexRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   RidesRequestNewRoute: typeof RidesRequestNewRoute
 }
 
@@ -527,6 +553,13 @@ declare module '@tanstack/react-router' {
       path: '/local'
       fullPath: '/local'
       preLoaderRoute: typeof LocalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -669,6 +702,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VolunteerNewRouteImport
       parentRoute: typeof VolunteerRoute
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/request/new': {
       id: '/rides/request/new'
       path: '/rides/request/new'
@@ -782,6 +822,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoRoute: DemoRoute,
   EarningsRoute: EarningsRoute,
   LocalRoute: LocalRoute,
+  LoginRoute: LoginRoute,
   MessagesRoute: MessagesRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
@@ -794,6 +835,7 @@ const rootRouteChildren: RootRouteChildren = {
   RidesRequestsRoute: RidesRequestsRouteWithChildren,
   TrackCodeRoute: TrackCodeRoute,
   RidesIndexRoute: RidesIndexRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   RidesRequestNewRoute: RidesRequestNewRoute,
 }
 export const routeTree = rootRouteImport

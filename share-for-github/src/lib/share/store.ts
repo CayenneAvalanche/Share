@@ -198,11 +198,11 @@ type ShareState = {
   resetDemo: () => void;
 };
 
-export const SHARE_PERSIST_KEY = "share-app-v12";
+export const SHARE_PERSIST_KEY = "share-app-v13";
 /** Separate localStorage so demo sample data never pollutes beta. */
 function persistStorageName() {
-  if (typeof window === "undefined") return "share-app-v12-beta";
-  return isDemoMode() ? "share-app-v12-demo" : "share-app-v12-beta";
+  if (typeof window === "undefined") return "share-app-v13-beta";
+  return isDemoMode() ? "share-app-v13-demo" : "share-app-v13-beta";
 }
 
 const DEMO =
@@ -298,7 +298,7 @@ export const useShareStore = create<ShareState>()(
       riderName: "Guest",
       isDriverApproved: false,
       isRiderApproved: false,
-      favoriteDriverIds: ["d2", "d4"],
+      favoriteDriverIds: DEMO ? ["d2", "d4"] : [],
       emergencyContactName: "",
       emergencyContactPhone: "",
       idVerified: false,
@@ -613,10 +613,14 @@ export const useShareStore = create<ShareState>()(
               : a,
           ),
           isDriverApproved:
-            status === "approved" ? true : state.isDriverApproved,
+            status === "approved" || status === "active"
+              ? true
+              : status === "inactive" || status === "declined"
+                ? false
+                : state.isDriverApproved,
         }));
-        if (status === "approved") {
-          systemNotify(set, "Driver approved — SMS/email demo sent");
+        if (status === "approved" || status === "active") {
+          systemNotify(set, "Driver approved — ready to take trips");
         }
       },
 
@@ -633,7 +637,11 @@ export const useShareStore = create<ShareState>()(
               : a,
           ),
           isRiderApproved:
-            status === "approved" ? true : state.isRiderApproved,
+            status === "approved" || status === "active"
+              ? true
+              : status === "inactive" || status === "declined"
+                ? false
+                : state.isRiderApproved,
         }));
       },
 
@@ -987,10 +995,21 @@ export const useShareStore = create<ShareState>()(
 
       resetDemo: () => {
         try {
-          localStorage.removeItem("share-app-v11");
-          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9", "share-app-v11"].forEach(
-            (k) => localStorage.removeItem(k),
-          );
+          [
+            "share-app-v5",
+            "share-app-v6",
+            "share-app-v7",
+            "share-app-v8",
+            "share-app-v9",
+            "share-app-v11",
+            "share-app-v12",
+            "share-app-v12-demo",
+            "share-app-v12-beta",
+            "share-app-v13-demo",
+            "share-app-v13-beta",
+            "share-force-mode",
+            "share-demo-notice-v1",
+          ].forEach((k) => localStorage.removeItem(k));
         } catch {
           /* ignore */
         }
@@ -1084,8 +1103,15 @@ export const useShareStore = create<ShareState>()(
                 ? p.savedPlaces
                 : DEFAULT_SAVED_PLACES,
             payments: p.payments ?? [],
-            favoriteDriverIds: p.favoriteDriverIds ?? current.favoriteDriverIds,
-            notifications: p.notifications ?? current.notifications,
+            favoriteDriverIds: (p.favoriteDriverIds ?? []).filter(
+              (id) => !/^d\d+$/.test(id),
+            ),
+            notifications: (p.notifications ?? current.notifications).filter(
+              (n) => !/Amy|Tom|sample|demo push/i.test(n),
+            ),
+            isDriverApproved: p.isDriverApproved ?? false,
+            isRiderApproved: p.isRiderApproved ?? false,
+            riderName: p.riderName ?? current.riderName,
           };
         }
 

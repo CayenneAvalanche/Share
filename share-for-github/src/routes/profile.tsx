@@ -25,9 +25,10 @@ import { useShareStore } from "@/lib/share/store";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
+import { lookupMyAppsFn } from "@/lib/share/server-fns";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
 import { SHARE_DOMAIN } from "@/lib/share/tracking";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -78,6 +79,53 @@ function ProfilePage() {
     riderApps.filter(
       (a) => a.status === "pending_interview" || a.status === "scheduled",
     ).length;
+
+  const setDriverAppStatus = useShareStore((s) => s.setDriverAppStatus);
+  const setRiderAppStatus = useShareStore((s) => s.setRiderAppStatus);
+
+  // Pull approval status from Neon so a driver's phone unlocks after founder Approve
+  useEffect(() => {
+    const email = user?.primaryEmail;
+    if (!email) return;
+    let cancelled = false;
+    lookupMyAppsFn({ data: { email } })
+      .then((res) => {
+        if (cancelled) return;
+        for (const d of res.drivers) {
+          setDriverAppStatus(d.id, d.status, {
+            interviewAt: d.interviewAt,
+            adminNote: d.adminNote,
+          });
+          // also store if missing from local list via status update path only works if in list
+        }
+        // If cloud has driver app not in local list, still unlock if active/approved
+        const activeDriver = res.drivers.find(
+          (d) => d.status === "active" || d.status === "approved",
+        );
+        if (activeDriver) {
+          useShareStore.setState({ isDriverApproved: true });
+          if (activeDriver.fullName) {
+            useShareStore.setState({ riderName: activeDriver.fullName });
+          }
+        }
+        const activeRider = res.riders.find(
+          (d) => d.status === "active" || d.status === "approved",
+        );
+        if (activeRider) {
+          useShareStore.setState({ isRiderApproved: true });
+        }
+        for (const r of res.riders) {
+          setRiderAppStatus(r.id, r.status, {
+            interviewAt: r.interviewAt,
+            adminNote: r.adminNote,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.primaryEmail, setDriverAppStatus, setRiderAppStatus]);
 
   return (
     <AppShell title="You" subtitle="Account · trust · places" solidHeader>

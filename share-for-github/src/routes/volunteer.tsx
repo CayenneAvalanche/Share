@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { HeartHandshake, Phone, Timer, BadgeDollarSign } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +15,12 @@ import { hoursUntilEscalate } from "@/lib/share/tracking";
 import { formatCurrency } from "@/lib/utils";
 import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
 import { isDemoMode } from "@/lib/share/mode";
+import {
+  claimVolunteerRideFn,
+  escalateVolunteerRideFn,
+  listVolunteerRidesFn,
+} from "@/lib/share/server-fns";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/volunteer")({
   component: VolunteerLayout,
@@ -27,15 +33,36 @@ function VolunteerLayout() {
 }
 
 function VolunteerPage() {
-  const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const localRides = useShareStore((s) => s.volunteerRides);
   const processVolunteerEscalations = useShareStore(
     (s) => s.processVolunteerEscalations,
   );
   const claimVolunteer = useShareStore((s) => s.claimVolunteer);
   const forceEscalateVolunteer = useShareStore((s) => s.forceEscalateVolunteer);
+  const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
+  const [cloudRides, setCloudRides] = useState<VolunteerRide[]>([]);
+  const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "offline">(
+    "loading",
+  );
   const [, tick] = useState(0);
   const demo = isDemoMode();
+
+  function refreshCloud() {
+    listVolunteerRidesFn()
+      .then((data) => {
+        setCloudRides(data.rides);
+        setCloudStatus("ok");
+      })
+      .catch(() => setCloudStatus("offline"));
+  }
+
+  useEffect(() => {
+    refreshCloud();
+    const id = setInterval(refreshCloud, 20_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const n = processVolunteerEscalations();
@@ -52,6 +79,15 @@ function VolunteerPage() {
     return () => clearInterval(id);
   }, [processVolunteerEscalations]);
 
+  const volunteerRides = useMemo(() => {
+    const byId = new Map<string, VolunteerRide>();
+    for (const r of cloudRides) byId.set(r.id, r);
+    for (const r of localRides) byId.set(r.id, r);
+    return Array.from(byId.values()).sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+    );
+  }, [cloudRides, localRides]);
+
   const open = volunteerRides.filter(
     (r) =>
       r.status === "seeking_volunteer" || r.status === "escalated_paid",
@@ -60,13 +96,32 @@ function VolunteerPage() {
     (r) => r.status === "matched" || r.status === "completed",
   );
 
+  const driverLabel =
+    user?.displayName || riderName || "Share driver";
+
+  async function onClaim(r: VolunteerRide) {
+    claimVolunteer(r.id, driverLabel);
+    try {
+      await claimVolunteerRideFn({
+        data: { id: r.id, driverName: driverLabel },
+      });
+      toast.success(
+        r.status === "seeking_volunteer"
+          ? "You claimed this as a volunteer"
+          : "You claimed this paid community ride",
+      );
+      refreshCloud();
+    } catch {
+      toast.message("Claimed on this phone — cloud sync pending");
+    }
+  }
+
   return (
     <AppShell
       title="Volunteer rides"
       subtitle="Veterans · disabled · elders 75+"
       solidHeader
     >
-      {/* Large REQUEST — easy for elders / less dexterity */}
       <Link
         to="/volunteer/new"
         className="mt-3 flex min-h-[64px] w-full items-center justify-center rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-6 py-5 text-center text-lg font-bold tracking-wide text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.98]"
@@ -74,7 +129,6 @@ function VolunteerPage() {
         REQUEST A RIDE
       </Link>
 
-      {/* Call Share anytime */}
       <a
         href={SHARE_PHONE_TEL}
         className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/40 bg-[var(--color-bg-elevated)] px-4 py-3 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
@@ -92,7 +146,24 @@ function VolunteerPage() {
 
       <p className="mt-3 text-center text-sm text-[var(--color-fg-muted)]">
         Free volunteer first. If no driver in time, becomes a paid request.
+        {cloudStatus === "ok" && (
+          <span className="mt-1 block text-xs text-[var(--color-primary)]">
+            Live board · requests sync for all drivers
+          </span>
+        )}
       </p>
+
+      {!isDriverApproved && !demo && (
+        <Card className="mt-4 border-[var(--color-border)]">
+          <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
+            Drivers: apply and get approved in the founder inbox to claim
+            rides. You can still request a ride for someone in need.
+            <Button size="sm" variant="secondary" className="mt-2" asChild>
+              <Link to="/apply/driver">Apply as driver</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="mt-6">
         <h2 className="font-display text-lg font-semibold">Open requests</h2>
@@ -108,16 +179,13 @@ function VolunteerPage() {
                 key={r.id}
                 ride={r}
                 demo={demo}
-                onClaim={() => {
-                  claimVolunteer(r.id, riderName || "Share driver");
-                  toast.success(
-                    r.status === "seeking_volunteer"
-                      ? "You claimed this as a volunteer"
-                      : "You claimed this paid community ride",
-                  );
-                }}
+                canClaim={demo || isDriverApproved}
+                onClaim={() => void onClaim(r)}
                 onForceEscalate={() => {
                   forceEscalateVolunteer(r.id);
+                  void escalateVolunteerRideFn({ data: { id: r.id } })
+                    .then(refreshCloud)
+                    .catch(() => {});
                   toast.message("Switched to paid request");
                 }}
               />
@@ -145,11 +213,13 @@ function VolunteerCard({
   onClaim,
   onForceEscalate,
   demo,
+  canClaim,
 }: {
   ride: VolunteerRide;
   onClaim?: () => void;
   onForceEscalate?: () => void;
   demo?: boolean;
+  canClaim?: boolean;
 }) {
   const hrs = hoursUntilEscalate(ride);
   const free = ride.status === "seeking_volunteer";
@@ -202,6 +272,7 @@ function VolunteerCard({
           </p>
         )}
         {onClaim &&
+          canClaim &&
           (ride.status === "seeking_volunteer" ||
             ride.status === "escalated_paid") && (
             <div className="flex flex-wrap gap-2">

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { LOCAL_SPOTS, type VolunteerCategory } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { createVolunteerRideFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/volunteer/new")({
   component: NewVolunteerPage,
@@ -29,7 +30,7 @@ function NewVolunteerPage() {
   const [paidOffer, setPaidOffer] = useState(12);
   const [daytimeOnly, setDaytimeOnly] = useState(true);
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim() || !phone.trim()) {
       toast.error("Name and phone required");
@@ -43,7 +44,7 @@ function NewVolunteerPage() {
       daytimeOnly && (category === "elder" || category === "disabled")
         ? "Quiet hours: daytime / early evening only (no late-night)."
         : "";
-    requestVolunteerRide({
+    const payload = {
       category,
       fullName: fullName.trim(),
       phone: phone.trim(),
@@ -54,8 +55,14 @@ function NewVolunteerPage() {
       escalateAfterHours,
       paidOffer,
       requesterName: riderName || "Community",
-    });
-    toast.success("Volunteer ride posted");
+    };
+    requestVolunteerRide(payload);
+    try {
+      await createVolunteerRideFn({ data: payload as unknown as Record<string, unknown> });
+      toast.success("Volunteer ride posted — drivers will see it");
+    } catch {
+      toast.message("Saved on this phone — cloud sync pending");
+    }
     navigate({ to: "/volunteer" });
   }
 

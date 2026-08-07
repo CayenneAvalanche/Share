@@ -8,7 +8,7 @@ import { ShareMark } from "@/components/share/logo";
 import { joinWaitlistFn } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 
-const STORAGE_KEY = "share-demo-notice-v1";
+const STORAGE_KEY = "share-beta-notice-v2";
 
 /**
  * First-visit pilot banner: demo-only + waitlist.
@@ -77,7 +77,7 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
               id="demo-notice-title"
               className="font-display text-lg font-semibold"
             >
-              Pilot demo
+              {isDemoMode() ? "Pilot tour" : "Welcome to Share"}
             </p>
             <p className="text-xs text-[var(--color-fg-muted)]">
               share.myendeavors.me

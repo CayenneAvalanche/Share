@@ -100,16 +100,12 @@ function AppHomePage() {
             </Link>
             {" · "}
             <a href="/app?mode=beta" className="underline">
-              Switch to live beta (empty)
+              Switch to live beta
             </a>
           </>
         ) : (
           <>
-            <a href="/app?mode=demo" className="underline">
-              Tour with sample data
-            </a>
-            {" · "}
-            Marketplace is empty until people post
+            Public beta · real applications · Lafayette corridor
           </>
         )}
       </p>

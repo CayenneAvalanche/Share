@@ -6,6 +6,8 @@ import type {
   DriverGender,
   InterviewMode,
   RiderApplication,
+  VolunteerCategory,
+  VolunteerRide,
 } from "@/lib/share/data";
 
 function uid(prefix: string) {
@@ -499,3 +501,122 @@ export const createBorrowFn = createServerFn({ method: "POST" })
     return { id };
   });
 
+export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      category: string;
+      full_name: string;
+      phone: string;
+      pickup: string;
+      dropoff: string;
+      when_text: string;
+      notes: string;
+      escalate_after_hours: number;
+      paid_offer: number;
+      requester_name: string;
+      status: string;
+      matched_driver_name: string | null;
+      escalated_at: string | Date | null;
+      created_at: string | Date;
+    }>(
+      `select * from share_volunteer_rides order by created_at desc limit 100`,
+    );
+    const rides: VolunteerRide[] = rows.map((r) => ({
+      id: r.id,
+      category: r.category as VolunteerCategory,
+      fullName: r.full_name,
+      phone: r.phone,
+      pickup: r.pickup,
+      dropoff: r.dropoff,
+      when: r.when_text,
+      notes: r.notes,
+      escalateAfterHours: Number(r.escalate_after_hours),
+      paidOffer: Number(r.paid_offer),
+      requesterName: r.requester_name,
+      status: r.status as VolunteerRide["status"],
+      matchedDriverName: r.matched_driver_name ?? undefined,
+      escalatedAt: iso(r.escalated_at),
+      createdAt: iso(r.created_at) ?? new Date().toISOString(),
+    }));
+    return { rides };
+  },
+);
+
+export const createVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const id = uid("vol");
+    const createdAt = new Date().toISOString();
+    await sql`
+      insert into share_volunteer_rides (
+        id, category, full_name, phone, pickup, dropoff, when_text, notes,
+        escalate_after_hours, paid_offer, requester_name, status, created_at
+      ) values (
+        ${id},
+        ${String(data.category ?? "elder")},
+        ${String(data.fullName ?? "").trim()},
+        ${String(data.phone ?? "").trim()},
+        ${String(data.pickup ?? "")},
+        ${String(data.dropoff ?? "")},
+        ${String(data.when ?? "ASAP")},
+        ${String(data.notes ?? "")},
+        ${Number(data.escalateAfterHours ?? 2)},
+        ${Number(data.paidOffer ?? 12)},
+        ${String(data.requesterName ?? "Community")},
+        ${"seeking_volunteer"},
+        ${createdAt}
+      )
+    `;
+    return { id, createdAt };
+  });
+
+export const claimVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string; driverName: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const name = data.driverName.trim() || "Share driver";
+    await sql`
+      update share_volunteer_rides set
+        status = ${"matched"},
+        matched_driver_name = ${name}
+      where id = ${data.id}
+        and status in ('seeking_volunteer', 'escalated_paid')
+    `;
+    return { ok: true as const };
+  });
+
+export const escalateVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const at = new Date().toISOString();
+    await sql`
+      update share_volunteer_rides set
+        status = ${"escalated_paid"},
+        escalated_at = ${at}
+      where id = ${data.id} and status = 'seeking_volunteer'
+    `;
+    return { ok: true as const };
+  });
+
+/** Drivers/riders check their application status by email after approval. */
+export const lookupMyAppsFn = createServerFn({ method: "POST" })
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    if (!email.includes("@")) return { drivers: [], riders: [] };
+    const sql = await getSql();
+    const drivers = await sql<DriverRow>`
+      select * from share_driver_apps where lower(email) = ${email} order by created_at desc limit 5
+    `;
+    const riders = await sql<RiderRow>`
+      select * from share_rider_apps where lower(email) = ${email} order by created_at desc limit 5
+    `;
+    return {
+      drivers: drivers.map(mapDriver),
+      riders: riders.map(mapRider),
+    };
+  });

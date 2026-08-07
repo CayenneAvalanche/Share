@@ -48,6 +48,8 @@ function PostRidePage() {
   const [stops, setStops] = useState("");
   const [cargo, setCargo] = useState("2 medium bags + trunk space");
   const [notes, setNotes] = useState("");
+  const [vehiclePhoto, setVehiclePhoto] = useState("");
+  const [vehicleLabel, setVehicleLabel] = useState("");
 
   function applyAirport(fromId: string, toId: string) {
     const a = AIRPORT_PRESETS.find((x) => x.id === fromId);
@@ -96,6 +98,7 @@ function PostRidePage() {
       driverId: "d1",
       distanceMiles: 200,
       durationHours: 3.5,
+      vehiclePhoto: vehiclePhoto.trim() || undefined,
     };
 
     postTrip(trip);
@@ -238,6 +241,28 @@ function PostRidePage() {
                 value={cargo}
                 onChange={(e) => setCargo(e.target.value)}
               />
+            </div>
+            <div>
+              <Label htmlFor="vehicleLabel">Vehicle (what riders see)</Label>
+              <Input
+                id="vehicleLabel"
+                value={vehicleLabel}
+                onChange={(e) => setVehicleLabel(e.target.value)}
+                placeholder="2019 Toyota Highlander · gray"
+              />
+            </div>
+            <div>
+              <Label htmlFor="vehiclePhoto">Vehicle photo URL</Label>
+              <Input
+                id="vehiclePhoto"
+                type="url"
+                value={vehiclePhoto}
+                onChange={(e) => setVehiclePhoto(e.target.value)}
+                placeholder="https://… (phone photo link for now)"
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Paste a photo link so riders see the car before they book. Camera upload coming next.
+              </p>
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>

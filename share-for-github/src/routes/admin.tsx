@@ -29,7 +29,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const FOUNDER_PIN = "share";
+const FOUNDER_PIN = "lafayette1";
 
 type Tab =
   | "drivers"
@@ -138,7 +138,7 @@ function AdminPage() {
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="share"
+                placeholder="Your founder PIN"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     if (pin === FOUNDER_PIN) {
@@ -150,7 +150,7 @@ function AdminPage() {
                 }}
               />
               <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Demo PIN: <strong>share</strong>
+                Set the same PIN in Netlify as <code className="text-[var(--color-fg)]">FOUNDER_PIN</code>
               </p>
             </div>
             <Button
@@ -279,13 +279,13 @@ function AdminPage() {
                     size="sm"
                     variant="secondary"
                     onClick={() => {
-                      setDriverAppStatus(a.id, "approved");
+                      setDriverAppStatus(a.id, "active");
                       void setDriverAppStatusFn({
-                        data: { pin, id: a.id, status: "approved" },
+                        data: { pin, id: a.id, status: "active" },
                       })
                         .then(() => refreshCloud(pin))
                         .catch(() => {});
-                      toast.success("Driver approved");
+                      toast.success("Approved & Active");
                     }}
                   >
                     <CheckCircle2 className="size-3.5" />
@@ -307,6 +307,42 @@ function AdminPage() {
                     <XCircle className="size-3.5" />
                     Decline
                   </Button>
+                  {(a.status === "approved" ||
+                    a.status === "active" ||
+                    a.status === "inactive") && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={a.status === "active" ? "default" : "outline"}
+                        onClick={() => {
+                          setDriverAppStatus(a.id, "active");
+                          void setDriverAppStatusFn({
+                            data: { pin, id: a.id, status: "active" },
+                          })
+                            .then(() => refreshCloud(pin))
+                            .catch(() => {});
+                          toast.success("Driver Active — can take trips");
+                        }}
+                      >
+                        Active
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={a.status === "inactive" ? "secondary" : "outline"}
+                        onClick={() => {
+                          setDriverAppStatus(a.id, "inactive");
+                          void setDriverAppStatusFn({
+                            data: { pin, id: a.id, status: "inactive" },
+                          })
+                            .then(() => refreshCloud(pin))
+                            .catch(() => {});
+                          toast.message("Driver Inactive — paused");
+                        }}
+                      >
+                        Not active
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -354,6 +390,40 @@ function AdminPage() {
                   >
                     Decline
                   </Button>
+                  {(a.status === "approved" ||
+                    a.status === "active" ||
+                    a.status === "inactive") && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={a.status === "active" ? "default" : "outline"}
+                        onClick={() => {
+                          setRiderAppStatus(a.id, "active");
+                          void setRiderAppStatusFn({
+                            data: { pin, id: a.id, status: "active" },
+                          })
+                            .then(() => refreshCloud(pin))
+                            .catch(() => {});
+                        }}
+                      >
+                        Active
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setRiderAppStatus(a.id, "inactive");
+                          void setRiderAppStatusFn({
+                            data: { pin, id: a.id, status: "inactive" },
+                          })
+                            .then(() => refreshCloud(pin))
+                            .catch(() => {});
+                        }}
+                      >
+                        Not active
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -13,7 +13,7 @@ function uid(prefix: string) {
 }
 
 function checkPin(pin: string | undefined) {
-  const expected = process.env.FOUNDER_PIN?.trim() || "share";
+  const expected = process.env.FOUNDER_PIN?.trim() || "lafayette1";
   if (!pin || pin !== expected) {
     throw new Error("Unauthorized — wrong founder PIN");
   }

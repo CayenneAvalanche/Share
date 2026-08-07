@@ -3,7 +3,7 @@
 # Required env (Site configuration → Environment variables):
 #   DATABASE_URL   = Neon pooled postgres://… connection string
 # Optional:
-#   FOUNDER_PIN    = admin inbox PIN (default: share)
+#   FOUNDER_PIN    = admin inbox PIN (default: lafayette1) — change in Netlify UI
 #   VITE_APP_MODE  = demo | beta  (default: beta on prod host, demo on demo.*)
 #   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY = later for real payments
 #

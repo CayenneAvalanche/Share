@@ -80,7 +80,7 @@ function RidesPage() {
   return (
     <AppShell
       title="Share a ride"
-      subtitle="Corridors from Hub City"
+      subtitle="Local now · or long-distance"
       solidHeader
       action={
         <div className="flex gap-1">
@@ -96,7 +96,30 @@ function RidesPage() {
         </div>
       }
     >
-      <Card className="mt-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+      {/* Fast path: local rides (primary launch focus) */}
+      <Link
+        to="/local"
+        className="mt-3 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-5 py-5 text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
+            <MapPinned className="size-6" />
+          </div>
+          <div>
+            <p className="text-lg font-semibold leading-tight">Local ride</p>
+            <p className="text-sm opacity-90">
+              Nearby now · fastest way to request
+            </p>
+          </div>
+        </div>
+        <span className="text-2xl font-light opacity-80">→</span>
+      </Link>
+
+      <p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+        Long-distance / corridor
+      </p>
+
+      <Card className="mt-2 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="flex items-center gap-2 text-sm">
             <Zap className="size-4 text-[var(--color-primary)]" />

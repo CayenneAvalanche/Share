@@ -16,6 +16,7 @@ export function getAppMode(): AppMode {
   if (typeof window !== "undefined") {
     const h = window.location.hostname.toLowerCase();
     if (
+      h === "demo.share.myendeavors.me" ||
       h.startsWith("demo.") ||
       h.startsWith("demo-") ||
       h.includes("demo.share") ||

@@ -3,7 +3,6 @@ import {
   Car,
   Package,
   Boxes,
-  MapPinned,
   ArrowRight,
   ShieldCheck,
   HeartHandshake,
@@ -94,12 +93,6 @@ function AppHomePage() {
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              <ChoiceRow
-                to="/local"
-                icon={MapPinned}
-                title="Local"
-                sub="Nearby · like Uber/Lyft"
-              />
               <ChoiceRow
                 to="/volunteer"
                 icon={HeartHandshake}

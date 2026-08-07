@@ -8,6 +8,8 @@ export type ApplicationStatus =
   | "pending_interview"
   | "scheduled"
   | "approved"
+  | "active"
+  | "inactive"
   | "declined";
 
 export type DriverGender = "woman" | "man" | "nonbinary" | "unspecified";

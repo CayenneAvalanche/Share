@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useShareStore } from "@/lib/share/store";
 import { isDemoMode } from "@/lib/share/mode";
+import { SHARE_BUILD } from "@/lib/share/contact";
 
 export const Route = createFileRoute("/app")({
   component: AppHomePage,
@@ -94,13 +95,14 @@ function AppHomePage() {
           </Link>
         </p>
       )}
-      {!demo && (
-        <p className="mt-8 pb-4 text-center text-xs text-[var(--color-fg-subtle)]">
-          <Link to="/" className="underline">
-            share.myendeavors.me
-          </Link>
-        </p>
-      )}
+      <p className="mt-8 pb-4 text-center text-xs text-[var(--color-fg-subtle)]">
+        <Link to="/" className="underline">
+          Landing
+        </Link>
+        {" · "}
+        build {SHARE_BUILD}
+        {demo ? " · demo" : " · beta"}
+      </p>
     </AppShell>
   );
 }

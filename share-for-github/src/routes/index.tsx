@@ -21,6 +21,7 @@ import { useShareStore } from "@/lib/share/store";
 import { DemoNoticeModal } from "@/components/share/demo-notice";
 import { joinWaitlistFn } from "@/lib/share/server-fns";
 import { getAppMode } from "@/lib/share/mode";
+import { SHARE_BUILD } from "@/lib/share/contact";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -300,6 +301,9 @@ function LandingPage() {
             App
           </Link>
         </div>
+      <p className="mt-4 text-[var(--color-fg-subtle)]">
+          build {SHARE_BUILD} · {getAppMode()}
+        </p>
       </footer>
     </MarketingShell>
   );

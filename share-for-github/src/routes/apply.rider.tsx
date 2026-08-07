@@ -18,6 +18,7 @@ function RiderApplyPage() {
   const submit = useShareStore((s) => s.submitRiderApp);
   const setRiderName = useShareStore((s) => s.setRiderName);
   const [done, setDone] = useState(false);
+  const [acceptedTos, setAcceptedTos] = useState(false);
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -37,6 +38,10 @@ function RiderApplyPage() {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.includes("@") || !form.phone.trim()) {
       toast.error("Name, email, and phone are required");
+      return;
+    }
+    if (!acceptedTos) {
+      toast.error("Please agree to the Terms and Privacy Policy to continue");
       return;
     }
     submit(form);
@@ -174,6 +179,26 @@ function RiderApplyPage() {
             </div>
           </CardContent>
         </Card>
+                <label className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-4 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 size-5 shrink-0 accent-[var(--color-primary)]"
+            checked={acceptedTos}
+            onChange={(e) => setAcceptedTos(e.target.checked)}
+          />
+          <span className="text-[var(--color-fg-muted)]">
+            I agree to Share's{" "}
+            <Link to="/terms" className="font-semibold text-[var(--color-primary)] underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="font-semibold text-[var(--color-primary)] underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+
         <Button type="submit" size="xl" className="w-full">
           Submit rider application
         </Button>

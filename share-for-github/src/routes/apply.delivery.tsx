@@ -29,6 +29,7 @@ function DeliveryApplyPage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [isBusiness, setIsBusiness] = useState(true);
+  const [acceptedTos, setAcceptedTos] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +39,10 @@ function DeliveryApplyPage() {
     }
     if (from === to) {
       toast.error("Pick two different cities");
+      return;
+    }
+    if (!acceptedTos) {
+      toast.error("Please agree to the Terms and Privacy Policy to continue");
       return;
     }
 
@@ -199,6 +204,26 @@ function DeliveryApplyPage() {
             </div>
           </CardContent>
         </Card>
+
+                <label className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-4 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 size-5 shrink-0 accent-[var(--color-primary)]"
+            checked={acceptedTos}
+            onChange={(e) => setAcceptedTos(e.target.checked)}
+          />
+          <span className="text-[var(--color-fg-muted)]">
+            I agree to Share's{" "}
+            <Link to="/terms" className="font-semibold text-[var(--color-primary)] underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="font-semibold text-[var(--color-primary)] underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
 
         <Button type="submit" size="xl" className="w-full">
           Submit & get tracking

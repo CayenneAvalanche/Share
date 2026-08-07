@@ -50,8 +50,8 @@ function ShareStuffPage() {
 
   return (
     <AppShell
-      title="Something else"
-      subtitle="Rent · lend · borrow"
+      title="Lagniappe"
+      subtitle="A little something extra · Acadiana"
       solidHeader
       action={
         <Button size="sm" asChild>
@@ -63,7 +63,7 @@ function ShareStuffPage() {
       }
     >
       <p className="mt-3 text-sm text-[var(--color-fg-muted)]">
-        Tools, bikes, trailers, grills — list or request.
+        The little extra — tools, bikes, trailers, grills. List or request.
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-2">

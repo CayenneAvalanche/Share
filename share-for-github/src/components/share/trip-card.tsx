@@ -18,9 +18,24 @@ import {
 export function TripCard({ trip, className }: { trip: Trip; className?: string }) {
   const driver = getDriver(trip.driverId);
 
+  const vehiclePhoto = trip.vehiclePhoto || driver?.vehiclePhoto;
+
   return (
     <Link to="/rides/$id" params={{ id: trip.id }} className={cn("block", className)}>
-      <Card className="transition-all duration-150 hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-md)] active:scale-[0.99]">
+      <Card className="overflow-hidden transition-all duration-150 hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-md)] active:scale-[0.99]">
+        {vehiclePhoto && (
+          <div className="relative aspect-[16/9] w-full bg-[var(--color-bg-subtle)]">
+            <img
+              src={vehiclePhoto}
+              alt={driver ? `${driver.vehicle}` : "Vehicle"}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+            <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              {driver?.vehicle ?? "Vehicle"}
+            </div>
+          </div>
+        )}
         <CardContent className="p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>

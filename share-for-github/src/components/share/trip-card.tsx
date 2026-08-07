@@ -15,10 +15,20 @@ import {
   type Trip,
 } from "@/lib/share/data";
 
+/** Sample vehicle photos until drivers upload their own */
+const VEHICLE_PHOTOS: Record<string, string> = {
+  d1: "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&q=80",
+  d2: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&q=80",
+  d3: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&q=80",
+  d4: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&q=80",
+  d5: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&q=80",
+};
+
 export function TripCard({ trip, className }: { trip: Trip; className?: string }) {
   const driver = getDriver(trip.driverId);
-
-  const vehiclePhoto = trip.vehiclePhoto || driver?.vehiclePhoto;
+  const tripPhoto = (trip as Trip & { vehiclePhoto?: string }).vehiclePhoto;
+  const vehiclePhoto =
+    tripPhoto || (driver ? VEHICLE_PHOTOS[driver.id] : undefined);
 
   return (
     <Link to="/rides/$id" params={{ id: trip.id }} className={cn("block", className)}>

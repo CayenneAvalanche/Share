@@ -58,6 +58,7 @@ type DriverRow = {
   license_front?: string;
   license_back?: string;
   insurance_card?: string;
+  selfie?: string;
   interview_at: string | Date | null;
   admin_note: string | null;
   created_at: string | Date;
@@ -74,6 +75,7 @@ type RiderRow = {
   preferred_time: string;
   notes: string;
   status: string;
+  selfie?: string;
   interview_at: string | Date | null;
   admin_note: string | null;
   created_at: string | Date;
@@ -115,6 +117,7 @@ function mapDriver(r: DriverRow): DriverApplication {
     licenseFront: r.license_front || undefined,
     licenseBack: r.license_back || undefined,
     insuranceCard: r.insurance_card || undefined,
+    selfie: r.selfie || undefined,
   };
 }
 
@@ -133,6 +136,7 @@ function mapRider(r: RiderRow): RiderApplication {
     createdAt: iso(r.created_at) ?? new Date().toISOString(),
     interviewAt: iso(r.interview_at),
     adminNote: r.admin_note ?? undefined,
+    selfie: r.selfie || undefined,
   };
 }
 
@@ -148,7 +152,7 @@ export const submitDriverAppFn = createServerFn({ method: "POST" })
         years_driving, corridors, interview_mode, preferred_time, notes,
         gender, status, public_bio, hometown, other_job, platforms_text,
         has_dashcam, emergency_contact_name, emergency_contact_phone,
-        docs_note, license_front, license_back, insurance_card,
+        docs_note, license_front, license_back, insurance_card, selfie,
         invite_code, created_at, updated_at
       ) values (
         ${id},
@@ -176,6 +180,7 @@ export const submitDriverAppFn = createServerFn({ method: "POST" })
         ${String(data.licenseFront ?? "")},
         ${String(data.licenseBack ?? "")},
         ${String(data.insuranceCard ?? "")},
+        ${String(data.selfie ?? "")},
         ${data.inviteCode ? String(data.inviteCode) : null},
         ${createdAt},
         ${createdAt}
@@ -193,7 +198,7 @@ export const submitRiderAppFn = createServerFn({ method: "POST" })
     await sql`
       insert into share_rider_apps (
         id, full_name, email, phone, city, typical_routes, interview_mode,
-        preferred_time, notes, status, invite_code, created_at, updated_at
+        preferred_time, notes, status, selfie, invite_code, created_at, updated_at
       ) values (
         ${id},
         ${String(data.fullName ?? "").trim()},
@@ -205,6 +210,7 @@ export const submitRiderAppFn = createServerFn({ method: "POST" })
         ${String(data.preferredTime ?? "")},
         ${String(data.notes ?? "")},
         ${"pending_interview"},
+        ${String(data.selfie ?? "")},
         ${data.inviteCode ? String(data.inviteCode) : null},
         ${createdAt},
         ${createdAt}
@@ -383,8 +389,9 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
       owner_name: string;
       deposit: number | null;
       available: boolean;
+      photo: string | null;
     }>(
-      `select id, title, description, category, rate, rate_unit, city, owner_name, deposit, available
+      `select id, title, description, category, rate, rate_unit, city, owner_name, deposit, available, photo
        from share_rentals where available = true order by created_at desc limit 100`,
     );
     const borrows = await sql.query<{
@@ -399,8 +406,9 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
       requester_name: string;
       status: string;
       created_at: string | Date;
+      photo: string | null;
     }>(
-      `select id, title, description, category, offer, rate_unit, city, needed_by, requester_name, status, created_at
+      `select id, title, description, category, offer, rate_unit, city, needed_by, requester_name, status, created_at, photo
        from share_borrows where status = 'open' order by created_at desc limit 100`,
     );
     return {
@@ -415,6 +423,7 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
         ownerName: r.owner_name,
         deposit: r.deposit ?? undefined,
         available: r.available,
+        photoUrl: r.photo || undefined,
       })),
       borrows: borrows.map((b) => ({
         id: b.id,
@@ -428,6 +437,7 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
         requesterName: b.requester_name,
         status: (b.status === "matched" ? "matched" : "open") as "open" | "matched",
         createdAt: iso(b.created_at) ?? new Date().toISOString(),
+        photoUrl: b.photo || undefined,
       })),
     };
   },
@@ -441,7 +451,7 @@ export const createRentalFn = createServerFn({ method: "POST" })
     await sql`
       insert into share_rentals (
         id, title, description, category, rate, rate_unit, city,
-        owner_name, owner_email, deposit, available, created_at
+        owner_name, owner_email, deposit, available, photo, created_at
       ) values (
         ${id},
         ${String(data.title ?? "").trim()},
@@ -454,6 +464,7 @@ export const createRentalFn = createServerFn({ method: "POST" })
         ${data.ownerEmail ? String(data.ownerEmail) : null},
         ${data.deposit != null ? Number(data.deposit) : null},
         ${true},
+        ${String(data.photoUrl ?? data.photo ?? "")},
         ${new Date().toISOString()}
       )
     `;
@@ -468,7 +479,7 @@ export const createBorrowFn = createServerFn({ method: "POST" })
     await sql`
       insert into share_borrows (
         id, title, description, category, offer, rate_unit, city,
-        needed_by, requester_name, requester_email, status, created_at
+        needed_by, requester_name, requester_email, status, photo, created_at
       ) values (
         ${id},
         ${String(data.title ?? "").trim()},
@@ -481,6 +492,7 @@ export const createBorrowFn = createServerFn({ method: "POST" })
         ${String(data.requesterName ?? "Share member")},
         ${data.requesterEmail ? String(data.requesterEmail) : null},
         ${"open"},
+        ${String(data.photoUrl ?? data.photo ?? "")},
         ${new Date().toISOString()}
       )
     `;

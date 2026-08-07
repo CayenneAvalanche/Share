@@ -156,6 +156,8 @@ export type DriverApplication = {
   licenseFront?: string;
   licenseBack?: string;
   insuranceCard?: string;
+  /** Recent face photo for trust matching at pickup */
+  selfie?: string;
 };
 
 export type RiderApplication = {
@@ -172,6 +174,8 @@ export type RiderApplication = {
   createdAt: string;
   interviewAt?: string;
   adminNote?: string;
+  /** Recent face photo for trust matching at pickup */
+  selfie?: string;
 };
 
 export type RentalCategory =
@@ -193,6 +197,8 @@ export type RentalListing = {
   ownerName: string;
   available: boolean;
   deposit?: number;
+  /** Photo of the item for rent */
+  photoUrl?: string;
 };
 
 export type BorrowRequest = {
@@ -207,6 +213,7 @@ export type BorrowRequest = {
   requesterName: string;
   status: "open" | "matched";
   createdAt: string;
+  photoUrl?: string;
 };
 
 

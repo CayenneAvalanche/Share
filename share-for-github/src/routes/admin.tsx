@@ -242,11 +242,20 @@ function AdminPage() {
             <Card key={a.id}>
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{a.fullName}</p>
-                    <p className="text-sm text-[var(--color-fg-muted)]">
-                      {a.city} · {a.vehicle}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    {a.selfie ? (
+                      <img
+                        src={a.selfie}
+                        alt=""
+                        className="size-12 shrink-0 rounded-full object-cover"
+                      />
+                    ) : null}
+                    <div>
+                      <p className="font-semibold">{a.fullName}</p>
+                      <p className="text-sm text-[var(--color-fg-muted)]">
+                        {a.city} · {a.vehicle}
+                      </p>
+                    </div>
                   </div>
                   <Badge variant="outline" className="capitalize">
                     {a.status.replace("_", " ")}
@@ -406,8 +415,17 @@ function AdminPage() {
           {riderApps.map((a) => (
             <Card key={a.id}>
               <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between">
-                  <p className="font-semibold">{a.fullName}</p>
+                <div className="flex justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {a.selfie ? (
+                      <img
+                        src={a.selfie}
+                        alt=""
+                        className="size-12 shrink-0 rounded-full object-cover"
+                      />
+                    ) : null}
+                    <p className="font-semibold">{a.fullName}</p>
+                  </div>
                   <Badge variant="outline">{a.status}</Badge>
                 </div>
                 <p className="text-sm text-[var(--color-fg-muted)]">

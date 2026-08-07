@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { PhotoField } from "@/components/share/photo-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -33,6 +34,7 @@ function NewShareStuffPage() {
   const [rateUnit, setRateUnit] = useState<"hour" | "day" | "weekend">("day");
   const [city, setCity] = useState("Lafayette, LA");
   const [deposit, setDeposit] = useState(20);
+  const [photoUrl, setPhotoUrl] = useState("");
   const [neededBy, setNeededBy] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -43,6 +45,10 @@ function NewShareStuffPage() {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Add a title");
+      return;
+    }
+    if (mode === "list" && !photoUrl) {
+      toast.error("Add a photo of the item so neighbors know what they’re borrowing");
       return;
     }
 
@@ -62,6 +68,7 @@ function NewShareStuffPage() {
         city,
         ownerName,
         deposit: deposit || undefined,
+        photoUrl,
       });
       try {
         await createRentalFn({
@@ -75,6 +82,7 @@ function NewShareStuffPage() {
             ownerName,
             ownerEmail,
             deposit: deposit || undefined,
+            photoUrl,
           },
         });
         toast.success("Listed for everyone on Share");
@@ -92,6 +100,7 @@ function NewShareStuffPage() {
         city,
         neededBy: needed,
         requesterName: ownerName,
+        photoUrl: photoUrl || undefined,
       });
       try {
         await createBorrowFn({
@@ -105,6 +114,7 @@ function NewShareStuffPage() {
             neededBy: needed,
             requesterName: ownerName,
             requesterEmail: ownerEmail,
+            photoUrl: photoUrl || undefined,
           },
         });
         toast.success("Need posted for everyone on Share");
@@ -150,6 +160,19 @@ function NewShareStuffPage() {
 
         <Card>
           <CardContent className="space-y-4 p-5">
+            <PhotoField
+              id="item-photo"
+              label={mode === "list" ? "Photo of the item" : "Reference photo (optional)"}
+              hint={
+                mode === "list"
+                  ? "Take a clear picture of what you’re renting out — required."
+                  : "Optional: photo of what you need or a similar item."
+              }
+              value={photoUrl}
+              onChange={setPhotoUrl}
+              facing="environment"
+              required={mode === "list"}
+            />
             <div>
               <Label htmlFor="title">
                 {mode === "list" ? "What are you sharing?" : "What do you need?"}

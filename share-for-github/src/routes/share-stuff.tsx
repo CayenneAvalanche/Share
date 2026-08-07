@@ -161,7 +161,17 @@ function ShareStuffPage() {
             </p>
           )}
           {filteredListings.map((r) => (
-            <Card key={r.id}>
+            <Card key={r.id} className="overflow-hidden">
+              {r.photoUrl ? (
+                <div className="aspect-[16/10] w-full bg-[var(--color-bg-subtle)]">
+                  <img
+                    src={r.photoUrl}
+                    alt={r.title}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -194,7 +204,17 @@ function ShareStuffPage() {
             </p>
           )}
           {filteredBorrows.map((b) => (
-            <Card key={b.id}>
+            <Card key={b.id} className="overflow-hidden">
+              {b.photoUrl ? (
+                <div className="aspect-[16/10] w-full bg-[var(--color-bg-subtle)]">
+                  <img
+                    src={b.photoUrl}
+                    alt={b.title}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{b.title}</p>

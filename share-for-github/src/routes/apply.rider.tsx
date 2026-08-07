@@ -9,6 +9,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { HUB_CITIES, type InterviewMode } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { submitRiderAppFn } from "@/lib/share/server-fns";
+import { PhotoField } from "@/components/share/photo-field";
 
 export const Route = createFileRoute("/apply/rider")({
   component: RiderApplyPage,
@@ -19,6 +20,7 @@ function RiderApplyPage() {
   const setRiderName = useShareStore((s) => s.setRiderName);
   const [done, setDone] = useState(false);
   const [acceptedTos, setAcceptedTos] = useState(false);
+  const [selfie, setSelfie] = useState("");
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -44,10 +46,15 @@ function RiderApplyPage() {
       toast.error("Please agree to the Terms and Privacy Policy to continue");
       return;
     }
-    submit(form);
+    if (!selfie) {
+      toast.error("Add a recent selfie so drivers can recognize you");
+      return;
+    }
+    const payload = { ...form, selfie };
+    submit(payload);
     setRiderName(form.fullName.trim());
     try {
-      await submitRiderAppFn({ data: form as unknown as Record<string, unknown> });
+      await submitRiderAppFn({ data: payload as unknown as Record<string, unknown> });
       toast.success("Rider application saved to Share HQ");
     } catch {
       toast.message("Saved on this device — cloud sync pending");
@@ -93,6 +100,15 @@ function RiderApplyPage() {
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
         <Card>
           <CardContent className="space-y-4 p-5">
+            <PhotoField
+              id="rider-selfie"
+              label="Recent selfie"
+              hint="Clear face photo — helps drivers confirm it’s you at pickup."
+              value={selfie}
+              onChange={setSelfie}
+              facing="user"
+              required
+            />
             <div>
               <Label htmlFor="name">Full name</Label>
               <Input

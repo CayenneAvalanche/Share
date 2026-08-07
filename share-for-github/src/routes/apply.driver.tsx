@@ -17,6 +17,7 @@ import {
 import { useShareStore } from "@/lib/share/store";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
 import { fileToCompressedDataUrl } from "@/lib/share/image";
+import { PhotoField } from "@/components/share/photo-field";
 
 export const Route = createFileRoute("/apply/driver")({
   component: DriverApplyPage,
@@ -53,6 +54,7 @@ function DriverApplyPage() {
   const [licenseFront, setLicenseFront] = useState("");
   const [licenseBack, setLicenseBack] = useState("");
   const [insuranceCard, setInsuranceCard] = useState("");
+  const [selfie, setSelfie] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   /** never = not listed · active · inactive (used to drive but not now) */
   const [platformStatus, setPlatformStatus] = useState<
@@ -92,6 +94,10 @@ function DriverApplyPage() {
       toast.error("Please agree to the Terms and Privacy Policy to continue");
       return;
     }
+    if (!selfie) {
+      toast.error("Add a recent selfie so riders can recognize you");
+      return;
+    }
     if (!licenseFront || !licenseBack || !insuranceCard) {
       toast.error("Upload front & back of your license and your insurance card");
       return;
@@ -111,6 +117,7 @@ function DriverApplyPage() {
       inviteCode: inviteCode || undefined,
       hasDashcam,
       platformsText: platformLines.join(" · ") || "None listed",
+      selfie,
       licenseFront,
       licenseBack,
       insuranceCard,
@@ -444,6 +451,15 @@ function DriverApplyPage() {
                 onChange={(e) => set("corridors", e.target.value)}
               />
             </div>
+            <PhotoField
+              id="driver-selfie"
+              label="Recent selfie"
+              hint="Clear face photo — riders match this to you at pickup."
+              value={selfie}
+              onChange={setSelfie}
+              facing="user"
+              required
+            />
             <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)]/50 p-3">
               <div>
                 <p className="text-sm font-semibold">Required ID documents</p>

@@ -21,6 +21,7 @@ import {
   setDriverAppStatusFn,
   setRiderAppStatusFn,
   dbHealthFn,
+  verifyFounderPinFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import type { DriverApplication, RiderApplication } from "@/lib/share/data";
@@ -28,8 +29,6 @@ import type { DriverApplication, RiderApplication } from "@/lib/share/data";
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
-
-const FOUNDER_PIN = "lafayette1";
 
 type Tab =
   | "drivers"
@@ -141,26 +140,36 @@ function AdminPage() {
                 placeholder="Your founder PIN"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    if (pin === FOUNDER_PIN) {
-                      setUnlocked(true);
-                      toast.success("Inbox unlocked");
-                      void refreshCloud(pin);
-                    } else toast.error("Wrong PIN");
+                    void (async () => {
+                      try {
+                        await verifyFounderPinFn({ data: { pin } });
+                        setUnlocked(true);
+                        toast.success("Inbox unlocked");
+                        void refreshCloud(pin);
+                      } catch {
+                        toast.error("Wrong PIN");
+                      }
+                    })();
                   }
                 }}
               />
               <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Set the same PIN in Netlify as <code className="text-[var(--color-fg)]">FOUNDER_PIN</code>
+                PIN matches Netlify env <code className="text-[var(--color-fg)]">FOUNDER_PIN</code>
               </p>
             </div>
             <Button
               className="w-full"
               onClick={() => {
-                if (pin === FOUNDER_PIN) {
-                  setUnlocked(true);
-                  toast.success("Inbox unlocked");
-                  void refreshCloud(pin);
-                } else toast.error("Wrong PIN");
+                void (async () => {
+                  try {
+                    await verifyFounderPinFn({ data: { pin } });
+                    setUnlocked(true);
+                    toast.success("Inbox unlocked");
+                    void refreshCloud(pin);
+                  } catch {
+                    toast.error("Wrong PIN");
+                  }
+                })();
               }}
             >
               Unlock

@@ -48,10 +48,17 @@ function DriverApplyPage() {
     emergencyContactPhone: "",
     docsNote: "",
   });
-  const [platformOn, setPlatformOn] = useState<Record<string, boolean>>({
-    uber: true,
-    lyft: false,
-    spark: false,
+  /** never = not listed · active · inactive (used to drive but not now) */
+  const [platformStatus, setPlatformStatus] = useState<
+    Record<string, "never" | "active" | "inactive">
+  >({
+    uber: "never",
+    lyft: "never",
+    spark: "never",
+    uber_eats: "never",
+    flex: "never",
+    door_dash: "never",
+    other: "never",
   });
   const [platformMeta, setPlatformMeta] = useState<
     Record<string, { years: string; trips: string; rating: string }>
@@ -76,9 +83,12 @@ function DriverApplyPage() {
       return;
     }
 
-    const platformLines = PLATFORMS.filter((p) => platformOn[p]).map((p) => {
+    const platformLines = PLATFORMS.filter(
+      (p) => platformStatus[p] && platformStatus[p] !== "never",
+    ).map((p) => {
       const m = platformMeta[p] ?? { years: "1", trips: "0", rating: "" };
-      return `${GIG_PLATFORM_LABELS[p]}: ${m.years} yrs, ~${m.trips} trips${m.rating ? `, ${m.rating}★` : ""}`;
+      const st = platformStatus[p] === "active" ? "ACTIVE" : "NOT ACTIVE";
+      return `${GIG_PLATFORM_LABELS[p]} (${st}): ${m.years} yrs, ~${m.trips} trips${m.rating ? `, ${m.rating}★` : ""}`;
     });
 
     const { hasDashcam, inviteCode, ...rest } = form;
@@ -250,80 +260,102 @@ function DriverApplyPage() {
                 Other platforms
               </h2>
               <p className="text-sm text-[var(--color-fg-muted)]">
-                Uber, Lyft, Spark, Flex, Eats… years, trip volume, rating. Self-reported.
+                Mark each Active, Not active (past), or Never. Details only if listed.
               </p>
             </div>
-            {PLATFORMS.map((p) => (
-              <div
-                key={p}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3"
-              >
-                <label className="flex items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--color-primary)]"
-                    checked={Boolean(platformOn[p])}
-                    onChange={(e) =>
-                      setPlatformOn((m) => ({ ...m, [p]: e.target.checked }))
-                    }
-                  />
-                  {GIG_PLATFORM_LABELS[p]}
-                </label>
-                {platformOn[p] && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    <div>
-                      <Label className="text-xs">Years</Label>
-                      <Input
-                        value={platformMeta[p]?.years ?? ""}
-                        onChange={(e) =>
-                          setPlatformMeta((m) => ({
-                            ...m,
-                            [p]: {
-                              years: e.target.value,
-                              trips: m[p]?.trips ?? "",
-                              rating: m[p]?.rating ?? "",
-                            },
-                          }))
+            {PLATFORMS.map((p) => {
+              const st = platformStatus[p] ?? "never";
+              const listed = st !== "never";
+              return (
+                <div
+                  key={p}
+                  className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3"
+                >
+                  <p className="text-sm font-medium">{GIG_PLATFORM_LABELS[p]}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        ["never", "Never"],
+                        ["active", "Active"],
+                        ["inactive", "Not active"],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() =>
+                          setPlatformStatus((m) => ({ ...m, [p]: val }))
                         }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">~Trips</Label>
-                      <Input
-                        value={platformMeta[p]?.trips ?? ""}
-                        onChange={(e) =>
-                          setPlatformMeta((m) => ({
-                            ...m,
-                            [p]: {
-                              years: m[p]?.years ?? "",
-                              trips: e.target.value,
-                              rating: m[p]?.rating ?? "",
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Rating</Label>
-                      <Input
-                        placeholder="4.95"
-                        value={platformMeta[p]?.rating ?? ""}
-                        onChange={(e) =>
-                          setPlatformMeta((m) => ({
-                            ...m,
-                            [p]: {
-                              years: m[p]?.years ?? "",
-                              trips: m[p]?.trips ?? "",
-                              rating: e.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </div>
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          st === val
+                            ? val === "active"
+                              ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]"
+                              : val === "inactive"
+                                ? "bg-[var(--color-fg-muted)] text-[var(--color-bg)]"
+                                : "bg-[var(--color-bg-subtle)] text-[var(--color-fg)] ring-1 ring-[var(--color-border)]"
+                            : "bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-            ))}
+                  {listed && (
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Years</Label>
+                        <Input
+                          value={platformMeta[p]?.years ?? ""}
+                          onChange={(e) =>
+                            setPlatformMeta((m) => ({
+                              ...m,
+                              [p]: {
+                                years: e.target.value,
+                                trips: m[p]?.trips ?? "",
+                                rating: m[p]?.rating ?? "",
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">~Trips</Label>
+                        <Input
+                          value={platformMeta[p]?.trips ?? ""}
+                          onChange={(e) =>
+                            setPlatformMeta((m) => ({
+                              ...m,
+                              [p]: {
+                                years: m[p]?.years ?? "",
+                                trips: e.target.value,
+                                rating: m[p]?.rating ?? "",
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Rating</Label>
+                        <Input
+                          placeholder="4.95"
+                          value={platformMeta[p]?.rating ?? ""}
+                          onChange={(e) =>
+                            setPlatformMeta((m) => ({
+                              ...m,
+                              [p]: {
+                                years: m[p]?.years ?? "",
+                                trips: m[p]?.trips ?? "",
+                                rating: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
 

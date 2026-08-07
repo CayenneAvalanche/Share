@@ -198,7 +198,7 @@ type ShareState = {
   resetDemo: () => void;
 };
 
-export const SHARE_PERSIST_KEY = "share-app-v10";
+export const SHARE_PERSIST_KEY = "share-app-v11";
 
 const DEMO =
   typeof window !== "undefined"
@@ -982,8 +982,8 @@ export const useShareStore = create<ShareState>()(
 
       resetDemo: () => {
         try {
-          localStorage.removeItem("share-app-v10");
-          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9", "share-app-v10"].forEach(
+          localStorage.removeItem("share-app-v11");
+          ["share-app-v5", "share-app-v6", "share-app-v7", "share-app-v8", "share-app-v9", "share-app-v11"].forEach(
             (k) => localStorage.removeItem(k),
           );
         } catch {
@@ -1008,7 +1008,7 @@ export const useShareStore = create<ShareState>()(
       },
     }),
     {
-      name: "share-app-v10",
+      name: "share-app-v11",
       partialize: (s) => ({
         bookings: s.bookings,
         deliveries: s.deliveries,

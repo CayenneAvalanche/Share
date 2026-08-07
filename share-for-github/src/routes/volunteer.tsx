@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
-import { HeartHandshake, Plus, Timer, BadgeDollarSign } from "lucide-react";
+import { HeartHandshake, Phone, Timer, BadgeDollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
 import { useShareStore } from "@/lib/share/store";
 import { hoursUntilEscalate } from "@/lib/share/tracking";
 import { formatCurrency } from "@/lib/utils";
+import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
+import { isDemoMode } from "@/lib/share/mode";
 
 export const Route = createFileRoute("/volunteer")({
   component: VolunteerLayout,
@@ -33,6 +35,7 @@ function VolunteerPage() {
   const forceEscalateVolunteer = useShareStore((s) => s.forceEscalateVolunteer);
   const riderName = useShareStore((s) => s.riderName);
   const [, tick] = useState(0);
+  const demo = isDemoMode();
 
   useEffect(() => {
     const n = processVolunteerEscalations();
@@ -62,45 +65,49 @@ function VolunteerPage() {
       title="Volunteer rides"
       subtitle="Veterans · disabled · elders 75+"
       solidHeader
-      action={
-        <Button size="sm" asChild>
-          <Link to="/volunteer/new">
-            <Plus className="size-4" />
-            Request
-          </Link>
-        </Button>
-      }
     >
-      <Card className="mt-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
-        <CardContent className="flex gap-3 p-4">
-          <HeartHandshake className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" />
-          <div className="text-sm text-[var(--color-fg-muted)]">
-            <p className="font-semibold text-[var(--color-fg)]">
-              Free first — then paid if needed
-            </p>
-            <p className="mt-1">
-              Post a volunteer ride for a veteran, disabled rider, or elder
-              (75+). Drivers can claim for free. If nobody picks it up in{" "}
-              <strong className="text-[var(--color-fg)]">0–2 hours</strong>{" "}
-              (you set the window), it auto-switches to a paid request so they
-              still get help.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Large REQUEST — easy for elders / less dexterity */}
+      <Link
+        to="/volunteer/new"
+        className="mt-3 flex min-h-[64px] w-full items-center justify-center rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-6 py-5 text-center text-lg font-bold tracking-wide text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.98]"
+      >
+        REQUEST A RIDE
+      </Link>
 
-      <section className="mt-5">
+      {/* Call Share anytime */}
+      <a
+        href={SHARE_PHONE_TEL}
+        className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/40 bg-[var(--color-bg-elevated)] px-4 py-3 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
+      >
+        <span className="flex size-11 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
+          <Phone className="size-5" />
+        </span>
+        <span className="text-left">
+          <span className="block text-sm font-semibold">Call Share</span>
+          <span className="block text-base font-bold tracking-wide">
+            {SHARE_PHONE_DISPLAY}
+          </span>
+        </span>
+      </a>
+
+      <p className="mt-3 text-center text-sm text-[var(--color-fg-muted)]">
+        Free volunteer first. If no driver in time, becomes a paid request.
+      </p>
+
+      <section className="mt-6">
         <h2 className="font-display text-lg font-semibold">Open requests</h2>
         <div className="mt-3 flex flex-col gap-3">
           {open.length === 0 ? (
-            <p className="text-sm text-[var(--color-fg-muted)]">
-              No open volunteer rides. Request one for someone who needs it.
+            <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
+              No open requests yet. Tap <strong>REQUEST A RIDE</strong> above —
+              or call Share.
             </p>
           ) : (
             open.map((r) => (
               <VolunteerCard
                 key={r.id}
                 ride={r}
+                demo={demo}
                 onClaim={() => {
                   claimVolunteer(r.id, riderName || "Share driver");
                   toast.success(
@@ -124,7 +131,7 @@ function VolunteerPage() {
           <h2 className="font-display text-lg font-semibold">Matched</h2>
           <div className="mt-3 flex flex-col gap-3">
             {rest.map((r) => (
-              <VolunteerCard key={r.id} ride={r} />
+              <VolunteerCard key={r.id} ride={r} demo={demo} />
             ))}
           </div>
         </section>
@@ -137,10 +144,12 @@ function VolunteerCard({
   ride,
   onClaim,
   onForceEscalate,
+  demo,
 }: {
   ride: VolunteerRide;
   onClaim?: () => void;
   onForceEscalate?: () => void;
+  demo?: boolean;
 }) {
   const hrs = hoursUntilEscalate(ride);
   const free = ride.status === "seeking_volunteer";
@@ -199,7 +208,7 @@ function VolunteerCard({
               <Button size="sm" onClick={onClaim}>
                 {free ? "Volunteer for this ride" : "Accept paid ride"}
               </Button>
-              {free && onForceEscalate && (
+              {demo && free && onForceEscalate && (
                 <Button size="sm" variant="ghost" onClick={onForceEscalate}>
                   Demo: force to paid
                 </Button>

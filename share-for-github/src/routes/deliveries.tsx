@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Package, Plus, Truck, Radar, Route as RouteIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -12,8 +12,14 @@ import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { getDriver } from "@/lib/share/data";
 
 export const Route = createFileRoute("/deliveries")({
-  component: DeliveriesPage,
+  component: DeliveriesLayout,
 });
+
+function DeliveriesLayout() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <DeliveriesPage />;
+}
 
 function DeliveriesPage() {
   const deliveries = useShareStore((s) => s.deliveries);

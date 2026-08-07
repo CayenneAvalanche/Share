@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Car, User, Package, Video, ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/share/shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,8 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { useShareStore } from "@/lib/share/store";
 
 export const Route = createFileRoute("/apply")({
-  component: ApplyHubPage,
+  component: ApplyLayout,
 });
+
+/**
+ * /apply has child routes (/apply/driver, /rider, /delivery).
+ * Parent must render <Outlet /> when a child is active — otherwise the URL
+ * changes but the form never appears (what broke Driver application).
+ */
+function ApplyLayout() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) {
+    return <Outlet />;
+  }
+  return <ApplyHubPage />;
+}
 
 function ApplyHubPage() {
   const driverApps = useShareStore((s) => s.driverApps);
@@ -16,7 +29,7 @@ function ApplyHubPage() {
   return (
     <AppShell
       title="Apply to Share"
-      subtitle="Interview required · in person or Zoom"
+      subtitle="Short interview · in person or Zoom"
       solidHeader
       backTo="/app"
     >
@@ -28,9 +41,7 @@ function ApplyHubPage() {
           <div>
             <p className="font-semibold">How approval works</p>
             <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
-              Submit an application → we schedule a short interview (coffee in
-              Lafayette or Zoom) → background screen → you’re cleared to book or
-              post.
+              Apply → short interview → you're cleared to post or book.
             </p>
           </div>
         </CardContent>
@@ -40,37 +51,33 @@ function ApplyHubPage() {
         <ApplyCard
           to="/apply/driver"
           icon={Car}
-          title="Driver application"
-          body="Post long-distance trips, accept local ride pings, and carry cargo."
+          title="Driver"
+          body="Corridor seats, local pings, cargo"
           badge={
             driverApps[0]
               ? `Status: ${driverApps[0].status.replace("_", " ")}`
-              : "Interview required"
+              : "Interview"
           }
         />
         <ApplyCard
           to="/apply/rider"
           icon={User}
-          title="Rider application"
-          body="Book corridor seats and local Share rides after a quick screen."
+          title="Rider"
+          body="Book seats and local rides"
           badge={
             riderApps[0]
               ? `Status: ${riderApps[0].status.replace("_", " ")}`
-              : "Interview required"
+              : "Interview"
           }
         />
         <ApplyCard
           to="/apply/delivery"
           icon={Package}
-          title="Delivery / business request"
-          body="Ship a package or set up recurring corridor handoffs for your shop."
-          badge="No full interview for one-off — ID check"
+          title="Delivery / business"
+          body="Packages and shop handoffs"
+          badge="Quick ID check"
         />
       </div>
-
-      <p className="mt-6 text-center text-xs text-[var(--color-fg-subtle)]">
-        Demo saves applications on this device so you can walk through the flow.
-      </p>
     </AppShell>
   );
 }
@@ -82,7 +89,7 @@ function ApplyCard({
   body,
   badge,
 }: {
-  to: string;
+  to: "/apply/driver" | "/apply/rider" | "/apply/delivery";
   icon: typeof Car;
   title: string;
   body: string;

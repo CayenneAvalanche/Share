@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { HeartHandshake, Plus, Timer, BadgeDollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -15,8 +15,14 @@ import { hoursUntilEscalate } from "@/lib/share/tracking";
 import { formatCurrency } from "@/lib/utils";
 
 export const Route = createFileRoute("/volunteer")({
-  component: VolunteerPage,
+  component: VolunteerLayout,
 });
+
+function VolunteerLayout() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <VolunteerPage />;
+}
 
 function VolunteerPage() {
   const volunteerRides = useShareStore((s) => s.volunteerRides);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Car, Plus, Star, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -13,8 +13,14 @@ import { PLATFORM_TAKE_RATE } from "@/lib/share/data";
 import { formatCurrency } from "@/lib/utils";
 
 export const Route = createFileRoute("/cars")({
-  component: CarsPage,
+  component: CarsLayout,
 });
+
+function CarsLayout() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <CarsPage />;
+}
 
 function CarsPage() {
   const cars = useShareStore((s) => s.carListings);

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { MessageCircle, Shield } from "lucide-react";
 import { AppShell } from "@/components/share/shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,8 +8,14 @@ import { sortThreads, threadPreview } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 
 export const Route = createFileRoute("/messages")({
-  component: MessagesPage,
+  component: MessagesLayout,
 });
+
+function MessagesLayout() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <MessagesPage />;
+}
 
 function MessagesPage() {
   const threads = useShareStore((s) => s.threads);

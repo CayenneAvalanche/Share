@@ -5,8 +5,11 @@
  *
  * Override with VITE_APP_MODE=demo|beta
  * Hostnames: demo.* → demo; share.myendeavors.me (prod) → beta
+ * Query: ?mode=demo or ?mode=beta (sticky in localStorage until cleared)
  */
 export type AppMode = "demo" | "beta";
+
+const FORCE_MODE_KEY = "share-force-mode";
 
 export function getAppMode(): AppMode {
   const env = (import.meta as ImportMeta & { env: Record<string, string> }).env
@@ -14,6 +17,18 @@ export function getAppMode(): AppMode {
   if (env === "demo" || env === "beta") return env;
 
   if (typeof window !== "undefined") {
+    try {
+      const q = new URLSearchParams(window.location.search).get("mode");
+      if (q === "demo" || q === "beta") {
+        localStorage.setItem(FORCE_MODE_KEY, q);
+        return q;
+      }
+      const forced = localStorage.getItem(FORCE_MODE_KEY);
+      if (forced === "demo" || forced === "beta") return forced;
+    } catch {
+      /* private mode */
+    }
+
     const h = window.location.hostname.toLowerCase();
     if (
       h === "demo.share.myendeavors.me" ||
@@ -23,8 +38,6 @@ export function getAppMode(): AppMode {
       h === "localhost" ||
       h === "127.0.0.1"
     ) {
-      // localhost stays demo for friend tours in sandbox
-      if (h === "localhost" || h === "127.0.0.1") return "demo";
       return "demo";
     }
     if (h === "share.myendeavors.me" || h.endsWith(".netlify.app")) {
@@ -42,4 +55,14 @@ export function isDemoMode(): boolean {
 
 export function isBetaMode(): boolean {
   return getAppMode() === "beta";
+}
+
+/** Clear sticky ?mode= override (back to hostname default). */
+export function clearForcedMode() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(FORCE_MODE_KEY);
+  } catch {
+    /* ignore */
+  }
 }

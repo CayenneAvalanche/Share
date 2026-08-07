@@ -8,8 +8,16 @@
 #   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY = payments later
 #
 # Domains:
-#   share.myendeavors.me      → public beta
+#   share.myendeavors.me      → public beta (empty marketplace)
 #   demo.share.myendeavors.me → demo mode (hostname starts with demo.)
+#
+# To wire demo.share (DNS + Netlify):
+#   1. Netlify → Domain management → Add domain alias: demo.share.myendeavors.me
+#   2. DNS at registrar (Hover/etc) for myendeavors.me:
+#        Type CNAME | Host: demo.share | Value: share337.netlify.app
+#        (or the target Netlify shows for that domain)
+#   Until DNS propagates, use sticky demo mode:
+#        https://share.myendeavors.me/app?mode=demo
 
 [build]
   command = "npm run build"

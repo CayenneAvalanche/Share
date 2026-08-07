@@ -54,7 +54,7 @@ function CarsPage() {
               Borrow a neighbor’s car by the day (Turo energy, Hub City scale).
               Drills and bikes stay under{" "}
               <Link to="/share-stuff" className="underline">
-                Something else
+                Lagniappe
               </Link>
               . Platform take still ~{Math.round(PLATFORM_TAKE_RATE * 100)}% when
               you take payments live.
@@ -91,6 +91,17 @@ function CarsPage() {
 
       <section className="mt-5 space-y-3 pb-8">
         <h2 className="font-display text-lg font-semibold">Cars near you</h2>
+        {cars.filter((c) => c.available).length === 0 && (
+          <Card>
+            <CardContent className="p-6 text-center text-sm text-[var(--color-fg-muted)]">
+              No cars listed yet. Be the first host — tap{" "}
+              <Link to="/cars/new" className="font-semibold underline">
+                List
+              </Link>
+              .
+            </CardContent>
+          </Card>
+        )}
         {cars
           .filter((c) => c.available)
           .map((car) => {
@@ -98,7 +109,24 @@ function CarsPage() {
             const total = car.ratePerDay * days;
             const hostKeeps = Math.round(total * (1 - PLATFORM_TAKE_RATE));
             return (
-              <Card key={car.id}>
+              <Card key={car.id} className="overflow-hidden">
+                {car.photoUrl ? (
+                  <div className="relative aspect-[16/10] w-full bg-[var(--color-bg-subtle)]">
+                    <img
+                      src={car.photoUrl}
+                      alt={`${car.year} ${car.makeModel}`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                      {car.year} {car.makeModel}
+                    </div>
+                    <div className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                      {formatCurrency(car.ratePerDay)}
+                      <span className="font-normal opacity-80"> / day</span>
+                    </div>
+                  </div>
+                ) : null}
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -109,14 +137,16 @@ function CarsPage() {
                         {car.city} · {car.ownerName}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-display text-xl font-semibold text-[var(--color-primary)]">
-                        {formatCurrency(car.ratePerDay)}
-                      </p>
-                      <p className="text-xs text-[var(--color-fg-subtle)]">
-                        / day
-                      </p>
-                    </div>
+                    {!car.photoUrl && (
+                      <div className="text-right">
+                        <p className="font-display text-xl font-semibold text-[var(--color-primary)]">
+                          {formatCurrency(car.ratePerDay)}
+                        </p>
+                        <p className="text-xs text-[var(--color-fg-subtle)]">
+                          / day
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="secondary">

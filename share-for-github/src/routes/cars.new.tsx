@@ -28,6 +28,7 @@ function ListCarPage() {
     "Owner policy primary · renter 21+",
   );
   const [rules, setRules] = useState("No smoking. Full tank on return.");
+  const [photoUrl, setPhotoUrl] = useState("");
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +48,7 @@ function ListCarPage() {
       hasDashcam,
       insuranceNote,
       rules,
+      photoUrl: photoUrl.trim() || undefined,
     });
     toast.success("Car listed");
     navigate({ to: "/cars" });
@@ -63,9 +65,9 @@ function ListCarPage() {
         <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
           <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
             This is <strong className="text-[var(--color-fg)]">Share a car</strong>{" "}
-            — whole-vehicle rental, not a seat and not a drill. Insurance is
-            still on you + broker for pilot; badge honesty on dashcam helps
-            trust.
+            — whole-vehicle rental, not a seat and not a drill. A clear photo of
+            the vehicle helps renters trust the listing. Insurance is still on
+            you + broker for pilot; badge honesty on dashcam helps trust.
           </CardContent>
         </Card>
         <Card>
@@ -79,6 +81,31 @@ function ListCarPage() {
                 onChange={(e) => setMakeModel(e.target.value)}
                 placeholder="Toyota Camry"
               />
+            </div>
+            <div>
+              <Label htmlFor="photo">Vehicle photo URL</Label>
+              <Input
+                id="photo"
+                type="url"
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                placeholder="https://… (front or 3/4 view works best)"
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Paste a link for now — phone upload comes later.
+              </p>
+              {photoUrl.trim() && (
+                <div className="mt-2 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)]">
+                  <img
+                    src={photoUrl.trim()}
+                    alt="Vehicle preview"
+                    className="aspect-[16/10] w-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>

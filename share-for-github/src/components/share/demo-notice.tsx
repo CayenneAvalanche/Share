@@ -118,7 +118,7 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
             </Link>
           </Button>
           <Button variant="outline" className="flex-1" onClick={dismiss}>
-            Just explore the demo
+            {isDemoMode() ? "Just explore the demo" : "Explore empty beta"}
           </Button>
         </div>
       </div>

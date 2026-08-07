@@ -198,7 +198,12 @@ type ShareState = {
   resetDemo: () => void;
 };
 
-export const SHARE_PERSIST_KEY = "share-app-v11";
+export const SHARE_PERSIST_KEY = "share-app-v12";
+/** Separate localStorage so demo sample data never pollutes beta. */
+function persistStorageName() {
+  if (typeof window === "undefined") return "share-app-v12-beta";
+  return isDemoMode() ? "share-app-v12-demo" : "share-app-v12-beta";
+}
 
 const DEMO =
   typeof window !== "undefined"
@@ -1008,7 +1013,7 @@ export const useShareStore = create<ShareState>()(
       },
     }),
     {
-      name: "share-app-v11",
+      name: persistStorageName(),
       partialize: (s) => ({
         bookings: s.bookings,
         deliveries: s.deliveries,
@@ -1042,6 +1047,49 @@ export const useShareStore = create<ShareState>()(
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShareState>;
+        const demo = isDemoMode();
+
+        // BETA: never re-inject sample marketplace — only user-created rows
+        if (!demo) {
+          return {
+            ...current,
+            ...p,
+            trips: (p.trips ?? []).filter((t) => t.id.startsWith("user_")),
+            bookings: p.bookings ?? [],
+            deliveries: (p.deliveries ?? []).filter(
+              (d) => !OPEN_DELIVERIES.some((x) => x.id === d.id),
+            ),
+            driverApps: p.driverApps ?? [],
+            riderApps: p.riderApps ?? [],
+            rentals: (p.rentals ?? []).filter((r) => r.id.startsWith("r_")),
+            borrowRequests: (p.borrowRequests ?? []).filter((b) =>
+              b.id.startsWith("br_"),
+            ),
+            localRides: p.localRides ?? [],
+            volunteerRides: (p.volunteerRides ?? []).filter(
+              (v) => !SEED_VOLUNTEERS.some((s) => s.id === v.id),
+            ),
+            carListings: (p.carListings ?? []).filter((c) =>
+              c.id.startsWith("car_"),
+            ),
+            carBookings: p.carBookings ?? [],
+            rideRequests: (p.rideRequests ?? []).filter(
+              (r) => !SEED_RIDE_REQUESTS.some((s) => s.id === r.id),
+            ),
+            waitlistEmails: p.waitlistEmails ?? [],
+            threads: p.threads ?? [],
+            messages: p.messages ?? [],
+            savedPlaces:
+              p.savedPlaces && p.savedPlaces.length > 0
+                ? p.savedPlaces
+                : DEFAULT_SAVED_PLACES,
+            payments: p.payments ?? [],
+            favoriteDriverIds: p.favoriteDriverIds ?? current.favoriteDriverIds,
+            notifications: p.notifications ?? current.notifications,
+          };
+        }
+
+        // DEMO: seed + user rows
         const userTrips = p.trips ?? [];
         const baseIds = new Set(TRIPS.map((t) => t.id));
         const mergedTrips = [

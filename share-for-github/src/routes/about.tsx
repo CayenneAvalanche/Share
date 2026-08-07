@@ -82,7 +82,7 @@ function AboutPage() {
             },
             {
               icon: Boxes,
-              title: "Something else",
+              title: "Lagniappe",
               body: "Ice chest, bike, grill, drill, trailer, go-kart — list what you have or post what you need.",
             },
             {

@@ -104,6 +104,13 @@ function LandingPage() {
               className="border border-[var(--color-fg-inverse)]/30 bg-transparent text-[var(--color-fg-inverse)] hover:bg-[var(--color-fg-inverse)]/10"
               asChild
             >
+              <a href="/app?mode=demo">Tour demo data</a>
+            </Button>
+            <Button
+              size="lg"
+              className="border border-[var(--color-fg-inverse)]/30 bg-transparent text-[var(--color-fg-inverse)] hover:bg-[var(--color-fg-inverse)]/10"
+              asChild
+            >
               <Link to="/demo">Demo checklist</Link>
             </Button>
           </div>
@@ -125,7 +132,7 @@ function LandingPage() {
             },
             {
               icon: Boxes,
-              title: "Something else",
+              title: "Lagniappe",
               body: "Tools, trailers, grills — borrow what you need locally.",
             },
             {

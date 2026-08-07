@@ -379,7 +379,7 @@ function ProfilePage() {
         {[
           {
             to: "/share-stuff",
-            title: "Something else",
+            title: "Lagniappe",
             sub: "Tools, bikes, trailers, grills",
             icon: Boxes,
           },

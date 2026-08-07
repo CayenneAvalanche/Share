@@ -84,24 +84,34 @@ function AppHomePage() {
         </Card>
       </section>
 
-      {demo && (
-        <p className="mt-8 pb-4 text-center text-xs text-[var(--color-fg-subtle)]">
-          <Link to="/demo" className="underline">
-            Demo checklist
-          </Link>
-          {" · "}
-          <Link to="/" className="underline">
-            Landing page
-          </Link>
-        </p>
-      )}
-      <p className="mt-8 pb-4 text-center text-xs text-[var(--color-fg-subtle)]">
+      <p className="mt-8 pb-2 text-center text-xs text-[var(--color-fg-subtle)]">
         <Link to="/" className="underline">
           Landing
         </Link>
         {" · "}
         build {SHARE_BUILD}
         {demo ? " · demo" : " · beta"}
+      </p>
+      <p className="pb-4 text-center text-xs text-[var(--color-fg-subtle)]">
+        {demo ? (
+          <>
+            <Link to="/demo" className="underline">
+              Demo checklist
+            </Link>
+            {" · "}
+            <a href="/app?mode=beta" className="underline">
+              Switch to live beta (empty)
+            </a>
+          </>
+        ) : (
+          <>
+            <a href="/app?mode=demo" className="underline">
+              Tour with sample data
+            </a>
+            {" · "}
+            Marketplace is empty until people post
+          </>
+        )}
       </p>
     </AppShell>
   );

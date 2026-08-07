@@ -1207,6 +1207,8 @@ export type CarShareListing = {
   available: boolean;
   tripsHosted: number;
   rating: number;
+  /** Photo of the car for rent (Turo-style card) */
+  photoUrl?: string;
 };
 
 export const CAR_LISTINGS: CarShareListing[] = [
@@ -1227,6 +1229,8 @@ export const CAR_LISTINGS: CarShareListing[] = [
     available: true,
     tripsHosted: 24,
     rating: 4.96,
+    photoUrl:
+      "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=900&q=80",
   },
   {
     id: "car2",
@@ -1245,6 +1249,8 @@ export const CAR_LISTINGS: CarShareListing[] = [
     available: true,
     tripsHosted: 18,
     rating: 4.94,
+    photoUrl:
+      "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=900&q=80",
   },
   {
     id: "car3",
@@ -1262,6 +1268,8 @@ export const CAR_LISTINGS: CarShareListing[] = [
     available: true,
     tripsHosted: 9,
     rating: 4.88,
+    photoUrl:
+      "https://images.unsplash.com/photo-1605893477799-b99e3b8b93fe?w=900&q=80",
   },
   {
     id: "car4",
@@ -1280,6 +1288,8 @@ export const CAR_LISTINGS: CarShareListing[] = [
     available: true,
     tripsHosted: 31,
     rating: 4.97,
+    photoUrl:
+      "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=900&q=80",
   },
 ];
 

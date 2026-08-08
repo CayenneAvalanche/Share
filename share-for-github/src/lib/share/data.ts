@@ -169,6 +169,20 @@ export type DriverApplication = {
   insuranceCard?: string;
   /** Recent face photo for trust matching at pickup */
   selfie?: string;
+  /** Exterior car photo from driver app */
+  vehiclePhoto?: string;
+  vehicleType?: string;
+};
+
+export type SavedVehicle = {
+  id: string;
+  /** Year / make / model */
+  label: string;
+  vehicleType: string;
+  licensePlate?: string;
+  photoUrl?: string;
+  isDefault?: boolean;
+  createdAt: string;
 };
 
 export type RiderApplication = {

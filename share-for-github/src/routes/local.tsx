@@ -179,7 +179,7 @@ function LocalRidePage() {
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button onClick={() => setDoneId(null)}>Request another</Button>
             <Button variant="outline" asChild>
-              <Link to="/profile">Your profile</Link>
+              <a href="/profile">Your profile</a>
             </Button>
           </div>
         </div>

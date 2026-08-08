@@ -20,13 +20,13 @@ import { PhotoField } from "@/components/share/photo-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input, Label } from "@/components/ui/input";
+import { Input, Label, Select } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
-import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
+import { INTERVIEW_LABELS, PILOT_INVITE_CODES, VEHICLE_TYPES } from "@/lib/share/data";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
@@ -37,6 +37,10 @@ function ProfilePage() {
   const riderName = useShareStore((s) => s.riderName);
   const profileSelfie = useShareStore((s) => s.profileSelfie);
   const setProfileSelfie = useShareStore((s) => s.setProfileSelfie);
+  const myVehicles = useShareStore((s) => s.myVehicles);
+  const addVehicle = useShareStore((s) => s.addVehicle);
+  const removeVehicle = useShareStore((s) => s.removeVehicle);
+  const setDefaultVehicle = useShareStore((s) => s.setDefaultVehicle);
   const setRiderName = useShareStore((s) => s.setRiderName);
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
@@ -54,6 +58,9 @@ function ProfilePage() {
   const notifications = useShareStore((s) => s.notifications);
   const resetDemo = useShareStore((s) => s.resetDemo);
   const [name, setName] = useState(riderName);
+  const [newVehLabel, setNewVehLabel] = useState("");
+  const [newVehType, setNewVehType] = useState("SUV / Crossover");
+  const [newVehPhoto, setNewVehPhoto] = useState("");
   const [invite, setInvite] = useState("");
   const [placeLabel, setPlaceLabel] = useState("");
   const [placeAddr, setPlaceAddr] = useState("");
@@ -262,6 +269,129 @@ function ProfilePage() {
                 One person, one account. You can apply as both rider and driver.
               </p>
             )}
+          </CardContent>
+        </Card>
+
+
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <h2 className="font-display text-lg font-semibold">My vehicles</h2>
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Saved from your driver application. Pick one when you post a trip.
+            </p>
+            {myVehicles.length === 0 && (
+              <p className="text-sm text-[var(--color-fg-subtle)]">
+                No vehicles yet. Add one below or apply as a driver with your car
+                photo.
+              </p>
+            )}
+            <div className="space-y-2">
+              {myVehicles.map((v) => (
+                <div
+                  key={v.id}
+                  className="flex gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-2"
+                >
+                  {v.photoUrl ? (
+                    <img
+                      src={v.photoUrl}
+                      alt=""
+                      className="size-14 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-14 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-bg-subtle)] text-xs text-[var(--color-fg-subtle)]">
+                      No pic
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{v.label}</p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      {v.vehicleType}
+                      {v.licensePlate ? ` · ${v.licensePlate}` : ""}
+                      {v.isDefault ? " · Default" : ""}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {!v.isDefault && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() => setDefaultVehicle(v.id)}
+                        >
+                          Make default
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Remove ${v.label}?`))
+                            removeVehicle(v.id);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+              <p className="text-sm font-semibold">Add vehicle</p>
+              <PhotoField
+                id="new-veh-photo"
+                label="Car photo"
+                value={newVehPhoto}
+                onChange={setNewVehPhoto}
+                facing="environment"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="new-vtype">Type</Label>
+                  <Select
+                    id="new-vtype"
+                    value={newVehType}
+                    onChange={(e) => setNewVehType(e.target.value)}
+                  >
+                    {VEHICLE_TYPES.map((x) => (
+                      <option key={x} value={x}>
+                        {x}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="new-vlabel">Year / make / model</Label>
+                  <Input
+                    id="new-vlabel"
+                    value={newVehLabel}
+                    onChange={(e) => setNewVehLabel(e.target.value)}
+                    placeholder="2018 CR-V"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  if (!newVehLabel.trim()) {
+                    toast.error("Add year / make / model");
+                    return;
+                  }
+                  addVehicle({
+                    label: newVehLabel.trim(),
+                    vehicleType: newVehType,
+                    photoUrl: newVehPhoto || undefined,
+                    isDefault: myVehicles.length === 0,
+                  });
+                  setNewVehLabel("");
+                  setNewVehPhoto("");
+                  toast.success("Vehicle saved");
+                }}
+              >
+                Save vehicle
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

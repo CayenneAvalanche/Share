@@ -13,6 +13,7 @@ import {
   type DriverGender,
   type GigPlatform,
   type InterviewMode,
+  VEHICLE_TYPES,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
@@ -60,6 +61,8 @@ function DriverApplyPage() {
   const [licenseBack, setLicenseBack] = useState("");
   const [insuranceCard, setInsuranceCard] = useState("");
   const [selfie, setSelfie] = useState(profileSelfie || "");
+  const [vehiclePhoto, setVehiclePhoto] = useState("");
+  const [vehicleType, setVehicleType] = useState("SUV / Crossover");
   useEffect(() => {
     if (profileSelfie && !selfie) setSelfie(profileSelfie);
   }, [profileSelfie, selfie]);
@@ -126,6 +129,8 @@ function DriverApplyPage() {
       hasDashcam,
       platformsText: platformLines.join(" · ") || "None listed",
       selfie,
+      vehiclePhoto: vehiclePhoto || undefined,
+      vehicleType,
       licenseFront,
       licenseBack,
       insuranceCard,
@@ -201,7 +206,7 @@ function DriverApplyPage() {
           </p>
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button asChild>
-              <Link to="/profile">Back to You</Link>
+              <a href="/profile">Back to You</a>
             </Button>
             <Button variant="secondary" asChild>
               <Link to="/rides/post">Post a trip</Link>
@@ -452,14 +457,40 @@ function DriverApplyPage() {
                 Dashcam (road and/or cabin) — badge on profile
               </Label>
             </div>
-            <div>
-              <Label htmlFor="vehicle">Vehicle</Label>
-              <Input
-                id="vehicle"
-                required
-                value={form.vehicle}
-                onChange={(e) => set("vehicle", e.target.value)}
-              />
+            <PhotoField
+              id="driver-car-photo"
+              label="Photo of your car"
+              hint="Saved to your profile — used when you post trips."
+              value={vehiclePhoto}
+              onChange={setVehiclePhoto}
+              facing="environment"
+              required
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="vtype">Vehicle type</Label>
+                <Select
+                  id="vtype"
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                >
+                  {VEHICLE_TYPES.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="vehicle">Year / make / model</Label>
+                <Input
+                  id="vehicle"
+                  required
+                  value={form.vehicle}
+                  onChange={(e) => set("vehicle", e.target.value)}
+                  placeholder="e.g. 2018 Honda CR-V"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

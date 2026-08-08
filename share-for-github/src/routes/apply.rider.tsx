@@ -117,7 +117,7 @@ function RiderApplyPage() {
           </p>
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button asChild>
-              <Link to="/profile">Back to You</Link>
+              <a href="/profile">Back to You</a>
             </Button>
             <Button variant="secondary" asChild>
               <Link to="/rides">Browse rides</Link>

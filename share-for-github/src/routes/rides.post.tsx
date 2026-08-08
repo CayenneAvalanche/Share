@@ -46,6 +46,8 @@ function PostRidePage() {
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
   const riderName = useShareStore((s) => s.riderName);
   const profileSelfie = useShareStore((s) => s.profileSelfie);
+  const myVehicles = useShareStore((s) => s.myVehicles);
+  const addVehicle = useShareStore((s) => s.addVehicle);
   const user = useCurrentUser();
 
   const existing = editId ? trips.find((t) => t.id === editId) : undefined;
@@ -68,7 +70,22 @@ function PostRidePage() {
   const [vehicleType, setVehicleType] = useState<string>("SUV / Crossover");
   const [vehicleLabel, setVehicleLabel] = useState("");
   const [vehiclePhoto, setVehiclePhoto] = useState("");
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [loaded, setLoaded] = useState(false);
+  const [garageLoaded, setGarageLoaded] = useState(false);
+
+  useEffect(() => {
+    if (existing || garageLoaded || loaded) return;
+    const def =
+      myVehicles.find((v) => v.isDefault) || myVehicles[0] || null;
+    if (def) {
+      setSelectedVehicleId(def.id);
+      setVehicleLabel(def.label);
+      setVehicleType(def.vehicleType || "Other");
+      setVehiclePhoto(def.photoUrl || "");
+    }
+    setGarageLoaded(true);
+  }, [myVehicles, existing, garageLoaded, loaded]);
 
   useEffect(() => {
     if (!existing || loaded) return;
@@ -91,6 +108,21 @@ function PostRidePage() {
     setLoaded(true);
   }, [existing, loaded]);
 
+  function pickVehicle(id: string) {
+    setSelectedVehicleId(id);
+    if (id === "__new__") {
+      setVehicleLabel("");
+      setVehiclePhoto("");
+      setVehicleType("SUV / Crossover");
+      return;
+    }
+    const v = myVehicles.find((x) => x.id === id);
+    if (!v) return;
+    setVehicleLabel(v.label);
+    setVehicleType(v.vehicleType || "Other");
+    setVehiclePhoto(v.photoUrl || "");
+  }
+
   function applyAirport(fromId: string, toId: string) {
     const a = AIRPORT_PRESETS.find((x) => x.id === fromId);
     const b = AIRPORT_PRESETS.find((x) => x.id === toId);
@@ -109,6 +141,17 @@ function PostRidePage() {
       toast.error("Take a photo of the car riders will see");
       return;
     }
+    if (!vehicleLabel.trim()) {
+      toast.error("Add year / make / model");
+      return;
+    }
+    // keep garage in sync
+    addVehicle({
+      label: vehicleLabel.trim(),
+      vehicleType,
+      photoUrl: vehiclePhoto,
+      isDefault: myVehicles.length === 0 || selectedVehicleId === "__new__",
+    });
     if (!isDriverApproved && !isEdit) {
       applyAsDriver();
       toast.message("Driver screening noted", {
@@ -242,10 +285,32 @@ function PostRidePage() {
 
         <Card>
           <CardContent className="space-y-4 p-5">
+            <div>
+              <Label htmlFor="garage">Your vehicle</Label>
+              <Select
+                id="garage"
+                value={selectedVehicleId || (myVehicles[0]?.id ?? "__new__")}
+                onChange={(e) => pickVehicle(e.target.value)}
+              >
+                {myVehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                    {v.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+                <option value="__new__">+ Add a different vehicle</option>
+              </Select>
+              {myVehicles.length === 0 && (
+                <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                  No car on file yet — add one here (also saved from your driver
+                  application).
+                </p>
+              )}
+            </div>
             <PhotoField
               id="car-photo"
               label="Photo of your car"
-              hint="Take a clear exterior photo so riders know what to look for at pickup."
+              hint="From your garage, or take a new photo."
               value={vehiclePhoto}
               onChange={setVehiclePhoto}
               facing="environment"
@@ -273,6 +338,7 @@ function PostRidePage() {
                   value={vehicleLabel}
                   onChange={(e) => setVehicleLabel(e.target.value)}
                   placeholder="e.g. 2018 Honda CR-V"
+                  required
                 />
               </div>
             </div>

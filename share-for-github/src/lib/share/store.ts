@@ -34,6 +34,7 @@ import {
   type VolunteerRide,
   type RentalHandoff,
   type MarketplaceRequest,
+  type SavedVehicle,
   type CorridorRideRequest,
   type RideOffer,
 } from "./data";
@@ -174,6 +175,13 @@ type ShareState = {
   setRiderName: (name: string) => void;
   profileSelfie: string;
   setProfileSelfie: (dataUrl: string) => void;
+  myVehicles: SavedVehicle[];
+  addVehicle: (
+    v: Omit<SavedVehicle, "id" | "createdAt"> & { id?: string },
+  ) => SavedVehicle;
+  updateVehicle: (id: string, patch: Partial<SavedVehicle>) => void;
+  removeVehicle: (id: string) => void;
+  setDefaultVehicle: (id: string) => void;
   applyAsDriver: () => void;
   cancelBooking: (id: string) => void;
   toggleFavoriteDriver: (id: string) => void;
@@ -331,6 +339,7 @@ export const useShareStore = create<ShareState>()(
       riderName: "Guest",
       isDriverApproved: false,
       profileSelfie: "",
+      myVehicles: [] as SavedVehicle[],
       isRiderApproved: false,
       favoriteDriverIds: DEMO ? ["d2", "d4"] : [],
       emergencyContactName: "",
@@ -467,6 +476,15 @@ export const useShareStore = create<ShareState>()(
           isDriverApproved: false,
           profileSelfie: full.selfie || state.profileSelfie || "",
         }));
+        if (full.vehicle?.trim()) {
+          get().addVehicle({
+            label: full.vehicle.trim(),
+            vehicleType: full.vehicleType || "Other",
+            licensePlate: full.licensePlate || undefined,
+            photoUrl: full.vehiclePhoto || undefined,
+            isDefault: true,
+          });
+        }
         systemNotify(set, "Driver application received — interview next");
         return full;
       },
@@ -730,6 +748,71 @@ export const useShareStore = create<ShareState>()(
       setRiderName: (name) => set({ riderName: name }),
       setProfileSelfie: (dataUrl) =>
         set({ profileSelfie: dataUrl || "" }),
+
+      addVehicle: (v) => {
+        const vehicle: SavedVehicle = {
+          id: v.id || uid("veh"),
+          label: v.label.trim(),
+          vehicleType: v.vehicleType || "Other",
+          licensePlate: v.licensePlate?.trim() || undefined,
+          photoUrl: v.photoUrl || undefined,
+          isDefault: v.isDefault ?? get().myVehicles.length === 0,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => {
+          let list = [...state.myVehicles];
+          if (vehicle.isDefault) {
+            list = list.map((x) => ({ ...x, isDefault: false }));
+          }
+          // upsert by label+plate
+          const existingIdx = list.findIndex(
+            (x) =>
+              x.label.toLowerCase() === vehicle.label.toLowerCase() ||
+              (vehicle.licensePlate &&
+                x.licensePlate?.toLowerCase() ===
+                  vehicle.licensePlate.toLowerCase()),
+          );
+          if (existingIdx >= 0) {
+            list[existingIdx] = {
+              ...list[existingIdx],
+              ...vehicle,
+              id: list[existingIdx].id,
+              createdAt: list[existingIdx].createdAt,
+            };
+          } else {
+            list = [vehicle, ...list];
+          }
+          return { myVehicles: list };
+        });
+        return vehicle;
+      },
+
+      updateVehicle: (id, patch) => {
+        set((state) => ({
+          myVehicles: state.myVehicles.map((v) =>
+            v.id === id ? { ...v, ...patch, id: v.id } : v,
+          ),
+        }));
+      },
+
+      removeVehicle: (id) => {
+        set((state) => {
+          const list = state.myVehicles.filter((v) => v.id !== id);
+          if (list.length && !list.some((v) => v.isDefault)) {
+            list[0] = { ...list[0], isDefault: true };
+          }
+          return { myVehicles: list };
+        });
+      },
+
+      setDefaultVehicle: (id) => {
+        set((state) => ({
+          myVehicles: state.myVehicles.map((v) => ({
+            ...v,
+            isDefault: v.id === id,
+          })),
+        }));
+      },
       applyAsDriver: () => set({ isDriverApproved: true }),
 
       cancelBooking: (id) => {
@@ -856,12 +939,30 @@ export const useShareStore = create<ShareState>()(
             riderApps.find((a) => a.selfie)?.selfie ||
             state.profileSelfie ||
             "";
+          let myVehicles = state.myVehicles;
+          if (myVehicles.length === 0) {
+            const fromApps: SavedVehicle[] = [];
+            for (const d of driverApps) {
+              if (!d.vehicle?.trim()) continue;
+              fromApps.push({
+                id: uid("veh"),
+                label: d.vehicle.trim(),
+                vehicleType: d.vehicleType || "Other",
+                licensePlate: d.licensePlate || undefined,
+                photoUrl: d.vehiclePhoto || undefined,
+                isDefault: fromApps.length === 0,
+                createdAt: d.createdAt || new Date().toISOString(),
+              });
+            }
+            if (fromApps.length) myVehicles = fromApps;
+          }
           return {
             driverApps,
             riderApps,
             isDriverApproved,
             isRiderApproved,
             profileSelfie: selfieFromApps,
+            myVehicles,
           };
         });
       },
@@ -1282,6 +1383,7 @@ export const useShareStore = create<ShareState>()(
         isDriverApproved: s.isDriverApproved,
         isRiderApproved: s.isRiderApproved,
         profileSelfie: s.profileSelfie ?? "",
+        myVehicles: s.myVehicles ?? [],
         favoriteDriverIds: s.favoriteDriverIds,
         emergencyContactName: s.emergencyContactName,
         emergencyContactPhone: s.emergencyContactPhone,
@@ -1338,6 +1440,7 @@ export const useShareStore = create<ShareState>()(
             isDriverApproved: p.isDriverApproved ?? false,
             isRiderApproved: p.isRiderApproved ?? false,
             profileSelfie: p.profileSelfie ?? "",
+            myVehicles: p.myVehicles ?? [],
             riderName: p.riderName ?? current.riderName,
           };
         }

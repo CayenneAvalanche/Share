@@ -291,6 +291,40 @@ export const setDriverAppStatusFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const deleteDriverAppFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string; id: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    await sql`delete from share_driver_apps where id = ${data.id}`;
+    // clear availability presence if any
+    try {
+      await sql`delete from share_driver_presence where id = ${data.id}`;
+    } catch {
+      /* table may not match id */
+    }
+    return { ok: true as const };
+  });
+
+export const clearDriverAppsByNameFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string; nameContains: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    const q = `%${data.nameContains.trim().toLowerCase()}%`;
+    const rows = await sql<{ id: string; full_name: string }>`
+      select id, full_name from share_driver_apps
+      where lower(full_name) like ${q}
+    `;
+    await sql`
+      delete from share_driver_apps where lower(full_name) like ${q}
+    `;
+    return {
+      ok: true as const,
+      deleted: rows.map((r) => ({ id: r.id, fullName: r.full_name })),
+    };
+  });
+
 export const setRiderAppStatusFn = createServerFn({ method: "POST" })
   .validator(
     (data: {

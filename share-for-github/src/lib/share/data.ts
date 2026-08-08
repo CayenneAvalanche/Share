@@ -83,6 +83,8 @@ export type Trip = {
   /** Set when a member posts the trip (enables edit/delete) */
   postedByEmail?: string;
   postedByName?: string;
+  /** Driver face photo on this post */
+  driverSelfie?: string;
 };
 
 export type Booking = {

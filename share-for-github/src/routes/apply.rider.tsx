@@ -19,11 +19,13 @@ export const Route = createFileRoute("/apply/rider")({
 function RiderApplyPage() {
   const submit = useShareStore((s) => s.submitRiderApp);
   const setRiderName = useShareStore((s) => s.setRiderName);
+  const profileSelfie = useShareStore((s) => s.profileSelfie);
+  const setProfileSelfie = useShareStore((s) => s.setProfileSelfie);
   const { canApplyRider, riderActive, riderStatus, latestRider } =
     useMyAppStatus();
   const [done, setDone] = useState(false);
   const [acceptedTos, setAcceptedTos] = useState(false);
-  const [selfie, setSelfie] = useState("");
+  const [selfie, setSelfie] = useState(profileSelfie || "");
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -54,6 +56,7 @@ function RiderApplyPage() {
       return;
     }
     const payload = { ...form, selfie };
+    if (selfie) setProfileSelfie(selfie);
     submit(payload);
     setRiderName(form.fullName.trim());
     try {
@@ -138,10 +141,13 @@ function RiderApplyPage() {
           <CardContent className="space-y-4 p-5">
             <PhotoField
               id="rider-selfie"
-              label="Recent selfie"
+              label="Recent selfie (one photo for rider & driver)"
               hint="Clear face photo — helps drivers confirm it’s you at pickup."
               value={selfie}
-              onChange={setSelfie}
+              onChange={(v) => {
+                setSelfie(v);
+                if (v) setProfileSelfie(v);
+              }}
               facing="user"
               required
             />

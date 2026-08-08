@@ -74,7 +74,7 @@ function RidesPage() {
     };
     postTrip(trip);
     toast.success("Saturday LFT → HOU posted");
-    navigate({ to: "/rides/$id", params: { id: trip.id } });
+    navigate({ to: `/rides/${trip.id}` as any });
   }
 
   return (

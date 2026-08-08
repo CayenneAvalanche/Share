@@ -5,4 +5,4 @@ export const SHARE_DOMAIN = "share.myendeavors.me";
 export const SHARE_DEMO_DOMAIN = "demo.share.myendeavors.me";
 
 /** Bump when shipping so we can verify Netlify actually deployed. */
-export const SHARE_BUILD = "2026-08-08f";
+export const SHARE_BUILD = "2026-08-08g";

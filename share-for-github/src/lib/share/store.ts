@@ -172,6 +172,8 @@ type ShareState = {
   forceEscalateVolunteer: (id: string) => void;
   joinWaitlist: (email: string) => void;
   setRiderName: (name: string) => void;
+  profileSelfie: string;
+  setProfileSelfie: (dataUrl: string) => void;
   applyAsDriver: () => void;
   cancelBooking: (id: string) => void;
   toggleFavoriteDriver: (id: string) => void;
@@ -328,6 +330,7 @@ export const useShareStore = create<ShareState>()(
       ],
       riderName: "Guest",
       isDriverApproved: false,
+      profileSelfie: "",
       isRiderApproved: false,
       favoriteDriverIds: DEMO ? ["d2", "d4"] : [],
       emergencyContactName: "",
@@ -462,6 +465,7 @@ export const useShareStore = create<ShareState>()(
         set((state) => ({
           driverApps: [full, ...state.driverApps],
           isDriverApproved: false,
+          profileSelfie: full.selfie || state.profileSelfie || "",
         }));
         systemNotify(set, "Driver application received — interview next");
         return full;
@@ -478,7 +482,10 @@ export const useShareStore = create<ShareState>()(
           status: "pending_interview",
           createdAt: new Date().toISOString(),
         };
-        set((state) => ({ riderApps: [full, ...state.riderApps] }));
+        set((state) => ({
+          riderApps: [full, ...state.riderApps],
+          profileSelfie: full.selfie || state.profileSelfie || "",
+        }));
         return full;
       },
 
@@ -721,6 +728,8 @@ export const useShareStore = create<ShareState>()(
       },
 
       setRiderName: (name) => set({ riderName: name }),
+      setProfileSelfie: (dataUrl) =>
+        set({ profileSelfie: dataUrl || "" }),
       applyAsDriver: () => set({ isDriverApproved: true }),
 
       cancelBooking: (id) => {
@@ -842,11 +851,17 @@ export const useShareStore = create<ShareState>()(
             riderApps.some(
               (a) => a.status === "active" || a.status === "approved",
             ) || state.isRiderApproved;
+          const selfieFromApps =
+            driverApps.find((a) => a.selfie)?.selfie ||
+            riderApps.find((a) => a.selfie)?.selfie ||
+            state.profileSelfie ||
+            "";
           return {
             driverApps,
             riderApps,
             isDriverApproved,
             isRiderApproved,
+            profileSelfie: selfieFromApps,
           };
         });
       },
@@ -1266,6 +1281,7 @@ export const useShareStore = create<ShareState>()(
         riderName: s.riderName,
         isDriverApproved: s.isDriverApproved,
         isRiderApproved: s.isRiderApproved,
+        profileSelfie: s.profileSelfie ?? "",
         favoriteDriverIds: s.favoriteDriverIds,
         emergencyContactName: s.emergencyContactName,
         emergencyContactPhone: s.emergencyContactPhone,
@@ -1321,6 +1337,7 @@ export const useShareStore = create<ShareState>()(
             ),
             isDriverApproved: p.isDriverApproved ?? false,
             isRiderApproved: p.isRiderApproved ?? false,
+            profileSelfie: p.profileSelfie ?? "",
             riderName: p.riderName ?? current.riderName,
           };
         }

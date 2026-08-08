@@ -45,6 +45,7 @@ function PostRidePage() {
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
   const riderName = useShareStore((s) => s.riderName);
+  const profileSelfie = useShareStore((s) => s.profileSelfie);
   const user = useCurrentUser();
 
   const existing = editId ? trips.find((t) => t.id === editId) : undefined;
@@ -149,9 +150,10 @@ function PostRidePage() {
         vehicleLabel: vehicleLabel.trim() || undefined,
         postedByName: ownerName,
         postedByEmail: ownerEmail,
+        driverSelfie: profileSelfie || existing.driverSelfie,
       });
       toast.success("Trip updated");
-      navigate({ to: "/rides/$id", params: { id: existing.id } });
+      navigate({ to: `/rides/${existing.id}` as any });
       return;
     }
 
@@ -184,11 +186,12 @@ function PostRidePage() {
       vehicleLabel: vehicleLabel.trim() || undefined,
       postedByName: ownerName,
       postedByEmail: ownerEmail,
+      driverSelfie: profileSelfie || undefined,
     };
 
     postTrip(trip);
     toast.success("Trip posted");
-    navigate({ to: "/rides/$id", params: { id: trip.id } });
+    navigate({ to: `/rides/${trip.id}` as any });
   }
 
   if (editId && !existing) {

@@ -129,9 +129,9 @@ function TripsPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="secondary" asChild>
-                      <Link to="/rides/$id" params={{ id: trip.id }}>
+                      <a href={`/rides/${trip.id}`}>
                         Rebook route
-                      </Link>
+                      </a>
                     </Button>
                     <Button size="sm" variant="outline" asChild>
                       <Link to="/messages">Message</Link>

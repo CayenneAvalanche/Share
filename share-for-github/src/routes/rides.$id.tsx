@@ -45,6 +45,7 @@ function RideDetailPage() {
   const toggleFavoriteDriver = useShareStore((s) => s.toggleFavoriteDriver);
   const startThread = useShareStore((s) => s.startThread);
   const deleteTrip = useShareStore((s) => s.deleteTrip);
+  const profileSelfie = useShareStore((s) => s.profileSelfie);
   const riderName = useShareStore((s) => s.riderName);
 
   const [mode, setMode] = useState<"ride" | "delivery">("ride");
@@ -79,6 +80,10 @@ function RideDetailPage() {
   // Member-posted trips use user_* ids (and optional postedBy*)
   const isOwner =
     item.id.startsWith("user_") || Boolean(item.postedByEmail);
+  const face =
+    item.driverSelfie ||
+    (item.id.startsWith("user_") ? profileSelfie : "") ||
+    "";
 
   function handleDelete() {
     if (
@@ -94,7 +99,7 @@ function RideDetailPage() {
   }
 
   function handleBook() {
-    if (!trip) return;
+    if (!item) return;
     if (driver?.hasDashcam && !dashcamAck) {
       toast.error("Confirm you understand dashcam may record audio/video");
       return;
@@ -289,58 +294,78 @@ function RideDetailPage() {
           </CardContent>
         </Card>
 
-        {driver && (
+        {(driver || item.postedByName || face) && (
           <Card>
             <CardContent className="flex items-center gap-3 p-4">
-              <div
-                className="flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white"
-                style={{
-                  background: `hsl(${driver.avatarHue} 35% 38%)`,
-                }}
-              >
-                {driver.name.charAt(0)}
-              </div>
+              {face ? (
+                <img
+                  src={face}
+                  alt=""
+                  className="size-12 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white"
+                  style={{
+                    background: `hsl(${driver?.avatarHue ?? 150} 35% 38%)`,
+                  }}
+                >
+                  {(item.postedByName || driver?.name || "?").charAt(0)}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <p className="font-semibold">{driver.name}</p>
-                  {driver.verified && (
+                  <p className="font-semibold">
+                    {item.postedByName || driver?.name || "Share driver"}
+                  </p>
+                  {driver?.verified && (
                     <ShieldCheck className="size-4 text-[var(--color-primary)]" />
                   )}
                 </div>
                 <p className="text-sm text-[var(--color-fg-muted)]">
-                  {driver.city} · {driver.trips} trips · {driver.vehicle}
+                  {driver
+                    ? `${driver.city} · ${driver.trips} trips · ${driver.vehicle}`
+                    : item.vehicleLabel || item.vehicleType || "Member trip"}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  {driver.gender === "woman" && (
+                  {driver?.gender === "woman" && (
                     <Badge variant="accent">Woman driver</Badge>
                   )}
-                  <DashcamBadge
-                    hasDashcam={driver.hasDashcam}
-                    note={driver.dashcamNote}
-                  />
+                  {driver && (
+                    <DashcamBadge
+                      hasDashcam={driver.hasDashcam}
+                      note={driver.dashcamNote}
+                    />
+                  )}
                   <Badge variant="success">Screened</Badge>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-1 font-semibold">
-                  <Star className="size-4 fill-[var(--color-accent)] text-[var(--color-accent)]" />
-                  {driver.rating.toFixed(2)}
-                </div>
-                <Button
-                  size="sm"
-                  variant={isFav ? "default" : "outline"}
-                  onClick={() => {
-                    toggleFavoriteDriver(driver.id);
-                    toast.message(
-                      isFav ? "Removed preferred driver" : "Saved as preferred",
-                    );
-                  }}
-                >
-                  <Heart
-                    className={`size-3.5 ${isFav ? "fill-current" : ""}`}
-                  />
-                  {isFav ? "Preferred" : "Prefer"}
-                </Button>
+                {driver && (
+                  <div className="flex items-center gap-1 font-semibold">
+                    <Star className="size-4 fill-[var(--color-accent)] text-[var(--color-accent)]" />
+                    {driver.rating.toFixed(2)}
+                  </div>
+                )}
+                {driver && (
+                  <Button
+                    size="sm"
+                    variant={isFav ? "default" : "outline"}
+                    onClick={() => {
+                      toggleFavoriteDriver(driver.id);
+                      toast.message(
+                        isFav
+                          ? "Removed preferred driver"
+                          : "Saved as preferred",
+                      );
+                    }}
+                  >
+                    <Heart
+                      className={`size-3.5 ${isFav ? "fill-current" : ""}`}
+                    />
+                    {isFav ? "Preferred" : "Prefer"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

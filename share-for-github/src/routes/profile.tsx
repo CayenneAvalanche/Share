@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { PhotoField } from "@/components/share/photo-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,8 @@ export const Route = createFileRoute("/profile")({
 
 function ProfilePage() {
   const riderName = useShareStore((s) => s.riderName);
+  const profileSelfie = useShareStore((s) => s.profileSelfie);
+  const setProfileSelfie = useShareStore((s) => s.setProfileSelfie);
   const setRiderName = useShareStore((s) => s.setRiderName);
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
@@ -151,9 +154,9 @@ function ProfilePage() {
                 }}
                 onContextMenu={(e) => e.preventDefault()}
               >
-                {user?.profileImageUrl ? (
+                {profileSelfie || user?.profileImageUrl ? (
                   <img
-                    src={user.profileImageUrl}
+                    src={profileSelfie || user?.profileImageUrl || ""}
                     alt=""
                     className="size-full object-cover"
                   />
@@ -238,6 +241,14 @@ function ProfilePage() {
                 </Link>
               </Button>
             </div>
+            <PhotoField
+              id="profile-selfie"
+              label="Your photo"
+              hint="One selfie for rider, driver, and trip posts. Update anytime."
+              value={profileSelfie}
+              onChange={setProfileSelfie}
+              facing="user"
+            />
             {user ? (
               <p className="text-xs text-[var(--color-fg-subtle)]">
                 Signed in as{" "}

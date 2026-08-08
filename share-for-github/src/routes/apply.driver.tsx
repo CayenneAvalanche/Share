@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +28,8 @@ const PLATFORMS = Object.keys(GIG_PLATFORM_LABELS) as GigPlatform[];
 
 function DriverApplyPage() {
   const submit = useShareStore((s) => s.submitDriverApp);
+  const profileSelfie = useShareStore((s) => s.profileSelfie);
+  const setProfileSelfie = useShareStore((s) => s.setProfileSelfie);
   const { canApplyDriver, driverActive, driverStatus, latestDriver } =
     useMyAppStatus();
   const [done, setDone] = useState(false);
@@ -57,7 +59,10 @@ function DriverApplyPage() {
   const [licenseFront, setLicenseFront] = useState("");
   const [licenseBack, setLicenseBack] = useState("");
   const [insuranceCard, setInsuranceCard] = useState("");
-  const [selfie, setSelfie] = useState("");
+  const [selfie, setSelfie] = useState(profileSelfie || "");
+  useEffect(() => {
+    if (profileSelfie && !selfie) setSelfie(profileSelfie);
+  }, [profileSelfie, selfie]);
   const [uploading, setUploading] = useState<string | null>(null);
   /** never = not listed · active · inactive (used to drive but not now) */
   const [platformStatus, setPlatformStatus] = useState<
@@ -134,6 +139,7 @@ function DriverApplyPage() {
         .join(" | "),
     };
     // Always keep local store for offline UX; Neon when available
+    if (selfie) setProfileSelfie(selfie);
     submit(payload);
     try {
       await submitDriverAppFn({ data: payload as Record<string, unknown> });
@@ -488,10 +494,13 @@ function DriverApplyPage() {
             </div>
             <PhotoField
               id="driver-selfie"
-              label="Recent selfie"
+              label="Recent selfie (one photo for rider & driver)"
               hint="Clear face photo — riders match this to you at pickup."
               value={selfie}
-              onChange={setSelfie}
+              onChange={(v) => {
+                setSelfie(v);
+                if (v) setProfileSelfie(v);
+              }}
               facing="user"
               required
             />

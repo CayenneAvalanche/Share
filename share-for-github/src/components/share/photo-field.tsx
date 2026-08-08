@@ -1,6 +1,9 @@
 import { Camera, ImagePlus, X } from "lucide-react";
 import { Label } from "@/components/ui/input";
-import { fileToCompressedDataUrl } from "@/lib/share/image";
+import {
+  fileToCompressedDataUrl,
+  type PhotoKind,
+} from "@/lib/share/image";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +15,8 @@ type Props = {
   onChange: (dataUrl: string) => void;
   /** user / environment — selfie uses user-facing camera */
   facing?: "user" | "environment";
+  /** Compression budget — selfie is much smaller for phone storage */
+  kind?: PhotoKind;
   required?: boolean;
   className?: string;
 };
@@ -26,9 +31,13 @@ export function PhotoField({
   value,
   onChange,
   facing = "environment",
+  kind,
   required,
   className,
 }: Props) {
+  const photoKind: PhotoKind =
+    kind ?? (facing === "user" ? "selfie" : "vehicle");
+
   return (
     <div className={cn("space-y-2", className)}>
       <Label htmlFor={id}>
@@ -86,13 +95,19 @@ export function PhotoField({
           e.target.value = "";
           if (!file) return;
           try {
-            const dataUrl = await fileToCompressedDataUrl(file);
+            const dataUrl = await fileToCompressedDataUrl(file, photoKind);
             onChange(dataUrl);
             toast.success("Photo attached");
           } catch (err) {
-            toast.error(
-              err instanceof Error ? err.message : "Could not read photo",
-            );
+            const msg =
+              err instanceof Error ? err.message : "Could not read photo";
+            if (/quota|exceeded|storage/i.test(msg)) {
+              toast.error(
+                "Phone storage for Share is full — remove an old trip photo or vehicle, then try again.",
+              );
+            } else {
+              toast.error(msg);
+            }
           }
         }}
       />

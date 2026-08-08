@@ -563,7 +563,7 @@ function DriverApplyPage() {
                       if (!file) return;
                       setUploading(key);
                       try {
-                        const dataUrl = await fileToCompressedDataUrl(file);
+                        const dataUrl = await fileToCompressedDataUrl(file, "document");
                         setter(dataUrl);
                         toast.success(`${label} attached`);
                       } catch (err) {

@@ -255,6 +255,7 @@ function ProfilePage() {
               value={profileSelfie}
               onChange={setProfileSelfie}
               facing="user"
+              kind="selfie"
             />
             {user ? (
               <p className="text-xs text-[var(--color-fg-subtle)]">

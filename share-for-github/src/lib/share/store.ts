@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import {
   BORROW_REQUESTS,
   CAR_LISTINGS,
@@ -323,6 +323,138 @@ function systemNotify(
   set((state) => ({
     notifications: [text, ...state.notifications].slice(0, 20),
   }));
+}
+
+/** Keep localStorage under quota — ID scans live on the server, not forever in the phone. */
+function slimDriverApp(a: DriverApplication): DriverApplication {
+  return {
+    ...a,
+    licenseFront: undefined,
+    licenseBack: undefined,
+    insuranceCard: undefined,
+    // face + car live on profileSelfie / myVehicles
+    selfie: undefined,
+    vehiclePhoto: undefined,
+  };
+}
+
+function slimRiderApp(a: RiderApplication): RiderApplication {
+  const { selfie: _s, ...rest } = a;
+  return rest;
+}
+
+function slimTrip(t: Trip): Trip {
+  // keep vehicle photo but cap absurd sizes (older posts)
+  if (t.vehiclePhoto && t.vehiclePhoto.length > 280_000) {
+    return { ...t, vehiclePhoto: undefined, driverSelfie: t.driverSelfie && t.driverSelfie.length > 120_000 ? undefined : t.driverSelfie };
+  }
+  if (t.driverSelfie && t.driverSelfie.length > 120_000) {
+    return { ...t, driverSelfie: undefined };
+  }
+  return t;
+}
+
+function slimVehicle(v: SavedVehicle): SavedVehicle {
+  if (v.photoUrl && v.photoUrl.length > 280_000) {
+    return { ...v, photoUrl: undefined };
+  }
+  return v;
+}
+
+function slimRental(r: RentalListing): RentalListing {
+  if (r.photoUrl && r.photoUrl.length > 280_000) {
+    return { ...r, photoUrl: undefined };
+  }
+  return r;
+}
+
+/** Zustand storage that recovers when localStorage quota is exceeded. */
+function createSafeStorage(): {
+  getItem: (name: string) => string | null;
+  setItem: (name: string, value: string) => void;
+  removeItem: (name: string) => void;
+} {
+  return {
+    getItem: (name) => {
+      try {
+        return localStorage.getItem(name);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      try {
+        localStorage.setItem(name, value);
+        return;
+      } catch {
+        /* fall through */
+      }
+      // Drop the heaviest keys and retry a compact write
+      try {
+        const parsed = JSON.parse(value) as { state?: Record<string, unknown> };
+        const s = parsed.state;
+        if (s && typeof s === "object") {
+          // wipe bulky photo fields
+          if (typeof s.profileSelfie === "string" && s.profileSelfie.length > 100_000) {
+            s.profileSelfie = "";
+          }
+          if (Array.isArray(s.myVehicles)) {
+            s.myVehicles = (s.myVehicles as { photoUrl?: string }[]).map((v) => ({
+              ...v,
+              photoUrl: undefined,
+            }));
+          }
+          if (Array.isArray(s.trips)) {
+            s.trips = (s.trips as { vehiclePhoto?: string; driverSelfie?: string }[]).map(
+              (tr) => ({
+                ...tr,
+                vehiclePhoto: undefined,
+                driverSelfie: undefined,
+              }),
+            );
+          }
+          if (Array.isArray(s.rentals)) {
+            s.rentals = (s.rentals as { photoUrl?: string }[]).map((r) => ({
+              ...r,
+              photoUrl: undefined,
+            }));
+          }
+          if (Array.isArray(s.driverApps)) {
+            s.driverApps = (s.driverApps as object[]).map((a) => ({
+              ...a,
+              licenseFront: undefined,
+              licenseBack: undefined,
+              insuranceCard: undefined,
+              selfie: undefined,
+              vehiclePhoto: undefined,
+            }));
+          }
+          if (Array.isArray(s.messages) && s.messages.length > 40) {
+            s.messages = (s.messages as unknown[]).slice(0, 40);
+          }
+          const compact = JSON.stringify(parsed);
+          localStorage.setItem(name, compact);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        // last resort: clear this app key so next actions can save again
+        localStorage.removeItem(name);
+      } catch {
+        /* ignore */
+      }
+      console.warn("[share] localStorage full — pruned photos to free space");
+    },
+    removeItem: (name) => {
+      try {
+        localStorage.removeItem(name);
+      } catch {
+        /* ignore */
+      }
+    },
+  };
 }
 
 export const useShareStore = create<ShareState>()(
@@ -746,8 +878,16 @@ export const useShareStore = create<ShareState>()(
       },
 
       setRiderName: (name) => set({ riderName: name }),
-      setProfileSelfie: (dataUrl) =>
-        set({ profileSelfie: dataUrl || "" }),
+      setProfileSelfie: (dataUrl) => {
+        const next = dataUrl || "";
+        set({ profileSelfie: next });
+        // nudge persist; if full, safe storage prunes
+        try {
+          // no-op read to surface quota in some browsers is unnecessary
+        } catch {
+          /* ignore */
+        }
+      },
 
       addVehicle: (v) => {
         const vehicle: SavedVehicle = {
@@ -1355,13 +1495,16 @@ export const useShareStore = create<ShareState>()(
     }),
     {
       name: persistStorageName(),
+      storage: createJSONStorage(() => createSafeStorage()),
       partialize: (s) => ({
         bookings: s.bookings,
         deliveries: s.deliveries,
-        trips: s.trips.filter((t) => t.id.startsWith("user_")),
-        driverApps: s.driverApps,
-        riderApps: s.riderApps,
-        rentals: s.rentals.filter((r) => r.id.startsWith("r_")),
+        trips: s.trips
+          .filter((t) => t.id.startsWith("user_"))
+          .map(slimTrip),
+        driverApps: s.driverApps.map(slimDriverApp),
+        riderApps: s.riderApps.map(slimRiderApp),
+        rentals: s.rentals.filter((r) => r.id.startsWith("r_")).map(slimRental),
         rentalHandoffs: s.rentalHandoffs ?? [],
         marketplaceRequests: s.marketplaceRequests ?? [],
         borrowRequests: s.borrowRequests.filter((b) => b.id.startsWith("br_")),
@@ -1382,8 +1525,11 @@ export const useShareStore = create<ShareState>()(
         riderName: s.riderName,
         isDriverApproved: s.isDriverApproved,
         isRiderApproved: s.isRiderApproved,
-        profileSelfie: s.profileSelfie ?? "",
-        myVehicles: s.myVehicles ?? [],
+        profileSelfie:
+          (s.profileSelfie ?? "").length > 140_000
+            ? ""
+            : (s.profileSelfie ?? ""),
+        myVehicles: (s.myVehicles ?? []).map(slimVehicle),
         favoriteDriverIds: s.favoriteDriverIds,
         emergencyContactName: s.emergencyContactName,
         emergencyContactPhone: s.emergencyContactPhone,

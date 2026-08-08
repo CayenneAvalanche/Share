@@ -9,6 +9,10 @@ import type {
   VolunteerCategory,
   VolunteerRide,
 } from "@/lib/share/data";
+import {
+  FOUNDER_NOTIFY_EMAIL_DEFAULT,
+  FOUNDER_NOTIFY_PHONE_DEFAULT,
+} from "@/lib/share/contact";
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -140,6 +144,111 @@ function mapRider(r: RiderRow): RiderApplication {
     adminNote: r.admin_note ?? undefined,
     selfie: r.selfie || undefined,
   };
+}
+
+/**
+ * Founder alert: email (Resend) + SMS (Twilio) when a volunteer ride is requested.
+ * Fire-and-forget — never throws to the caller. Missing env keys just skip that channel.
+ */
+async function notifyFounderVolunteerRequest(payload: {
+  id: string;
+  category: string;
+  fullName: string;
+  phone: string;
+  pickup: string;
+  dropoff: string;
+  when: string;
+  notes: string;
+  paidOffer: number;
+}) {
+  const emailTo =
+    process.env.FOUNDER_NOTIFY_EMAIL?.trim() || FOUNDER_NOTIFY_EMAIL_DEFAULT;
+  const phoneTo =
+    process.env.FOUNDER_NOTIFY_PHONE?.trim() || FOUNDER_NOTIFY_PHONE_DEFAULT;
+
+  const subject = `Share volunteer ride: ${payload.fullName} (${payload.category})`;
+  const textBody = [
+    `New volunteer ride request`,
+    `ID: ${payload.id}`,
+    `Category: ${payload.category}`,
+    `Rider: ${payload.fullName}`,
+    `Phone: ${payload.phone}`,
+    `Pickup: ${payload.pickup}`,
+    `Dropoff: ${payload.dropoff}`,
+    `When: ${payload.when}`,
+    `Paid offer if needed: $${payload.paidOffer}`,
+    payload.notes ? `Notes: ${payload.notes}` : "",
+    `https://share.myendeavors.me/volunteer`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const smsBody =
+    `Share: new volunteer ride — ${payload.fullName} (${payload.category}) ` +
+    `${payload.pickup} → ${payload.dropoff} @ ${payload.when}. ` +
+    `Call ${payload.phone}`;
+
+  // --- Email via Resend ---
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey) {
+    try {
+      const from =
+        process.env.RESEND_FROM?.trim() ||
+        "Share <onboarding@resend.dev>";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [emailTo],
+          subject,
+          text: textBody,
+        }),
+      });
+      if (!res.ok) {
+        console.error("[notify] Resend failed", res.status, await res.text());
+      }
+    } catch (e) {
+      console.error("[notify] Resend error", e);
+    }
+  } else {
+    console.warn("[notify] RESEND_API_KEY not set — skipping email");
+  }
+
+  // --- SMS via Twilio ---
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const twilioFrom = process.env.TWILIO_FROM_NUMBER?.trim();
+  if (twilioSid && twilioToken && twilioFrom && phoneTo) {
+    try {
+      const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            To: phoneTo,
+            From: twilioFrom,
+            Body: smsBody.slice(0, 320),
+          }),
+        },
+      );
+      if (!res.ok) {
+        console.error("[notify] Twilio failed", res.status, await res.text());
+      }
+    } catch (e) {
+      console.error("[notify] Twilio error", e);
+    }
+  } else {
+    console.warn("[notify] Twilio env incomplete — skipping SMS");
+  }
 }
 
 export const submitDriverAppFn = createServerFn({ method: "POST" })
@@ -716,26 +825,49 @@ export const createVolunteerRideFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     const id = uid("vol");
     const createdAt = new Date().toISOString();
+    const category = String(data.category ?? "elder");
+    const fullName = String(data.fullName ?? "").trim();
+    const phone = String(data.phone ?? "").trim();
+    const pickup = String(data.pickup ?? "");
+    const dropoff = String(data.dropoff ?? "");
+    const when = String(data.when ?? "ASAP");
+    const notes = String(data.notes ?? "");
+    const paidOffer = Number(data.paidOffer ?? 12);
+
     await sql`
       insert into share_volunteer_rides (
         id, category, full_name, phone, pickup, dropoff, when_text, notes,
         escalate_after_hours, paid_offer, requester_name, status, created_at
       ) values (
         ${id},
-        ${String(data.category ?? "elder")},
-        ${String(data.fullName ?? "").trim()},
-        ${String(data.phone ?? "").trim()},
-        ${String(data.pickup ?? "")},
-        ${String(data.dropoff ?? "")},
-        ${String(data.when ?? "ASAP")},
-        ${String(data.notes ?? "")},
+        ${category},
+        ${fullName},
+        ${phone},
+        ${pickup},
+        ${dropoff},
+        ${when},
+        ${notes},
         ${Number(data.escalateAfterHours ?? 2)},
-        ${Number(data.paidOffer ?? 12)},
+        ${paidOffer},
         ${String(data.requesterName ?? "Community")},
         ${"seeking_volunteer"},
         ${createdAt}
       )
     `;
+
+    // Fire-and-forget founder alert (email + SMS). Never block the rider.
+    void notifyFounderVolunteerRequest({
+      id,
+      category,
+      fullName,
+      phone,
+      pickup,
+      dropoff,
+      when,
+      notes,
+      paidOffer,
+    }).catch(() => {});
+
     return { id, createdAt };
   });
 

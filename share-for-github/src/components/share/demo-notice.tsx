@@ -24,7 +24,8 @@ export function DemoNoticeModal({ force = false }: { force?: boolean }) {
       setOpen(true);
       return;
     }
-    // Demo tour: full popup. Beta: lighter first-visit notice still OK.
+    // Live product: no first-visit popup. Demo tour only.
+    if (!isDemoMode()) return;
     try {
       if (!localStorage.getItem(STORAGE_KEY)) setOpen(true);
     } catch {

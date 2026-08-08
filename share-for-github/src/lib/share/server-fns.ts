@@ -347,28 +347,67 @@ export const setDriverAvailableFn = createServerFn({ method: "POST" })
       city?: string;
       available: boolean;
       presenceId?: string;
+      email?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
+    const email = data.email?.trim().toLowerCase() || null;
+    // Only approved/active drivers may go available (when email provided)
+    if (data.available && email) {
+      const apps = await sql<{ status: string }>`
+        select status from share_driver_apps
+        where lower(email) = ${email}
+          and status in ('active', 'approved')
+        limit 1
+      `;
+      if (!apps.length) {
+        throw new Error("Only approved active drivers can go available");
+      }
+    }
     const id = data.presenceId || uid("pr");
-    await sql`
-      insert into share_driver_presence (id, display_name, city, available, updated_at)
-      values (
-        ${id},
-        ${data.displayName.trim() || "Driver"},
-        ${data.city ?? "Lafayette, LA"},
-        ${data.available},
-        ${new Date().toISOString()}
-      )
-      on conflict (id) do update set
-        display_name = excluded.display_name,
-        city = excluded.city,
-        available = excluded.available,
-        updated_at = excluded.updated_at
-    `;
+    const now = new Date().toISOString();
+    try {
+      await sql`
+        insert into share_driver_presence (id, display_name, city, available, email, updated_at)
+        values (
+          ${id},
+          ${data.displayName.trim() || "Driver"},
+          ${data.city ?? "Lafayette, LA"},
+          ${data.available},
+          ${email},
+          ${now}
+        )
+        on conflict (id) do update set
+          display_name = excluded.display_name,
+          city = excluded.city,
+          available = excluded.available,
+          email = coalesce(excluded.email, share_driver_presence.email),
+          updated_at = excluded.updated_at
+      `;
+    } catch {
+      // fallback if email column not migrated yet
+      await sql`
+        insert into share_driver_presence (id, display_name, city, available, updated_at)
+        values (
+          ${id},
+          ${data.displayName.trim() || "Driver"},
+          ${data.city ?? "Lafayette, LA"},
+          ${data.available},
+          ${now}
+        )
+        on conflict (id) do update set
+          display_name = excluded.display_name,
+          city = excluded.city,
+          available = excluded.available,
+          updated_at = excluded.updated_at
+      `;
+    }
+    // count only fresh presence (30 min)
     const rows = await sql.query<{ c: number }>(
-      `select count(*)::int as c from share_driver_presence where available = true`,
+      `select count(*)::int as c from share_driver_presence
+       where available = true
+         and updated_at > now() - interval '30 minutes'`,
     );
     return { presenceId: id, availableCount: Number(rows[0]?.c ?? 0) };
   });
@@ -378,10 +417,73 @@ export const countAvailableDriversFn = createServerFn({
 }).handler(async () => {
   const sql = await getSql();
   const rows = await sql.query<{ c: number }>(
-    `select count(*)::int as c from share_driver_presence where available = true`,
+    `select count(*)::int as c from share_driver_presence
+     where available = true
+       and updated_at > now() - interval '30 minutes'`,
   );
   return { availableCount: Number(rows[0]?.c ?? 0) };
 });
+
+/** Founder: who is online for local rides right now */
+export const listOnlineDriversFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    try {
+      const rows = await sql.query<{
+        id: string;
+        display_name: string;
+        city: string;
+        email: string | null;
+        updated_at: string | Date;
+      }>(
+        `select id, display_name, city, email, updated_at
+         from share_driver_presence
+         where available = true
+           and updated_at > now() - interval '30 minutes'
+         order by updated_at desc
+         limit 50`,
+      );
+      return {
+        drivers: rows.map((r) => ({
+          id: r.id,
+          displayName: r.display_name,
+          city: r.city,
+          email: r.email ?? undefined,
+          updatedAt:
+            r.updated_at instanceof Date
+              ? r.updated_at.toISOString()
+              : String(r.updated_at),
+        })),
+      };
+    } catch {
+      const rows = await sql.query<{
+        id: string;
+        display_name: string;
+        city: string;
+        updated_at: string | Date;
+      }>(
+        `select id, display_name, city, updated_at
+         from share_driver_presence
+         where available = true
+           and updated_at > now() - interval '30 minutes'
+         order by updated_at desc
+         limit 50`,
+      );
+      return {
+        drivers: rows.map((r) => ({
+          id: r.id,
+          displayName: r.display_name,
+          city: r.city,
+          updatedAt:
+            r.updated_at instanceof Date
+              ? r.updated_at.toISOString()
+              : String(r.updated_at),
+        })),
+      };
+    }
+  });
 
 export const dbHealthFn = createServerFn({ method: "GET" }).handler(
   async () => {

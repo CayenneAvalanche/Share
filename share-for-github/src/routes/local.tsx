@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, CheckCircle2, MapPinned } from "lucide-react";
+import { Bell, MapPinned } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import {
   countAvailableDriversFn,
   setDriverAvailableFn,
 } from "@/lib/share/server-fns";
+import { useMyAppStatus } from "@/lib/share/use-my-apps";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/local")({
   component: LocalRidePage,
@@ -30,6 +32,8 @@ function LocalRidePage() {
   const localRides = useShareStore((s) => s.localRides);
   const riderName = useShareStore((s) => s.riderName);
   const favorites = useShareStore((s) => s.favoriteDriverIds);
+  const { driverActive, latestDriver } = useMyAppStatus();
+  const user = useCurrentUser();
 
   const [pickup, setPickup] = useState<string>(LOCAL_SPOTS[0]);
   const [dropoff, setDropoff] = useState<string>(LOCAL_SPOTS[1]);
@@ -45,11 +49,17 @@ function LocalRidePage() {
   const [available, setAvailable] = useState(false);
   const [availCount, setAvailCount] = useState(0);
   const [presenceId, setPresenceId] = useState<string | undefined>();
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
-    void countAvailableDriversFn()
-      .then((r) => setAvailCount(r.availableCount))
-      .catch(() => {});
+    function refresh() {
+      void countAvailableDriversFn()
+        .then((r) => setAvailCount(r.availableCount))
+        .catch(() => {});
+    }
+    refresh();
+    const id = setInterval(refresh, 15_000);
+    return () => clearInterval(id);
   }, []);
 
   const fares = useMemo(
@@ -81,6 +91,41 @@ function LocalRidePage() {
     toast.success("Pinged nearby Share drivers");
   }
 
+  async function toggleAvailable() {
+    if (!driverActive) {
+      toast.error("Only approved active drivers can go available");
+      return;
+    }
+    const next = !available;
+    setToggling(true);
+    setAvailable(next);
+    try {
+      const res = await setDriverAvailableFn({
+        data: {
+          displayName:
+            latestDriver?.fullName ||
+            user?.displayName ||
+            riderName ||
+            "Driver",
+          email: user?.primaryEmail || latestDriver?.email,
+          city: latestDriver?.city || "Lafayette, LA",
+          available: next,
+          presenceId,
+        },
+      });
+      setPresenceId(res.presenceId);
+      setAvailCount(res.availableCount);
+      toast.success(next ? "You're online for local rides" : "You're offline");
+    } catch (e) {
+      setAvailable(!next);
+      toast.error(
+        e instanceof Error ? e.message : "Could not update availability",
+      );
+    } finally {
+      setToggling(false);
+    }
+  }
+
   if (doneId) {
     const ride = localRides.find((r) => r.id === doneId);
     return (
@@ -101,7 +146,7 @@ function LocalRidePage() {
             <strong className="text-[var(--color-fg)]">
               {ride ? formatCurrency(ride.sharePrice) : "—"}
             </strong>
-            . Founder inbox can match from Admin.
+            .
           </p>
           {ride && (
             <Card className="mt-6 w-full text-left">
@@ -142,6 +187,13 @@ function LocalRidePage() {
     );
   }
 
+  const driverLabel =
+    availCount === 0
+      ? "No Share drivers online nearby"
+      : availCount === 1
+        ? "1 Share driver online nearby"
+        : `${availCount} Share drivers online nearby`;
+
   return (
     <AppShell
       title="Local ride"
@@ -149,57 +201,41 @@ function LocalRidePage() {
       solidHeader
       backTo="/app"
     >
-      <Card className="mt-3">
-        <CardContent className="flex gap-3 p-4">
-          <MapPinned className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" />
-          <p className="text-sm text-[var(--color-fg-muted)]">
-            Shop needs a part across town for $10? Same flow as a ride — post it
-            under Deliveries, or request a local seat with driver preferences
-            (woman driver, favorite driver).
-          </p>
-        </CardContent>
-      </Card>
-
       <Card className="mt-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <div>
-            <p className="font-semibold">Driver Available</p>
-            <p className="text-xs text-[var(--color-fg-muted)]">
-              {availCount} Share driver{availCount === 1 ? "" : "s"} online nearby
-              (demo radius · Lafayette hub)
-            </p>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Drivers online</p>
+            <p className="text-sm text-[var(--color-fg-muted)]">{driverLabel}</p>
+            {driverActive && available && (
+              <Badge variant="success" className="mt-2">
+                You are online
+              </Badge>
+            )}
           </div>
-          <Button
-            type="button"
-            variant={available ? "default" : "outline"}
-            onClick={async () => {
-              const next = !available;
-              setAvailable(next);
-              try {
-                const res = await setDriverAvailableFn({
-                  data: {
-                    displayName: riderName || "Driver",
-                    city: "Lafayette, LA",
-                    available: next,
-                    presenceId,
-                  },
-                });
-                setPresenceId(res.presenceId);
-                setAvailCount(res.availableCount);
-                toast.success(next ? "You're Available" : "Went offline");
-              } catch {
-                toast.message(next ? "Available (local)" : "Offline (local)");
-              }
-            }}
-          >
-            {available ? "● Available" : "Go available"}
-          </Button>
+          {driverActive ? (
+            <Button
+              type="button"
+              variant={available ? "default" : "outline"}
+              disabled={toggling}
+              onClick={() => void toggleAvailable()}
+            >
+              {available ? "● Available" : "Go available"}
+            </Button>
+          ) : (
+            <p className="max-w-[11rem] text-right text-xs text-[var(--color-fg-subtle)]">
+              Active drivers can go online here
+            </p>
+          )}
         </CardContent>
       </Card>
 
       <form onSubmit={onSubmit} className="mt-4 space-y-4 pb-8">
         <Card>
-          <CardContent className="space-y-4 p-5">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <MapPinned className="size-4 text-[var(--color-primary)]" />
+              Where to?
+            </div>
             <div>
               <Label htmlFor="pickup">Pickup</Label>
               <Select
@@ -231,17 +267,11 @@ function LocalRidePage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="when">When</Label>
-                <Select
+                <Input
                   id="when"
                   value={when}
                   onChange={(e) => setWhen(e.target.value)}
-                >
-                  <option>ASAP</option>
-                  <option>In 30 minutes</option>
-                  <option>In 1 hour</option>
-                  <option>Tonight</option>
-                  <option>Tomorrow morning</option>
-                </Select>
+                />
               </div>
               <div>
                 <Label htmlFor="seats">Seats</Label>
@@ -249,7 +279,7 @@ function LocalRidePage() {
                   id="seats"
                   type="number"
                   min={1}
-                  max={4}
+                  max={6}
                   value={seats}
                   onChange={(e) => setSeats(Number(e.target.value))}
                 />
@@ -264,15 +294,16 @@ function LocalRidePage() {
                   setDriverPreference(e.target.value as DriverPreference)
                 }
               >
-                <option value="any">Any approved driver</option>
-                <option value="woman">Woman driver preferred</option>
-                <option value="man">Man driver preferred</option>
-                <option value="preferred">Specific preferred driver</option>
+                {(Object.keys(PREF_LABELS) as DriverPreference[]).map((k) => (
+                  <option key={k} value={k}>
+                    {PREF_LABELS[k]}
+                  </option>
+                ))}
               </Select>
             </div>
             {driverPreference === "preferred" && (
               <div>
-                <Label htmlFor="fav">Preferred driver</Label>
+                <Label htmlFor="fav">Favorite driver</Label>
                 <Select
                   id="fav"
                   value={preferredDriverId}
@@ -281,7 +312,6 @@ function LocalRidePage() {
                   {DRIVERS.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
-                      {favorites.includes(d.id) ? " ★" : ""} — {d.city}
                     </option>
                   ))}
                 </Select>
@@ -293,91 +323,39 @@ function LocalRidePage() {
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Bags, package handoff, curb pickup…"
+                placeholder="Luggage, grocery bags, gate code…"
               />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-5">
-            <h2 className="font-display text-lg font-semibold">
-              Price comparison
-            </h2>
-            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-              Demo estimates — not live Uber/Lyft API prices.
-            </p>
-            <div className="mt-4 space-y-2">
-              <PriceRow
-                label="Share"
-                amount={fares.sharePrice}
-                highlight
-                note="~10% platform take target"
-              />
-              <PriceRow
-                label="Uber (est.)"
-                amount={fares.uberEstimate}
-                note="typical on-demand"
-              />
-              <PriceRow
-                label="Lyft (est.)"
-                amount={fares.lyftEstimate}
-                note="typical on-demand"
-              />
+          <CardContent className="grid grid-cols-3 gap-2 p-4 text-center">
+            <div>
+              <p className="text-xs text-[var(--color-fg-subtle)]">Share</p>
+              <p className="font-semibold text-[var(--color-primary)]">
+                {formatCurrency(fares.sharePrice)}
+              </p>
             </div>
-            <div className="mt-4 rounded-[var(--radius-md)] bg-[var(--color-primary)]/8 px-3 py-2 text-sm">
-              Save about{" "}
-              <strong>
-                {formatCurrency(fares.uberEstimate - fares.sharePrice)}
-              </strong>{" "}
-              vs Uber — drivers keep more of the pie.
+            <div>
+              <p className="text-xs text-[var(--color-fg-subtle)]">Uber est.</p>
+              <p className="font-semibold">
+                {formatCurrency(fares.uberEstimate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--color-fg-subtle)]">Lyft est.</p>
+              <p className="font-semibold">
+                {formatCurrency(fares.lyftEstimate)}
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Button type="submit" size="xl" className="w-full">
-          Choose Share · notify drivers
+          Request local ride
         </Button>
       </form>
     </AppShell>
-  );
-}
-
-function PriceRow({
-  label,
-  amount,
-  note,
-  highlight,
-}: {
-  label: string;
-  amount: number;
-  note: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between rounded-[var(--radius-md)] border px-3 py-3 ${
-        highlight
-          ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
-          : "border-[var(--color-border)]"
-      }`}
-    >
-      <div>
-        <p className="flex items-center gap-1.5 font-semibold">
-          {highlight && (
-            <CheckCircle2 className="size-4 text-[var(--color-primary)]" />
-          )}
-          {label}
-        </p>
-        <p className="text-xs text-[var(--color-fg-subtle)]">{note}</p>
-      </div>
-      <p
-        className={`font-display text-xl font-semibold ${
-          highlight ? "text-[var(--color-primary)]" : ""
-        }`}
-      >
-        {formatCurrency(amount)}
-      </p>
-    </div>
   );
 }

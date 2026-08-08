@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Mail,
@@ -26,6 +26,7 @@ import {
   founderResetPasswordFn,
   deleteDriverAppFn,
   deleteRiderAppFn,
+  listOnlineDriversFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import { SHARE_BUILD } from "@/lib/share/contact";
@@ -52,6 +53,9 @@ function AdminPage() {
   const [cloudRiders, setCloudRiders] = useState<RiderApplication[] | null>(null);
   const [cloudWaitlist, setCloudWaitlist] = useState<string[] | null>(null);
   const [dbOk, setDbOk] = useState("…");
+  const [onlineDrivers, setOnlineDrivers] = useState<
+    { id: string; displayName: string; city: string; email?: string; updatedAt: string }[]
+  >([]);
   const [authUsers, setAuthUsers] = useState<
     { id: string; name: string; email: string; createdAt: string }[]
   >([]);
@@ -96,6 +100,27 @@ function AdminPage() {
       ).length
     );
   }, [driverApps, riderApps, deliveries, localRides, volunteerRides]);
+
+  useEffect(() => {
+    if (!unlocked || !pin) return;
+    let cancelled = false;
+    function loadOnline() {
+      listOnlineDriversFn({ data: { pin } })
+        .then((r) => {
+          if (!cancelled) setOnlineDrivers(r.drivers);
+        })
+        .catch(() => {
+          if (!cancelled) setOnlineDrivers([]);
+        });
+    }
+    loadOnline();
+    const id = setInterval(loadOnline, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [unlocked, pin, tab]);
+
 
 
   async function refreshCloud(p: string) {
@@ -624,6 +649,41 @@ function AdminPage() {
 
       {tab === "local" && (
         <section className="mt-3 space-y-3 pb-8">
+          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+            <CardContent className="space-y-2 p-4">
+              <p className="font-semibold">
+                Drivers online now · {onlineDrivers.length}
+              </p>
+              <p className="text-xs text-[var(--color-fg-muted)]">
+                Active drivers who tapped Go available on Local (last 30 min).
+                Auto-refreshes.
+              </p>
+              {onlineDrivers.length === 0 && (
+                <p className="text-sm text-[var(--color-fg-muted)]">
+                  No drivers online right now.
+                </p>
+              )}
+              {onlineDrivers.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-start justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+                >
+                  <div>
+                    <p className="font-medium">{d.displayName}</p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      {d.city}
+                      {d.email ? ` · ${d.email}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant="success">Online</Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+            Ride requests
+          </p>
           {localRides.length === 0 && (
             <p className="text-sm text-[var(--color-fg-muted)]">
               No local broadcasts yet.

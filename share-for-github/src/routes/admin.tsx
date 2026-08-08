@@ -28,6 +28,7 @@ import {
   deleteRiderAppFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
+import { SHARE_BUILD } from "@/lib/share/contact";
 import type { DriverApplication, RiderApplication } from "@/lib/share/data";
 
 export const Route = createFileRoute("/admin")({
@@ -217,7 +218,7 @@ function AdminPage() {
   return (
     <AppShell
       title="Founder inbox"
-      subtitle={`${pendingCount} open · ${dbOk} · ${isDemoMode() ? "demo" : "beta"}`}
+      subtitle={`${pendingCount} open · ${dbOk} · ${isDemoMode() ? "demo" : "beta"} · ${SHARE_BUILD}`}
       backTo="/profile"
       solidHeader
       action={

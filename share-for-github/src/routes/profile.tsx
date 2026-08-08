@@ -84,10 +84,22 @@ function ProfilePage() {
   }
 
   const { user, isPending } = useCurrentUserState();
+
+  // Keep display name in sync with real auth account (not email username)
+  useEffect(() => {
+    if (user?.displayName && user.displayName.trim()) {
+      setRiderName(user.displayName.trim());
+      setName(user.displayName.trim());
+    }
+  }, [user?.displayName, setRiderName]);
+
   const accountLabel =
-    user?.displayName ||
+    (user?.displayName && user.displayName.trim()) ||
+    (riderName && riderName !== "Guest" && !riderName.includes("@")
+      ? riderName
+      : null) ||
     user?.primaryEmail ||
-    (riderName && riderName !== "Guest" ? riderName : null);
+    null;
 
   const latestDriver = driverApps[0];
   const latestRider = riderApps[0];
@@ -248,9 +260,19 @@ function ProfilePage() {
                 <Link to="/apply">Apply rider or driver</Link>
               </Button>
             </div>
-            <p className="text-xs text-[var(--color-fg-subtle)]">
-              One person, one account. You can apply as both rider and driver.
-            </p>
+            {user ? (
+              <p className="text-xs text-[var(--color-fg-subtle)]">
+                Signed in as{" "}
+                <strong className="text-[var(--color-fg)]">
+                  {user.displayName || user.primaryEmail}
+                </strong>
+                . One account can apply as both rider and driver.
+              </p>
+            ) : (
+              <p className="text-xs text-[var(--color-fg-subtle)]">
+                One person, one account. You can apply as both rider and driver.
+              </p>
+            )}
           </CardContent>
         </Card>
 

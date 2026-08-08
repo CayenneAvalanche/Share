@@ -40,23 +40,45 @@ export { GROK_PROVIDERS };
 // preview after a popup sign-in, so the cookie path is untouched elsewhere.
 const BEARER_KEY = "grok-auth.bearer-token";
 
-/** The stored preview bearer token, or null. */
+/** The stored session bearer token, or null. */
 export function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage.getItem(BEARER_KEY);
+    return (
+      window.sessionStorage.getItem(BEARER_KEY) ||
+      window.localStorage.getItem(BEARER_KEY)
+    );
   } catch {
     return null;
   }
 }
 
-function setBearerToken(token: string | null): void {
+/** Persist bearer for email/password on deployed sites when cookies flake. */
+export function setBearerToken(token: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    if (token) window.sessionStorage.setItem(BEARER_KEY, token);
-    else window.sessionStorage.removeItem(BEARER_KEY);
+    if (token) {
+      window.sessionStorage.setItem(BEARER_KEY, token);
+      window.localStorage.setItem(BEARER_KEY, token);
+    } else {
+      window.sessionStorage.removeItem(BEARER_KEY);
+      window.localStorage.removeItem(BEARER_KEY);
+    }
   } catch {
     /* storage unavailable — ignore */
+  }
+}
+
+/** After email sign-in/up, capture session token so getSession works on mobile. */
+export async function captureSessionBearer(): Promise<string | null> {
+  try {
+    const { data } = await authClient.getSession();
+    const token =
+      (data as { session?: { token?: string } } | null)?.session?.token ?? null;
+    if (token) setBearerToken(token);
+    return token;
+  } catch {
+    return null;
   }
 }
 

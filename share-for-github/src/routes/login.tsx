@@ -6,7 +6,11 @@ import { ShareMark } from "@/components/share/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import { authClient, authEnabled } from "@/lib/auth/client";
+import {
+  authClient,
+  authEnabled,
+  captureSessionBearer,
+} from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useShareStore } from "@/lib/share/store";
 import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
@@ -27,50 +31,72 @@ function LoginPage() {
 
   if (!isPending && user) {
     if (typeof window !== "undefined") {
-      queueMicrotask(() => navigate({ to: "/app" }));
+      queueMicrotask(() => {
+        window.location.href = "/profile";
+      });
     }
   }
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.includes("@") || password.length < 8) {
+    const em = email.trim().toLowerCase();
+    if (!em.includes("@") || password.length < 8) {
       toast.error("Use a real email and a password of at least 8 characters");
+      return;
+    }
+    if (mode === "signup" && !name.trim()) {
+      toast.error("Please enter your real name");
       return;
     }
     setBusy(true);
     try {
+      const displayName =
+        name.trim() || em.split("@")[0] || "Share member";
+
       if (mode === "signup") {
         const { error } = await authClient.signUp.email({
-          email: email.trim().toLowerCase(),
+          email: em,
           password,
-          name: name.trim() || email.split("@")[0] || "Share member",
+          name: displayName,
         });
         if (error) throw new Error(error.message ?? "Sign-up failed");
-        toast.success("Account created — you’re signed in");
       } else {
         const { error } = await authClient.signIn.email({
-          email: email.trim().toLowerCase(),
+          email: em,
           password,
         });
         if (error) {
           const msg = error.message ?? "Sign-in failed";
-          // Better Auth often says invalid email/password when user doesn't exist
           if (/invalid|not found|credentials/i.test(msg)) {
             throw new Error(
-              "No account with that email, or wrong password. If you never finished Create account (e.g. “Invalid origin”), create a new account. Need a reset? Use Forgot password.",
+              "No account with that email, or wrong password. Create an account if you never finished sign-up.",
             );
           }
           throw new Error(msg);
         }
-        toast.success("Signed in");
       }
-      const display =
-        name.trim() || email.split("@")[0] || "Share member";
-      setRiderName(display);
-      navigate({ to: "/app" });
+
+      await captureSessionBearer();
+      const session = await authClient.getSession();
+      const u = session.data?.user;
+      if (!u) {
+        throw new Error(
+          "Signed up but session didn’t stick. Try again, or hard-refresh after waiting a few seconds.",
+        );
+      }
+
+      const realName = (u.name || displayName).trim();
+      setRiderName(realName);
+      toast.success(
+        mode === "signup"
+          ? `Welcome, ${realName}`
+          : `Signed in as ${realName}`,
+      );
+
+      // Full navigation so cookies + session hydrate cleanly on iOS Safari
+      window.location.href = "/profile";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not sign in");
-    } finally {
       setBusy(false);
     }
   }
@@ -102,15 +128,14 @@ function LoginPage() {
               mode === "forgot" ? (
                 <div className="space-y-3 text-sm text-[var(--color-fg-muted)]">
                   <p>
-                    Self-serve email reset isn't live yet (no mail server on
-                    beta). Two options:
+                    Self-serve email reset isn't live yet. Two options:
                   </p>
                   <ol className="list-decimal space-y-2 pl-5">
                     <li>
                       <strong className="text-[var(--color-fg)]">
                         Create account again
                       </strong>{" "}
-                      if sign-up never finished (common after “Invalid origin”).
+                      if sign-up never finished.
                     </li>
                     <li>
                       Call{" "}
@@ -120,8 +145,7 @@ function LoginPage() {
                       >
                         {SHARE_PHONE_DISPLAY}
                       </a>{" "}
-                      — founder can set a temporary password from the admin
-                      Accounts tab.
+                      — founder can set a temporary password from Accounts.
                     </li>
                   </ol>
                   <Button
@@ -144,12 +168,13 @@ function LoginPage() {
                   <form onSubmit={onEmailSubmit} className="space-y-3">
                     {mode === "signup" && (
                       <div>
-                        <Label htmlFor="nm">Your name</Label>
+                        <Label htmlFor="nm">Your real name</Label>
                         <Input
                           id="nm"
+                          required
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          placeholder="How we should greet you"
+                          placeholder="e.g. Travis DeYoung"
                           autoComplete="name"
                         />
                       </div>

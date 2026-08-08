@@ -107,6 +107,8 @@ type ShareState = {
   ) => Booking | null;
   bookDelivery: (tripId: string, cargoNote: string) => Booking | null;
   postTrip: (trip: Trip) => void;
+  updateTrip: (id: string, patch: Partial<Trip>) => void;
+  deleteTrip: (id: string) => boolean;
   requestDelivery: (
     req: Omit<
       DeliveryRequest,
@@ -381,6 +383,26 @@ export const useShareStore = create<ShareState>()(
       },
 
       postTrip: (trip) => set((state) => ({ trips: [trip, ...state.trips] })),
+
+      updateTrip: (id, patch) => {
+        set((state) => ({
+          trips: state.trips.map((t) =>
+            t.id === id ? { ...t, ...patch, id: t.id } : t,
+          ),
+        }));
+      },
+
+      deleteTrip: (id) => {
+        const exists = get().trips.some((t) => t.id === id);
+        if (!exists) return false;
+        set((state) => ({
+          trips: state.trips.filter((t) => t.id !== id),
+          // drop open bookings for that trip
+          bookings: state.bookings.filter((b) => b.tripId !== id),
+        }));
+        systemNotify(set, "Trip post removed");
+        return true;
+      },
 
       requestDelivery: (req) => {
         const now = new Date().toISOString();

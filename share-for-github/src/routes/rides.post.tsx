@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -14,8 +14,14 @@ import {
   type Trip,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+
+type PostSearch = { edit?: string };
 
 export const Route = createFileRoute("/rides/post")({
+  validateSearch: (search: Record<string, unknown>): PostSearch => ({
+    edit: typeof search.edit === "string" ? search.edit : undefined,
+  }),
   component: PostRidePage,
 });
 
@@ -32,9 +38,17 @@ const SHORT: Record<string, string> = {
 
 function PostRidePage() {
   const navigate = useNavigate();
+  const { edit: editId } = Route.useSearch();
   const postTrip = useShareStore((s) => s.postTrip);
+  const updateTrip = useShareStore((s) => s.updateTrip);
+  const trips = useShareStore((s) => s.trips);
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
+  const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
+
+  const existing = editId ? trips.find((t) => t.id === editId) : undefined;
+  const isEdit = Boolean(existing);
 
   const [from, setFrom] = useState("Lafayette, LA");
   const [to, setTo] = useState("Shreveport, LA");
@@ -53,6 +67,28 @@ function PostRidePage() {
   const [vehicleType, setVehicleType] = useState<string>("SUV / Crossover");
   const [vehicleLabel, setVehicleLabel] = useState("");
   const [vehiclePhoto, setVehiclePhoto] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!existing || loaded) return;
+    setFrom(existing.from);
+    setTo(existing.to);
+    const d = new Date(existing.departAt);
+    setDate(d.toISOString().slice(0, 10));
+    setTime(
+      `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+    );
+    setSeats(existing.seatsTotal);
+    setPrice(existing.pricePerSeat);
+    setSchedule(existing.schedule);
+    setStops(existing.stops.join(", "));
+    setCargo(existing.cargoCapacity);
+    setNotes(existing.notes);
+    setVehicleType(existing.vehicleType || "SUV / Crossover");
+    setVehicleLabel(existing.vehicleLabel || "");
+    setVehiclePhoto(existing.vehiclePhoto || "");
+    setLoaded(true);
+  }, [existing, loaded]);
 
   function applyAirport(fromId: string, toId: string) {
     const a = AIRPORT_PRESETS.find((x) => x.id === fromId);
@@ -72,7 +108,7 @@ function PostRidePage() {
       toast.error("Take a photo of the car riders will see");
       return;
     }
-    if (!isDriverApproved) {
+    if (!isDriverApproved && !isEdit) {
       applyAsDriver();
       toast.message("Driver screening noted", {
         description: "Finish Apply as driver if you haven’t yet.",
@@ -81,6 +117,43 @@ function PostRidePage() {
 
     const depart = new Date(`${date}T${time}:00`);
     const arrive = new Date(depart.getTime() + 3.5 * 60 * 60 * 1000);
+    const ownerName =
+      user?.displayName || riderName || existing?.postedByName || "Share driver";
+    const ownerEmail =
+      user?.primaryEmail || existing?.postedByEmail || undefined;
+
+    if (isEdit && existing) {
+      updateTrip(existing.id, {
+        from,
+        to,
+        fromShort: SHORT[from] ?? from.slice(0, 3).toUpperCase(),
+        toShort: SHORT[to] ?? to.slice(0, 3).toUpperCase(),
+        departAt: depart.toISOString(),
+        arriveAt: arrive.toISOString(),
+        seatsAvailable: Math.min(existing.seatsAvailable, seats) || seats,
+        seatsTotal: seats,
+        cargoCapacity: cargo,
+        pricePerSeat: price,
+        deliveryRate: Math.round(price * 0.65),
+        stops: stops
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        schedule,
+        notes: notes || "Posted via Share.",
+        distanceMiles:
+          from.includes("Shreveport") || to.includes("Shreveport") ? 215 : 200,
+        durationHours: 3.5,
+        vehiclePhoto,
+        vehicleType,
+        vehicleLabel: vehicleLabel.trim() || undefined,
+        postedByName: ownerName,
+        postedByEmail: ownerEmail,
+      });
+      toast.success("Trip updated");
+      navigate({ to: "/rides/$id", params: { id: existing.id } });
+      return;
+    }
 
     const trip: Trip = {
       id: `user_${Math.random().toString(36).slice(2, 9)}`,
@@ -101,13 +174,16 @@ function PostRidePage() {
         .map((s) => s.trim())
         .filter(Boolean),
       schedule,
-      notes: notes || "Posted via Share pilot.",
+      notes: notes || "Posted via Share.",
       driverId: "d1",
-      distanceMiles: from.includes("Shreveport") || to.includes("Shreveport") ? 215 : 200,
+      distanceMiles:
+        from.includes("Shreveport") || to.includes("Shreveport") ? 215 : 200,
       durationHours: 3.5,
       vehiclePhoto,
       vehicleType,
       vehicleLabel: vehicleLabel.trim() || undefined,
+      postedByName: ownerName,
+      postedByEmail: ownerEmail,
     };
 
     postTrip(trip);
@@ -115,8 +191,26 @@ function PostRidePage() {
     navigate({ to: "/rides/$id", params: { id: trip.id } });
   }
 
+  if (editId && !existing) {
+    return (
+      <AppShell title="Edit trip" backTo="/rides" solidHeader>
+        <p className="py-10 text-center text-sm text-[var(--color-fg-muted)]">
+          Trip not found — it may have been deleted.
+        </p>
+        <Button className="w-full" onClick={() => navigate({ to: "/rides" })}>
+          Back to rides
+        </Button>
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell title="Post a trip" subtitle="Seats + cargo" backTo="/rides" solidHeader>
+    <AppShell
+      title={isEdit ? "Edit trip" : "Post a trip"}
+      subtitle={isEdit ? "Update your post" : "Seats + cargo"}
+      backTo={isEdit && existing ? `/rides/${existing.id}` : "/rides"}
+      solidHeader
+    >
       <form onSubmit={handleSubmit} className="space-y-4 py-3 pb-10">
         <Card>
           <CardContent className="space-y-3 p-4">
@@ -177,10 +271,6 @@ function PostRidePage() {
                   onChange={(e) => setVehicleLabel(e.target.value)}
                   placeholder="e.g. 2018 Honda CR-V"
                 />
-                <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                  Type it yourself — no full factory database on the pilot
-                  (keeps it simple and accurate).
-                </p>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -278,7 +368,7 @@ function PostRidePage() {
                 id="stops"
                 value={stops}
                 onChange={(e) => setStops(e.target.value)}
-                placeholder="Beaumont, TX"
+                placeholder="Opelousas, Alexandria"
               />
             </div>
             <div>
@@ -290,17 +380,19 @@ function PostRidePage() {
               />
             </div>
             <div>
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">Notes for riders</Label>
               <Textarea
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                placeholder="Pickup spot, luggage rules…"
               />
             </div>
           </CardContent>
         </Card>
+
         <Button type="submit" size="xl" className="w-full">
-          Publish trip
+          {isEdit ? "Save changes" : "Post trip"}
         </Button>
       </form>
     </AppShell>

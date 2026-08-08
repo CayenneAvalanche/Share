@@ -80,6 +80,9 @@ export type Trip = {
   vehicleType?: string;
   /** Free-text year/make/model */
   vehicleLabel?: string;
+  /** Set when a member posts the trip (enables edit/delete) */
+  postedByEmail?: string;
+  postedByName?: string;
 };
 
 export type Booking = {

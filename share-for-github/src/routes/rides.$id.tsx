@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Star,
@@ -43,6 +44,8 @@ function RideDetailPage() {
   const favorites = useShareStore((s) => s.favoriteDriverIds);
   const toggleFavoriteDriver = useShareStore((s) => s.toggleFavoriteDriver);
   const startThread = useShareStore((s) => s.startThread);
+  const deleteTrip = useShareStore((s) => s.deleteTrip);
+  const riderName = useShareStore((s) => s.riderName);
 
   const [mode, setMode] = useState<"ride" | "delivery">("ride");
   const [seats, setSeats] = useState(1);
@@ -67,11 +70,28 @@ function RideDetailPage() {
     );
   }
 
-  const driver = getDriver(trip.driverId);
+  const item = trip;
+  const driver = getDriver(item.driverId);
   const total =
-    mode === "ride" ? seats * trip.pricePerSeat : trip.deliveryRate;
+    mode === "ride" ? seats * item.pricePerSeat : item.deliveryRate;
   const driverEarns = Math.round(total * (1 - PLATFORM_TAKE_RATE));
   const isFav = driver ? favorites.includes(driver.id) : false;
+  // Member-posted trips use user_* ids (and optional postedBy*)
+  const isOwner =
+    item.id.startsWith("user_") || Boolean(item.postedByEmail);
+
+  function handleDelete() {
+    if (
+      !window.confirm(
+        "Delete this trip post? Riders will no longer see it. This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+    deleteTrip(item.id);
+    toast.success("Trip deleted");
+    navigate({ to: "/rides" });
+  }
 
   function handleBook() {
     if (!trip) return;
@@ -94,7 +114,7 @@ function RideDetailPage() {
         toast.error("This trip’s driver doesn’t match man-driver preference.");
         return;
       }
-      const booking = bookRide(trip.id, seats, cargo, {
+      const booking = bookRide(item.id, seats, cargo, {
         driverPreference,
         preferredDriverId: driver?.id,
       });
@@ -108,7 +128,7 @@ function RideDetailPage() {
         toast.error("Describe what you are sending");
         return;
       }
-      bookDelivery(trip.id, cargo);
+      bookDelivery(item.id, cargo);
       toast.success("Delivery reserved with this trip");
     }
     setDone(true);
@@ -137,10 +157,10 @@ function RideDetailPage() {
               onClick={() => {
                 if (!driver) return;
                 const tid = startThread({
-                  subject: `${trip.fromShort} → ${trip.toShort} · ${driver.name}`,
+                  subject: `${item.fromShort} → ${item.toShort} · ${driver.name}`,
                   withName: driver.name,
                   relatedType: "ride",
-                  relatedId: trip.id,
+                  relatedId: item.id,
                   firstMessage:
                     "Hi — just booked. Confirming pickup details here.",
                 });
@@ -160,24 +180,57 @@ function RideDetailPage() {
 
   return (
     <AppShell
-      title={`${trip.fromShort} → ${trip.toShort}`}
-      subtitle={`${formatDate(trip.departAt)} · ${formatTime(trip.departAt)}`}
+      title={`${item.fromShort} → ${item.toShort}`}
+      subtitle={`${formatDate(item.departAt)} · ${formatTime(item.departAt)}`}
       backTo="/rides"
       solidHeader
     >
       <div className="space-y-4 py-3 pb-10">
-        {trip.vehiclePhoto && (
+
+        {isOwner && (
+          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+            <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold">Your trip post</p>
+                <p className="text-xs text-[var(--color-fg-muted)]">
+                  Edit details or remove it and post again.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    navigate({
+                      to: "/rides/post",
+                      search: { edit: item.id },
+                    })
+                  }
+                >
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDelete}>
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {item.vehiclePhoto && (
           <Card className="overflow-hidden">
             <div className="aspect-[16/9] w-full bg-[var(--color-bg-subtle)]">
               <img
-                src={trip.vehiclePhoto}
-                alt={trip.vehicleLabel || trip.vehicleType || "Vehicle"}
+                src={item.vehiclePhoto}
+                alt={item.vehicleLabel || item.vehicleType || "Vehicle"}
                 className="h-full w-full object-cover"
               />
             </div>
-            {(trip.vehicleType || trip.vehicleLabel) && (
+            {(item.vehicleType || item.vehicleLabel) && (
               <CardContent className="p-3 text-sm text-[var(--color-fg-muted)]">
-                {[trip.vehicleType, trip.vehicleLabel].filter(Boolean).join(" · ")}
+                {[item.vehicleType, item.vehicleLabel].filter(Boolean).join(" · ")}
               </CardContent>
             )}
           </Card>
@@ -185,13 +238,13 @@ function RideDetailPage() {
         <Card className="overflow-hidden">
           <div className="bg-[var(--color-bg-inverse)] px-5 py-5 text-[var(--color-fg-inverse)]">
             <p className="text-xs uppercase tracking-wide opacity-70">
-              {formatDate(trip.departAt)} · {formatTime(trip.departAt)}
+              {formatDate(item.departAt)} · {formatTime(item.departAt)}
             </p>
             <p className="mt-1 font-display text-3xl font-semibold">
-              {trip.fromShort} → {trip.toShort}
+              {item.fromShort} → {item.toShort}
             </p>
             <p className="mt-1 text-sm opacity-80">
-              {trip.from} → {trip.to}
+              {item.from} → {item.to}
             </p>
             <div className="mt-4 flex flex-wrap gap-4 text-sm">
               <span>{formatCurrency(total)} you pay</span>
@@ -204,34 +257,34 @@ function RideDetailPage() {
           <CardContent className="space-y-3 p-5">
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="size-4 text-[var(--color-primary)]" />
-              {trip.distanceMiles} mi · ~{trip.durationHours}h
+              {item.distanceMiles} mi · ~{item.durationHours}h
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="size-4 text-[var(--color-primary)]" />
-              Arrive {formatTime(trip.arriveAt)}
+              Arrive {formatTime(item.arriveAt)}
             </div>
-            {trip.stops.length > 0 && (
+            {item.stops.length > 0 && (
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-fg-subtle)]">
                   Stops
                 </p>
-                <p className="mt-0.5 text-sm">{trip.stops.join(" · ")}</p>
+                <p className="mt-0.5 text-sm">{item.stops.join(" · ")}</p>
               </div>
             )}
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-fg-subtle)]">
                 Schedule
               </p>
-              <p className="mt-0.5 text-sm">{SCHEDULE_LABELS[trip.schedule]}</p>
+              <p className="mt-0.5 text-sm">{SCHEDULE_LABELS[item.schedule]}</p>
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-fg-subtle)]">
                 Cargo
               </p>
-              <p className="mt-0.5 text-sm">{trip.cargoCapacity}</p>
+              <p className="mt-0.5 text-sm">{item.cargoCapacity}</p>
             </div>
-            {trip.notes && (
-              <p className="text-sm text-[var(--color-fg-muted)]">{trip.notes}</p>
+            {item.notes && (
+              <p className="text-sm text-[var(--color-fg-muted)]">{item.notes}</p>
             )}
           </CardContent>
         </Card>
@@ -333,12 +386,12 @@ function RideDetailPage() {
                     id="seats"
                     type="number"
                     min={1}
-                    max={trip.seatsAvailable}
+                    max={item.seatsAvailable}
                     value={seats}
                     onChange={(e) => setSeats(Number(e.target.value))}
                   />
                   <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                    {trip.seatsAvailable} available
+                    {item.seatsAvailable} available
                   </p>
                 </div>
                 <div>
@@ -399,7 +452,7 @@ function RideDetailPage() {
               </div>
               {mode === "delivery" && (
                 <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
-                  Flat cargo rate {formatCurrency(trip.deliveryRate)}
+                  Flat cargo rate {formatCurrency(item.deliveryRate)}
                 </p>
               )}
             </div>

@@ -113,15 +113,35 @@ const baseURL = explicitBaseURL ?? {
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+// Production custom domain MUST be listed — BETTER_AUTH_URL alone is not enough
+// if it was set to the Netlify *.netlify.app URL instead of share.myendeavors.me.
+const PRODUCTION_ORIGINS: string[] = [
+  "https://share.myendeavors.me",
+  "https://www.share.myendeavors.me",
+  "https://demo.share.myendeavors.me",
+];
+const extraTrustedOrigins = (env("BETTER_AUTH_TRUSTED_ORIGINS") ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const trustedOrigins: string[] = [
+  ...new Set([
+    ...(explicitBaseURL ? [explicitBaseURL] : []),
+    ...PRODUCTION_ORIGINS,
+    ...extraTrustedOrigins,
+    ...LOCAL_DEV_ORIGINS,
+    // Sandbox / preview hosts when no explicit production base URL
+    ...(!explicitBaseURL
+      ? [
+          ...previewAllowedHosts,
+          ...previewAllowedHosts.flatMap((host) => [
+            `https://${host}`,
+            `http://${host}`,
+          ]),
+        ]
+      : []),
+  ]),
+];
 
 const databaseUrl = env("DATABASE_URL");
 

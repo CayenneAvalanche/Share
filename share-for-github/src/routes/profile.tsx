@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ShieldCheck,
   Star,
@@ -9,7 +9,6 @@ import {
   Video,
   Boxes,
   Package,
-  Inbox,
   MessageCircle,
   DollarSign,
   CreditCard,
@@ -28,7 +27,7 @@ import { isDemoMode } from "@/lib/share/mode";
 import { lookupMyAppsFn } from "@/lib/share/server-fns";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
 import { SHARE_DOMAIN } from "@/lib/share/tracking";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -64,6 +63,27 @@ function ProfilePage() {
   const [ecName, setEcName] = useState(emergencyContactName);
   const [ecPhone, setEcPhone] = useState(emergencyContactPhone);
   const demo = isDemoMode();
+  const navigate = useNavigate();
+  const founderTapRef = useRef({ n: 0, t: 0 });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function secretOpenFounder() {
+    navigate({ to: "/admin" });
+    toast.message("Founder inbox", { description: "Enter your PIN" });
+  }
+
+  function onFounderSecretTap() {
+    const now = Date.now();
+    const s = founderTapRef.current;
+    if (now - s.t > 1400) s.n = 0;
+    s.t = now;
+    s.n += 1;
+    if (s.n >= 5) {
+      s.n = 0;
+      secretOpenFounder();
+    }
+  }
+
   const { user, isPending } = useCurrentUserState();
   const accountLabel =
     user?.displayName ||
@@ -171,29 +191,25 @@ function ProfilePage() {
           </Card>
         )}
 
-        <Link to="/admin" className="block">
-          <Card className="border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 transition-shadow hover:shadow-[var(--shadow-md)]">
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
-                <Inbox className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[var(--color-primary)]">
-                  Founder admin inbox
-                </p>
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  {pending} apps need review · founders only
-                </p>
-              </div>
-              <ChevronRight className="size-5 text-[var(--color-primary)]" />
-            </CardContent>
-          </Card>
-        </Link>
-
         <Card>
           <CardContent className="space-y-4 p-5">
             <div className="flex items-center gap-4">
-              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary)] font-display text-2xl font-semibold text-[var(--color-primary-fg)]">
+              <div
+                role="presentation"
+                className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary)] font-display text-2xl font-semibold text-[var(--color-primary-fg)] select-none"
+                onPointerDown={() => {
+                  longPressTimer.current = setTimeout(() => {
+                    secretOpenFounder();
+                  }, 2000);
+                }}
+                onPointerUp={() => {
+                  if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                }}
+                onPointerLeave={() => {
+                  if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+              >
                 {user?.profileImageUrl ? (
                   <img
                     src={user.profileImageUrl}
@@ -530,6 +546,14 @@ function ProfilePage() {
             <ChevronRight className="size-5 text-[var(--color-fg-subtle)]" />
           </Link>
         ))}
+
+        {/* Hidden ops: 5 taps here, or hold avatar 2s, or open /admin */}
+        <p
+          className="select-none py-6 text-center text-[10px] tracking-wide text-[var(--color-fg-subtle)]/70"
+          onClick={onFounderSecretTap}
+        >
+          Share · Lafayette corridor
+        </p>
       </div>
     </AppShell>
   );

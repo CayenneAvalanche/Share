@@ -134,7 +134,7 @@ function LocalRidePage() {
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button onClick={() => setDoneId(null)}>Request another</Button>
             <Button variant="outline" asChild>
-              <Link to="/admin">Open founder inbox</Link>
+              <Link to="/profile">Your profile</Link>
             </Button>
           </div>
         </div>

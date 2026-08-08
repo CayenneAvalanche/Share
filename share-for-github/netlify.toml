@@ -7,6 +7,15 @@
 #   VITE_APP_MODE  = demo | beta
 #   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY = payments later
 #
+# Founder alerts (volunteer ride requests):
+#   RESEND_API_KEY          = Resend API key for email
+#   RESEND_FROM             = optional, default "Share <onboarding@resend.dev>"
+#   TWILIO_ACCOUNT_SID      = Twilio Account SID
+#   TWILIO_AUTH_TOKEN       = Twilio Auth Token
+#   TWILIO_FROM_NUMBER      = Twilio phone number (E.164)
+#   FOUNDER_NOTIFY_EMAIL    = override default tmd5458@me.com
+#   FOUNDER_NOTIFY_PHONE    = override default +13375010195
+#
 # Domains:
 #   share.myendeavors.me      → public beta (empty marketplace)
 #   demo.share.myendeavors.me → demo mode (hostname starts with demo.)
@@ -28,7 +37,7 @@
   NODE_VERSION = "22"
   # DATABASE_URL is used by server functions at runtime; omit from scan so
   # Netlify does not fail the build when server bundles reference the env key.
-  SECRETS_SCAN_OMIT_KEYS = "DATABASE_URL,FOUNDER_PIN"
+  SECRETS_SCAN_OMIT_KEYS = "DATABASE_URL,FOUNDER_PIN,RESEND_API_KEY,TWILIO_AUTH_TOKEN,TWILIO_ACCOUNT_SID"
 
 [[headers]]
   for = "/assets/*"

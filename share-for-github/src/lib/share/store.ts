@@ -185,6 +185,11 @@ type ShareState = {
     status: ApplicationStatus,
     extra?: { interviewAt?: string; adminNote?: string },
   ) => void;
+  /** Merge cloud driver/rider apps for the signed-in email into local state. */
+  syncMyApps: (payload: {
+    drivers: DriverApplication[];
+    riders: RiderApplication[];
+  }) => void;
   setDeliveryStatus: (
     id: string,
     status: DeliveryTrackStatus,
@@ -792,6 +797,36 @@ export const useShareStore = create<ShareState>()(
                 ? false
                 : state.isRiderApproved,
         }));
+      },
+
+      syncMyApps: ({ drivers, riders }) => {
+        set((state) => {
+          const merge = <T extends { id: string }>(local: T[], remote: T[]): T[] => {
+            const byId = new Map<string, T>();
+            for (const a of local) byId.set(a.id, a);
+            for (const a of remote) byId.set(a.id, { ...byId.get(a.id), ...a });
+            // remote-first order for "latest"
+            const remoteIds = new Set(remote.map((r) => r.id));
+            const rest = local.filter((a) => !remoteIds.has(a.id));
+            return [...remote, ...rest];
+          };
+          const driverApps = merge(state.driverApps, drivers);
+          const riderApps = merge(state.riderApps, riders);
+          const isDriverApproved =
+            driverApps.some(
+              (a) => a.status === "active" || a.status === "approved",
+            ) || state.isDriverApproved;
+          const isRiderApproved =
+            riderApps.some(
+              (a) => a.status === "active" || a.status === "approved",
+            ) || state.isRiderApproved;
+          return {
+            driverApps,
+            riderApps,
+            isDriverApproved,
+            isRiderApproved,
+          };
+        });
       },
 
       setDeliveryStatus: (id, status, adminNote) => {

@@ -24,7 +24,7 @@ import { useShareStore } from "@/lib/share/store";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
-import { lookupMyAppsFn } from "@/lib/share/server-fns";
+import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
 import { useEffect, useRef, useState } from "react";
 
@@ -84,6 +84,16 @@ function ProfilePage() {
   }
 
   const { user, isPending } = useCurrentUserState();
+  const {
+    latestDriver,
+    latestRider,
+    driverActive,
+    riderActive,
+    driverStatus,
+    riderStatus,
+    canApplyDriver,
+    canApplyRider,
+  } = useMyAppStatus();
 
   // Keep display name in sync with real auth account (not email username)
   useEffect(() => {
@@ -101,8 +111,6 @@ function ProfilePage() {
     user?.primaryEmail ||
     null;
 
-  const latestDriver = driverApps[0];
-  const latestRider = riderApps[0];
   const pending =
     driverApps.filter(
       (a) => a.status === "pending_interview" || a.status === "scheduled",
@@ -111,52 +119,6 @@ function ProfilePage() {
       (a) => a.status === "pending_interview" || a.status === "scheduled",
     ).length;
 
-  const setDriverAppStatus = useShareStore((s) => s.setDriverAppStatus);
-  const setRiderAppStatus = useShareStore((s) => s.setRiderAppStatus);
-
-  // Pull approval status from Neon so a driver's phone unlocks after founder Approve
-  useEffect(() => {
-    const email = user?.primaryEmail;
-    if (!email) return;
-    let cancelled = false;
-    lookupMyAppsFn({ data: { email } })
-      .then((res) => {
-        if (cancelled) return;
-        for (const d of res.drivers) {
-          setDriverAppStatus(d.id, d.status, {
-            interviewAt: d.interviewAt,
-            adminNote: d.adminNote,
-          });
-          // also store if missing from local list via status update path only works if in list
-        }
-        // If cloud has driver app not in local list, still unlock if active/approved
-        const activeDriver = res.drivers.find(
-          (d) => d.status === "active" || d.status === "approved",
-        );
-        if (activeDriver) {
-          useShareStore.setState({ isDriverApproved: true });
-          if (activeDriver.fullName) {
-            useShareStore.setState({ riderName: activeDriver.fullName });
-          }
-        }
-        const activeRider = res.riders.find(
-          (d) => d.status === "active" || d.status === "approved",
-        );
-        if (activeRider) {
-          useShareStore.setState({ isRiderApproved: true });
-        }
-        for (const r of res.riders) {
-          setRiderAppStatus(r.id, r.status, {
-            interviewAt: r.interviewAt,
-            adminNote: r.adminNote,
-          });
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.primaryEmail, setDriverAppStatus, setRiderAppStatus]);
 
   return (
     <AppShell title="You" solidHeader>
@@ -216,21 +178,26 @@ function ProfilePage() {
                   ) : (
                     <Badge variant="outline">Not signed in</Badge>
                   )}
-                  {latestRider ? (
+                  {riderActive ? (
+                    <Badge variant="success">
+                      <BadgeCheck className="mr-1 size-3" />
+                      Rider ACTIVE
+                    </Badge>
+                  ) : latestRider ? (
                     <Badge variant="secondary" className="capitalize">
-                      Rider: {latestRider.status.replace("_", " ")}
+                      Rider: {statusLabel(riderStatus)}
                     </Badge>
                   ) : (
                     <Badge variant="outline">Rider not applied</Badge>
                   )}
-                  {latestDriver ? (
-                    <Badge variant="default" className="capitalize">
-                      Driver: {latestDriver.status.replace("_", " ")}
-                    </Badge>
-                  ) : isDriverApproved ? (
+                  {driverActive ? (
                     <Badge variant="success">
                       <BadgeCheck className="mr-1 size-3" />
-                      Driver approved
+                      Driver ACTIVE
+                    </Badge>
+                  ) : latestDriver ? (
+                    <Badge variant="secondary" className="capitalize">
+                      Driver: {statusLabel(driverStatus)}
                     </Badge>
                   ) : (
                     <Badge variant="outline">Driver not applied</Badge>
@@ -262,7 +229,13 @@ function ProfilePage() {
                 </Button>
               )}
               <Button variant="secondary" className="flex-1" asChild>
-                <Link to="/apply">Apply rider or driver</Link>
+                <Link to="/apply">
+                  {driverActive && riderActive
+                    ? "View applications"
+                    : canApplyDriver || canApplyRider
+                      ? "Apply rider or driver"
+                      : "Application status"}
+                </Link>
               </Button>
             </div>
             {user ? (

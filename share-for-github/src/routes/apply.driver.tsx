@@ -18,6 +18,7 @@ import { useShareStore } from "@/lib/share/store";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
 import { fileToCompressedDataUrl } from "@/lib/share/image";
 import { PhotoField } from "@/components/share/photo-field";
+import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 
 export const Route = createFileRoute("/apply/driver")({
   component: DriverApplyPage,
@@ -27,6 +28,8 @@ const PLATFORMS = Object.keys(GIG_PLATFORM_LABELS) as GigPlatform[];
 
 function DriverApplyPage() {
   const submit = useShareStore((s) => s.submitDriverApp);
+  const { canApplyDriver, driverActive, driverStatus, latestDriver } =
+    useMyAppStatus();
   const [done, setDone] = useState(false);
   const [acceptedTos, setAcceptedTos] = useState(false);
   const [form, setForm] = useState({
@@ -164,6 +167,38 @@ function DriverApplyPage() {
             </Button>
             <Button variant="outline" asChild>
               <Link to="/app">Back to app</Link>
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+
+  if (!canApplyDriver) {
+    return (
+      <AppShell title="Driver" backTo="/apply" solidHeader>
+        <div className="flex flex-col items-center py-12 text-center">
+          <div className="flex size-16 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
+            <CheckCircle2 className="size-8" />
+          </div>
+          <h2 className="mt-4 font-display text-2xl font-semibold">
+            {driverActive ? "You're an active driver" : "Application on file"}
+          </h2>
+          <p className="mt-2 max-w-sm text-sm text-[var(--color-fg-muted)]">
+            Status:{" "}
+            <strong className="text-[var(--color-fg)]">
+              {statusLabel(driverStatus)}
+            </strong>
+            {latestDriver?.fullName ? ` · ${latestDriver.fullName}` : ""}.
+            You don't need to apply again.
+          </p>
+          <div className="mt-6 flex w-full flex-col gap-2">
+            <Button asChild>
+              <Link to="/profile">Back to You</Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link to="/rides/post">Post a trip</Link>
             </Button>
           </div>
         </div>

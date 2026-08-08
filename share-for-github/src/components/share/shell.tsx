@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { ShareMark, ShareWordmark } from "./logo";
 import { Button } from "@/components/ui/button";
 import { useShareStore } from "@/lib/share/store";
+import { SHARE_BUILD } from "@/lib/share/contact";
 
 type NavItem = {
   to: string;
@@ -40,6 +41,9 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
+      <p className="px-4 pb-6 pt-2 text-center text-[10px] text-[var(--color-fg-subtle)]">
+        Share · {SHARE_BUILD}
+      </p>
     </div>
   );
 }
@@ -163,6 +167,9 @@ export function AppShell({
 
       <main className={cn("flex-1 px-4", hideNav ? "pb-8" : "pb-24")}>
         {children}
+        <p className="pb-2 pt-6 text-center text-[10px] text-[var(--color-fg-subtle)]">
+          Share · {SHARE_BUILD}
+        </p>
       </main>
 
       {!hideNav && (

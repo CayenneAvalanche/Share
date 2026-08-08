@@ -10,6 +10,7 @@ import { HUB_CITIES, type InterviewMode } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { submitRiderAppFn } from "@/lib/share/server-fns";
 import { PhotoField } from "@/components/share/photo-field";
+import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 
 export const Route = createFileRoute("/apply/rider")({
   component: RiderApplyPage,
@@ -18,6 +19,8 @@ export const Route = createFileRoute("/apply/rider")({
 function RiderApplyPage() {
   const submit = useShareStore((s) => s.submitRiderApp);
   const setRiderName = useShareStore((s) => s.setRiderName);
+  const { canApplyRider, riderActive, riderStatus, latestRider } =
+    useMyAppStatus();
   const [done, setDone] = useState(false);
   const [acceptedTos, setAcceptedTos] = useState(false);
   const [selfie, setSelfie] = useState("");
@@ -89,6 +92,39 @@ function RiderApplyPage() {
       </AppShell>
     );
   }
+
+
+  if (!canApplyRider) {
+    return (
+      <AppShell title="Rider" backTo="/apply" solidHeader>
+        <div className="flex flex-col items-center py-12 text-center">
+          <div className="flex size-16 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
+            <CheckCircle2 className="size-8" />
+          </div>
+          <h2 className="mt-4 font-display text-2xl font-semibold">
+            {riderActive ? "You're an active rider" : "Application on file"}
+          </h2>
+          <p className="mt-2 max-w-sm text-sm text-[var(--color-fg-muted)]">
+            Status:{" "}
+            <strong className="text-[var(--color-fg)]">
+              {statusLabel(riderStatus)}
+            </strong>
+            {latestRider?.fullName ? ` · ${latestRider.fullName}` : ""}.
+            You don't need to apply again.
+          </p>
+          <div className="mt-6 flex w-full flex-col gap-2">
+            <Button asChild>
+              <Link to="/profile">Back to You</Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link to="/rides">Browse rides</Link>
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
 
   return (
     <AppShell

@@ -6,42 +6,13 @@ import { ShareMark } from "@/components/share/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import {
-  GROK_PROVIDERS,
-  authClient,
-  authEnabled,
-  signIn,
-} from "@/lib/auth/client";
+import { authClient, authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useShareStore } from "@/lib/share/store";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
-
-/** UI order — broker-backed providers first, then upcoming ones. */
-const SOCIAL_BUTTONS: {
-  id: string;
-  label: string;
-  /** Maps to GROK_PROVIDERS.providerId when live */
-  providerId?: string;
-  live: boolean;
-}[] = [
-  { id: "apple", label: "Apple", live: false },
-  {
-    id: "google",
-    label: "Google",
-    providerId: "grok-google",
-    live: GROK_PROVIDERS.some((p) => p.providerId === "grok-google"),
-  },
-  {
-    id: "x",
-    label: "X",
-    providerId: "grok-x",
-    live: GROK_PROVIDERS.some((p) => p.providerId === "grok-x"),
-  },
-  { id: "facebook", label: "Facebook", live: false },
-];
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -94,31 +65,6 @@ function LoginPage() {
     }
   }
 
-  async function onSocial(providerId: string, label: string) {
-    setBusy(true);
-    try {
-      await signIn(providerId, {
-        callbackURL: "/app",
-        errorCallbackURL: "/login?err=social",
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed";
-      toast.error(
-        msg.includes("fetch") || msg.includes("Failed")
-          ? `${label} sign-in isn’t connected on this site yet — use email below, or try again later.`
-          : msg,
-      );
-      setBusy(false);
-    }
-  }
-
-  function onComingSoon(label: string) {
-    toast.message(`${label} Sign In — almost ready`, {
-      description:
-        "Use Google, X, or email & password for now. We’ll turn on Apple and Facebook as soon as they’re linked to Share.",
-    });
-  }
-
   return (
     <AppShell title="Sign in" subtitle="Your account" solidHeader backTo="/profile">
       <div className="mx-auto max-w-md space-y-4 py-4 pb-10">
@@ -130,7 +76,7 @@ function LoginPage() {
             {mode === "signup" ? "Create your account" : "Welcome back"}
           </p>
           <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-            One account for riding and driving.
+            Email and password only — quick and simple.
           </p>
         </div>
 
@@ -138,47 +84,15 @@ function LoginPage() {
           <CardContent className="space-y-3 p-5">
             {authEnabled ? (
               <>
-                <div className="grid gap-2">
-                  {SOCIAL_BUTTONS.map((p) => (
-                    <Button
-                      key={p.id}
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-center font-semibold"
-                      disabled={busy}
-                      onClick={() => {
-                        if (!p.live || !p.providerId) {
-                          onComingSoon(p.label);
-                          return;
-                        }
-                        void onSocial(p.providerId, p.label);
-                      }}
-                    >
-                      Continue with {p.label}
-                      {!p.live ? (
-                        <span className="ml-2 text-xs font-normal text-[var(--color-fg-subtle)]">
-                          soon
-                        </span>
-                      ) : null}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="relative py-1 text-center text-xs text-[var(--color-fg-subtle)]">
-                  <span className="bg-[var(--color-bg-elevated)] px-2">
-                    or email & password
-                  </span>
-                </div>
-
                 <form onSubmit={onEmailSubmit} className="space-y-3">
                   {mode === "signup" && (
                     <div>
-                      <Label htmlFor="nm">Display name</Label>
+                      <Label htmlFor="nm">Your name</Label>
                       <Input
                         id="nm"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="How neighbors see you"
+                        placeholder="How we should greet you"
                         autoComplete="name"
                       />
                     </div>
@@ -210,12 +124,12 @@ function LoginPage() {
                       }
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={busy}>
+                  <Button type="submit" className="w-full" size="lg" disabled={busy}>
                     {busy
                       ? "Working…"
                       : mode === "signup"
                         ? "Create account"
-                        : "Sign in with email"}
+                        : "Sign in"}
                   </Button>
                 </form>
 
@@ -247,7 +161,7 @@ function LoginPage() {
               </>
             ) : (
               <p className="text-sm text-[var(--color-fg-muted)]">
-                Sign-in is disabled on this build.
+                Sign-in is temporarily unavailable. Call (337) 800-6300.
               </p>
             )}
           </CardContent>

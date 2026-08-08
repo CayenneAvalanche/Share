@@ -183,11 +183,6 @@ function ProfilePage() {
                     : "Sign in to save your apps and trips"}
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {user ? (
-                    <Badge variant="success">Signed in</Badge>
-                  ) : (
-                    <Badge variant="outline">Not signed in</Badge>
-                  )}
                   {riderActive ? (
                     <Badge variant="success">
                       <BadgeCheck className="mr-1 size-3" />
@@ -257,19 +252,6 @@ function ProfilePage() {
               facing="user"
               kind="selfie"
             />
-            {user ? (
-              <p className="text-xs text-[var(--color-fg-subtle)]">
-                Signed in as{" "}
-                <strong className="text-[var(--color-fg)]">
-                  {user.displayName || user.primaryEmail}
-                </strong>
-                . One account can apply as both rider and driver.
-              </p>
-            ) : (
-              <p className="text-xs text-[var(--color-fg-subtle)]">
-                One person, one account. You can apply as both rider and driver.
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -479,12 +461,13 @@ function ProfilePage() {
             <div className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2 text-sm">
               <span>ID verification</span>
               <Badge variant={idVerified ? "success" : "outline"}>
-                {idVerified ? "Verified" : "Pending interview"}
+                {idVerified ? "Verified" : "Not verified"}
               </Badge>
             </div>
             <p className="text-xs text-[var(--color-fg-subtle)]">
-              Drivers upload license (front & back) + insurance on the driver application.
-              Founders mark verified after review.
+              Drivers upload license (front & back) + insurance on the driver
+              application. Founder marks verified after review — this is separate
+              from your rider/driver application status.
             </p>
             {demo && (
               <label className="flex items-center gap-2 text-sm">

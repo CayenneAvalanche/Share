@@ -242,6 +242,11 @@ function ProfilePage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              {isPending && !user && (
+                <Button className="flex-1" variant="secondary" disabled>
+                  Checking account…
+                </Button>
+              )}
               {!user && !isPending && (
                 <Button className="flex-1" asChild>
                   <Link to="/login">Sign in / create account</Link>

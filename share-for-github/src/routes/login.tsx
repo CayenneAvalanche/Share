@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { ShareMark } from "@/components/share/logo";
@@ -19,8 +19,14 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+type AuthUserBits = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+};
+
 function LoginPage() {
-  const navigate = useNavigate();
   const { user, isPending } = useCurrentUserState();
   const setRiderName = useShareStore((s) => s.setRiderName);
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
@@ -53,20 +59,30 @@ function LoginPage() {
       const displayName =
         name.trim() || em.split("@")[0] || "Share member";
 
+      let responseUser: AuthUserBits | null = null;
+      let responseToken: string | null = null;
+
       if (mode === "signup") {
-        const { error } = await authClient.signUp.email({
+        const res = await authClient.signUp.email({
           email: em,
           password,
           name: displayName,
         });
-        if (error) throw new Error(error.message ?? "Sign-up failed");
+        if (res.error) throw new Error(res.error.message ?? "Sign-up failed");
+        const d = res.data as unknown as {
+          user?: AuthUserBits;
+          token?: string;
+          session?: { token?: string };
+        } | null;
+        responseUser = d?.user ?? null;
+        responseToken = d?.token ?? d?.session?.token ?? null;
       } else {
-        const { error } = await authClient.signIn.email({
+        const res = await authClient.signIn.email({
           email: em,
           password,
         });
-        if (error) {
-          const msg = error.message ?? "Sign-in failed";
+        if (res.error) {
+          const msg = res.error.message ?? "Sign-in failed";
           if (/invalid|not found|credentials/i.test(msg)) {
             throw new Error(
               "No account with that email, or wrong password. Create an account if you never finished sign-up.",
@@ -74,18 +90,28 @@ function LoginPage() {
           }
           throw new Error(msg);
         }
+        const d = res.data as unknown as {
+          user?: AuthUserBits;
+          token?: string;
+          session?: { token?: string };
+        } | null;
+        responseUser = d?.user ?? null;
+        responseToken = d?.token ?? d?.session?.token ?? null;
       }
 
-      await captureSessionBearer();
+      await captureSessionBearer({
+        token: responseToken,
+        user: responseUser,
+      });
       const session = await authClient.getSession();
-      const u = session.data?.user;
+      const u = session.data?.user ?? responseUser;
       if (!u) {
         throw new Error(
           "Signed up but session didn’t stick. Try again, or hard-refresh after waiting a few seconds.",
         );
       }
 
-      const realName = (u.name || displayName).trim();
+      const realName = (("name" in u ? u.name : null) || displayName).trim();
       setRiderName(realName);
       toast.success(
         mode === "signup"
@@ -93,7 +119,6 @@ function LoginPage() {
           : `Signed in as ${realName}`,
       );
 
-      // Full navigation so cookies + session hydrate cleanly on iOS Safari
       window.location.href = "/profile";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not sign in");
@@ -127,9 +152,7 @@ function LoginPage() {
             {authEnabled ? (
               mode === "forgot" ? (
                 <div className="space-y-3 text-sm text-[var(--color-fg-muted)]">
-                  <p>
-                    Self-serve email reset isn't live yet. Two options:
-                  </p>
+                  <p>Self-serve email reset isn’t live yet. Two options:</p>
                   <ol className="list-decimal space-y-2 pl-5">
                     <li>
                       <strong className="text-[var(--color-fg)]">

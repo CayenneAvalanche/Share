@@ -70,13 +70,69 @@ export function setBearerToken(token: string | null): void {
 }
 
 /** After email sign-in/up, capture session token so getSession works on mobile. */
-export async function captureSessionBearer(): Promise<string | null> {
+export async function captureSessionBearer(
+  fromResponse?: { token?: string | null; user?: { id: string; name?: string | null; email?: string | null; image?: string | null } | null } | null,
+): Promise<string | null> {
   try {
+    if (fromResponse?.token) {
+      setBearerToken(fromResponse.token);
+    }
+    if (fromResponse?.user) {
+      cacheAuthUser({
+        id: fromResponse.user.id,
+        displayName: fromResponse.user.name ?? null,
+        primaryEmail: fromResponse.user.email ?? null,
+        profileImageUrl: fromResponse.user.image ?? null,
+      });
+    }
     const { data } = await authClient.getSession();
     const token =
-      (data as { session?: { token?: string } } | null)?.session?.token ?? null;
+      fromResponse?.token ||
+      (data as { session?: { token?: string } } | null)?.session?.token ||
+      null;
     if (token) setBearerToken(token);
+    const u = data?.user;
+    if (u) {
+      cacheAuthUser({
+        id: u.id,
+        displayName: u.name ?? null,
+        primaryEmail: u.email ?? null,
+        profileImageUrl: u.image ?? null,
+      });
+    }
     return token;
+  } catch {
+    return fromResponse?.token ?? null;
+  }
+}
+
+const AUTH_USER_KEY = "share-auth.user";
+
+export type CachedAuthUser = {
+  id: string;
+  displayName: string | null;
+  primaryEmail: string | null;
+  profileImageUrl: string | null;
+};
+
+export function cacheAuthUser(user: CachedAuthUser | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (user) window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    else window.localStorage.removeItem(AUTH_USER_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readCachedAuthUser(): CachedAuthUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_USER_KEY);
+    if (!raw) return null;
+    const u = JSON.parse(raw) as CachedAuthUser;
+    if (!u?.id) return null;
+    return u;
   } catch {
     return null;
   }
@@ -228,6 +284,7 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     await authClient.signOut();
   } finally {
     setBearerToken(null);
+    cacheAuthUser(null);
   }
   window.location.href = redirectTo;
 }

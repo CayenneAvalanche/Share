@@ -234,11 +234,14 @@ export const auth = betterAuth({
     },
   },
 
-  // Cache the session in the short-lived signed `session_data` cookie so reads
-  // (incl. the client's `/get-session`) skip the DB — this shrinks the "loading"
-  // window and reduces auth flicker. See the `auth` skill for the full
-  // flicker-prevention guidance (gate on `isPending`; SSR the session).
-  session: { cookieCache: { enabled: true, maxAge: 300 } },
+  // Long-lived sessions for riders/drivers on phones (don't boot them after a few minutes).
+  // cookieCache speeds get-session; updateAge refreshes expiry while they use the app.
+  session: {
+    expiresIn: 60 * 60 * 24 * 30, // 30 days
+    updateAge: 60 * 60 * 24, // refresh once per day of activity
+    freshAge: 60 * 60 * 24,
+    cookieCache: { enabled: true, maxAge: 60 * 60 }, // 1 hour client cache
+  },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),

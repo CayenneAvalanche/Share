@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -7,7 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { LOCAL_SPOTS, type VolunteerCategory } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { createVolunteerRideFn } from "@/lib/share/server-fns";
+import {
+  createVolunteerRideFn,
+  updateVolunteerRideFn,
+  cancelVolunteerRideFn,
+} from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/volunteer/new")({
   component: NewVolunteerPage,
@@ -15,16 +19,28 @@ export const Route = createFileRoute("/volunteer/new")({
 
 function defaultDate(): string {
   const d = new Date();
-  // Prefer next Sunday if still this week; else today
   return d.toISOString().slice(0, 10);
+}
+
+function readEditId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return new URLSearchParams(window.location.search).get("edit");
+  } catch {
+    return null;
+  }
 }
 
 function NewVolunteerPage() {
   const requestVolunteerRide = useShareStore((s) => s.requestVolunteerRide);
+  const updateVolunteerRide = useShareStore((s) => s.updateVolunteerRide);
+  const cancelVolunteerRide = useShareStore((s) => s.cancelVolunteerRide);
+  const volunteerRides = useShareStore((s) => s.volunteerRides);
   const riderName = useShareStore((s) => s.riderName);
   const savedPlaces = useShareStore((s) => s.savedPlaces);
   const navigate = useNavigate();
 
+  const [editId, setEditId] = useState<string | null>(null);
   const [category, setCategory] = useState<VolunteerCategory>("elder");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -37,6 +53,36 @@ function NewVolunteerPage() {
   const [escalateAfterHours, setEscalateAfterHours] = useState(2);
   const [paidOffer, setPaidOffer] = useState(12);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const id = readEditId();
+    if (!id) return;
+    const ride = volunteerRides.find((r) => r.id === id);
+    if (!ride) {
+      toast.error("Request not found on this phone");
+      return;
+    }
+    if (ride.status !== "seeking_volunteer" && ride.status !== "escalated_paid") {
+      toast.error("Can’t edit — a driver already accepted this ride");
+      navigate({ to: "/volunteer" });
+      return;
+    }
+    setEditId(id);
+    setCategory(ride.category);
+    setFullName(ride.fullName);
+    setPhone(ride.phone);
+    setPickup(ride.pickup);
+    setDropoff(ride.dropoff);
+    setNotes(ride.notes || "");
+    setEscalateAfterHours(ride.escalateAfterHours);
+    setPaidOffer(ride.paidOffer);
+    if (ride.when === "ASAP") {
+      setAsap(true);
+    } else {
+      setAsap(false);
+      // leave date/time as defaults; when text is free-form
+    }
+  }, [volunteerRides, navigate]);
 
   const minDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -84,23 +130,48 @@ function NewVolunteerPage() {
       paidOffer,
       requesterName: riderName || fullName.trim() || "Community",
     };
-    requestVolunteerRide(payload);
-    try {
-      await createVolunteerRideFn({
-        data: payload as unknown as Record<string, unknown>,
-      });
-      toast.success("Request posted — no account needed yet");
-    } catch {
-      toast.message("Saved on this phone — cloud sync pending");
+
+    if (editId) {
+      updateVolunteerRide(editId, payload);
+      try {
+        await updateVolunteerRideFn({
+          data: { id: editId, ...payload } as unknown as Record<string, unknown>,
+        });
+        toast.success("Request updated");
+      } catch {
+        toast.message("Updated on this phone — cloud sync pending");
+      }
+    } else {
+      requestVolunteerRide(payload);
+      try {
+        await createVolunteerRideFn({
+          data: payload as unknown as Record<string, unknown>,
+        });
+        toast.success("Request posted — no account needed yet");
+      } catch {
+        toast.message("Saved on this phone — cloud sync pending");
+      }
+      try {
+        sessionStorage.setItem("share-vol-posted", "1");
+      } catch {
+        /* ignore */
+      }
     }
     setBusy(false);
     navigate({ to: "/volunteer" });
-    // flag for success banner on board
+  }
+
+  async function onCancelRequest() {
+    if (!editId) return;
+    if (!confirm("Cancel this ride request?")) return;
+    cancelVolunteerRide(editId);
     try {
-      sessionStorage.setItem("share-vol-posted", "1");
+      await cancelVolunteerRideFn({ data: { id: editId } });
+      toast.success("Request cancelled");
     } catch {
-      /* ignore */
+      toast.message("Cancelled on this phone");
     }
+    navigate({ to: "/volunteer" });
   }
 
   const placeOptions = [
@@ -110,18 +181,24 @@ function NewVolunteerPage() {
 
   return (
     <AppShell
-      title="Request a ride"
-      subtitle="No account needed to request"
+      title={editId ? "Edit ride request" : "Request a ride"}
+      subtitle={
+        editId
+          ? "Change details before a driver accepts"
+          : "No account needed to request"
+      }
       backTo="/volunteer"
       solidHeader
     >
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
-        <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
-          <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-            Anyone can request. When a driver accepts, you'll create an
-            account and add a selfie so they can recognize you at pickup.
-          </CardContent>
-        </Card>
+        {!editId && (
+          <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
+            <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
+              Anyone can request. When a driver accepts, you'll create an
+              account and add a selfie so they can recognize you at pickup.
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-4 p-5">
@@ -286,8 +363,22 @@ function NewVolunteerPage() {
         </Card>
 
         <Button type="submit" size="xl" className="w-full" disabled={busy}>
-          {busy ? "Posting…" : "Post ride request"}
+          {busy
+            ? "Saving…"
+            : editId
+              ? "Save changes"
+              : "Post ride request"}
         </Button>
+        {editId && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-[#b42318]/40 text-[#b42318]"
+            onClick={() => void onCancelRequest()}
+          >
+            Cancel this request
+          </Button>
+        )}
       </form>
     </AppShell>
   );

@@ -2,12 +2,14 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { PhotoField } from "@/components/share/photo-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import {
   AIRPORT_PRESETS,
   HUB_CITIES,
+  VEHICLE_TYPES,
   type ScheduleStrictness,
   type Trip,
 } from "@/lib/share/data";
@@ -35,7 +37,7 @@ function PostRidePage() {
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
 
   const [from, setFrom] = useState("Lafayette, LA");
-  const [to, setTo] = useState("Houston, TX");
+  const [to, setTo] = useState("Shreveport, LA");
   const [date, setDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 2);
@@ -48,8 +50,9 @@ function PostRidePage() {
   const [stops, setStops] = useState("");
   const [cargo, setCargo] = useState("2 medium bags + trunk space");
   const [notes, setNotes] = useState("");
-  const [vehiclePhoto, setVehiclePhoto] = useState("");
+  const [vehicleType, setVehicleType] = useState<string>("SUV / Crossover");
   const [vehicleLabel, setVehicleLabel] = useState("");
+  const [vehiclePhoto, setVehiclePhoto] = useState("");
 
   function applyAirport(fromId: string, toId: string) {
     const a = AIRPORT_PRESETS.find((x) => x.id === fromId);
@@ -65,10 +68,14 @@ function PostRidePage() {
       toast.error("Pick two different cities");
       return;
     }
+    if (!vehiclePhoto) {
+      toast.error("Take a photo of the car riders will see");
+      return;
+    }
     if (!isDriverApproved) {
       applyAsDriver();
-      toast.message("Driver screening approved", {
-        description: "Background check cleared for this demo.",
+      toast.message("Driver screening noted", {
+        description: "Finish Apply as driver if you haven’t yet.",
       });
     }
 
@@ -96,9 +103,11 @@ function PostRidePage() {
       schedule,
       notes: notes || "Posted via Share pilot.",
       driverId: "d1",
-      distanceMiles: 200,
+      distanceMiles: from.includes("Shreveport") || to.includes("Shreveport") ? 215 : 200,
       durationHours: 3.5,
-      vehiclePhoto: vehiclePhoto.trim() || undefined,
+      vehiclePhoto,
+      vehicleType,
+      vehicleLabel: vehicleLabel.trim() || undefined,
     };
 
     postTrip(trip);
@@ -136,6 +145,44 @@ function PostRidePage() {
 
         <Card>
           <CardContent className="space-y-4 p-5">
+            <PhotoField
+              id="car-photo"
+              label="Photo of your car"
+              hint="Take a clear exterior photo so riders know what to look for at pickup."
+              value={vehiclePhoto}
+              onChange={setVehiclePhoto}
+              facing="environment"
+              required
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="vtype">Vehicle type</Label>
+                <Select
+                  id="vtype"
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                >
+                  {VEHICLE_TYPES.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="vlabel">Year / make / model</Label>
+                <Input
+                  id="vlabel"
+                  value={vehicleLabel}
+                  onChange={(e) => setVehicleLabel(e.target.value)}
+                  placeholder="e.g. 2018 Honda CR-V"
+                />
+                <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                  Type it yourself — no full factory database on the pilot
+                  (keeps it simple and accurate).
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="from">From</Label>
@@ -212,7 +259,7 @@ function PostRidePage() {
               </div>
             </div>
             <div>
-              <Label htmlFor="sched">Schedule</Label>
+              <Label htmlFor="sched">Schedule flexibility</Label>
               <Select
                 id="sched"
                 value={schedule}
@@ -220,8 +267,8 @@ function PostRidePage() {
                   setSchedule(e.target.value as ScheduleStrictness)
                 }
               >
-                <option value="flexible">Flexible</option>
-                <option value="moderate">Somewhat firm</option>
+                <option value="flexible">Fully flexible</option>
+                <option value="moderate">Somewhat flexible</option>
                 <option value="strict">On-time departure</option>
               </Select>
             </div>
@@ -241,28 +288,6 @@ function PostRidePage() {
                 value={cargo}
                 onChange={(e) => setCargo(e.target.value)}
               />
-            </div>
-            <div>
-              <Label htmlFor="vehicleLabel">Vehicle (what riders see)</Label>
-              <Input
-                id="vehicleLabel"
-                value={vehicleLabel}
-                onChange={(e) => setVehicleLabel(e.target.value)}
-                placeholder="2019 Toyota Highlander · gray"
-              />
-            </div>
-            <div>
-              <Label htmlFor="vehiclePhoto">Vehicle photo URL</Label>
-              <Input
-                id="vehiclePhoto"
-                type="url"
-                value={vehiclePhoto}
-                onChange={(e) => setVehiclePhoto(e.target.value)}
-                placeholder="https://… (phone photo link for now)"
-              />
-              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Paste a photo link so riders see the car before they book. Camera upload coming next.
-              </p>
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>

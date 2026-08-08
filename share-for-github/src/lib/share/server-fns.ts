@@ -613,6 +613,41 @@ export const claimVolunteerRideFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const updateVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const id = String(data.id ?? "");
+    if (!id) throw new Error("Missing id");
+    await sql`
+      update share_volunteer_rides set
+        category = ${String(data.category ?? "elder")},
+        full_name = ${String(data.fullName ?? "").trim()},
+        phone = ${String(data.phone ?? "").trim()},
+        pickup = ${String(data.pickup ?? "")},
+        dropoff = ${String(data.dropoff ?? "")},
+        when_text = ${String(data.when ?? "ASAP")},
+        notes = ${String(data.notes ?? "")},
+        escalate_after_hours = ${Number(data.escalateAfterHours ?? 2)},
+        paid_offer = ${Number(data.paidOffer ?? 12)}
+      where id = ${id}
+        and status in ('seeking_volunteer', 'escalated_paid')
+    `;
+    return { ok: true as const };
+  });
+
+export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await sql`
+      update share_volunteer_rides set status = ${"cancelled"}
+      where id = ${data.id}
+        and status in ('seeking_volunteer', 'escalated_paid')
+    `;
+    return { ok: true as const };
+  });
+
 export const escalateVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {

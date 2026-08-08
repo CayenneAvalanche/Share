@@ -22,6 +22,8 @@ export const Route = createFileRoute("/share-stuff/new")({
 function NewShareStuffPage() {
   const listRental = useShareStore((s) => s.listRental);
   const requestBorrow = useShareStore((s) => s.requestBorrow);
+  const replaceRentalId = useShareStore((s) => s.replaceRentalId);
+  const replaceBorrowId = useShareStore((s) => s.replaceBorrowId);
   const riderName = useShareStore((s) => s.riderName);
   const user = useCurrentUser();
   const navigate = useNavigate();
@@ -48,18 +50,17 @@ function NewShareStuffPage() {
       return;
     }
     if (mode === "list" && !photoUrl) {
-      toast.error("Add a photo of the item so neighbors know what they’re borrowing");
+      toast.error(
+        "Add a photo of the item so neighbors know what they’re borrowing",
+      );
       return;
     }
 
-    const ownerName =
-      user?.displayName ||
-      riderName ||
-      "Share member";
+    const ownerName = user?.displayName || riderName || "Share member";
     const ownerEmail = user?.primaryEmail ?? undefined;
 
     if (mode === "list") {
-      listRental({
+      const localId = listRental({
         title: title.trim(),
         description: description.trim() || "Available to share.",
         category,
@@ -71,7 +72,7 @@ function NewShareStuffPage() {
         photoUrl,
       });
       try {
-        await createRentalFn({
+        const res = await createRentalFn({
           data: {
             title: title.trim(),
             description: description.trim() || "Available to share.",
@@ -85,13 +86,14 @@ function NewShareStuffPage() {
             photoUrl,
           },
         });
+        if (res?.id) replaceRentalId(localId, res.id);
         toast.success("Listed for everyone on Share");
       } catch {
         toast.message("Saved on this phone — cloud sync pending");
       }
     } else {
       const needed = new Date(`${neededBy}T12:00:00`).toISOString();
-      requestBorrow({
+      const localId = requestBorrow({
         title: title.trim(),
         description: description.trim() || "Need this soon.",
         category,
@@ -103,7 +105,7 @@ function NewShareStuffPage() {
         photoUrl: photoUrl || undefined,
       });
       try {
-        await createBorrowFn({
+        const res = await createBorrowFn({
           data: {
             title: title.trim(),
             description: description.trim() || "Need this soon.",
@@ -117,6 +119,7 @@ function NewShareStuffPage() {
             photoUrl: photoUrl || undefined,
           },
         });
+        if (res?.id) replaceBorrowId(localId, res.id);
         toast.success("Need posted for everyone on Share");
       } catch {
         toast.message("Saved on this phone — cloud sync pending");
@@ -162,7 +165,11 @@ function NewShareStuffPage() {
           <CardContent className="space-y-4 p-5">
             <PhotoField
               id="item-photo"
-              label={mode === "list" ? "Photo of the item" : "Reference photo (optional)"}
+              label={
+                mode === "list"
+                  ? "Photo of the item"
+                  : "Reference photo (optional)"
+              }
               hint={
                 mode === "list"
                   ? "Take a clear picture of what you’re renting out — required."
@@ -284,6 +291,24 @@ function NewShareStuffPage() {
             )}
           </CardContent>
         </Card>
+
+        {mode === "list" && (
+          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+            <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
+              <p className="font-semibold text-[var(--color-fg)]">
+                Pickup rule (required)
+              </p>
+              <p className="mt-1">
+                When the borrower picks up,{" "}
+                <strong className="text-[var(--color-fg)]">
+                  you must demonstrate the tool works
+                </strong>{" "}
+                and check the confirmation box on this listing. That protects
+                both of you if something was broken before handoff.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <Button type="submit" size="xl" className="w-full">
           {mode === "list" ? "List for Share" : "Post need"}

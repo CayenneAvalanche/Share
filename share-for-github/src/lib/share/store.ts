@@ -32,6 +32,7 @@ import {
   type TrackEvent,
   type Trip,
   type VolunteerRide,
+  type RentalHandoff,
   type CorridorRideRequest,
   type RideOffer,
 } from "./data";
@@ -130,10 +131,15 @@ type ShareState = {
       "id" | "status" | "createdAt" | "interviewAt" | "adminNote"
     > & { inviteCode?: string },
   ) => RiderApplication;
-  listRental: (item: Omit<RentalListing, "id" | "available">) => void;
+  listRental: (item: Omit<RentalListing, "id" | "available">) => string;
+  replaceRentalId: (localId: string, cloudId: string) => void;
+  replaceBorrowId: (localId: string, cloudId: string) => void;
+  startRentalHandoff: (rentalId: string, borrowerName: string) => string;
+  confirmRentalDemo: (handoffId: string) => void;
+  rentalHandoffs: RentalHandoff[];
   requestBorrow: (
     req: Omit<BorrowRequest, "id" | "status" | "createdAt">,
-  ) => void;
+  ) => string;
   requestLocalRide: (
     req: Omit<LocalRideRequest, "id" | "status" | "createdAt" | "adminNote">,
   ) => LocalRideRequest;
@@ -148,6 +154,13 @@ type ShareState = {
     >,
   ) => VolunteerRide;
   claimVolunteer: (id: string, driverName: string) => void;
+  updateVolunteerRide: (
+    id: string,
+    patch: Partial<
+      Omit<VolunteerRide, "id" | "status" | "createdAt" | "matchedDriverName" | "escalatedAt">
+    >,
+  ) => void;
+  cancelVolunteerRide: (id: string) => void;
   processVolunteerEscalations: () => number;
   forceEscalateVolunteer: (id: string) => void;
   joinWaitlist: (email: string) => void;
@@ -220,6 +233,7 @@ function emptySeed() {
     driverApps: [] as DriverApplication[],
     riderApps: [] as RiderApplication[],
     rentals: [] as RentalListing[],
+    rentalHandoffs: [] as RentalHandoff[],
     borrowRequests: [] as BorrowRequest[],
     localRides: [] as LocalRideRequest[],
     volunteerRides: [] as VolunteerRide[],
@@ -242,6 +256,7 @@ function demoSeed() {
     driverApps: SEED_DRIVER_APPS,
     riderApps: SEED_RIDER_APPS,
     rentals: RENTAL_LISTINGS,
+    rentalHandoffs: [] as RentalHandoff[],
     borrowRequests: BORROW_REQUESTS,
     localRides: [] as LocalRideRequest[],
     volunteerRides: SEED_VOLUNTEERS,
@@ -434,26 +449,80 @@ export const useShareStore = create<ShareState>()(
       },
 
       listRental: (item) => {
+        const id = uid("r");
         set((state) => ({
-          rentals: [
-            { ...item, id: uid("r"), available: true },
-            ...state.rentals,
-          ],
+          rentals: [{ ...item, id, available: true }, ...state.rentals],
+        }));
+        return id;
+      },
+
+      replaceRentalId: (localId, cloudId) => {
+        if (!cloudId || localId === cloudId) return;
+        set((state) => ({
+          rentals: state.rentals.map((r) =>
+            r.id === localId ? { ...r, id: cloudId } : r,
+          ),
         }));
       },
 
+      replaceBorrowId: (localId, cloudId) => {
+        if (!cloudId || localId === cloudId) return;
+        set((state) => ({
+          borrowRequests: state.borrowRequests.map((r) =>
+            r.id === localId ? { ...r, id: cloudId } : r,
+          ),
+        }));
+      },
+
+      startRentalHandoff: (rentalId, borrowerName) => {
+        const id = uid("rh");
+        set((state) => ({
+          rentalHandoffs: [
+            {
+              id,
+              rentalId,
+              borrowerName: borrowerName.trim() || "Borrower",
+              demonstratedWorking: false,
+              createdAt: new Date().toISOString(),
+            },
+            ...state.rentalHandoffs,
+          ],
+        }));
+        return id;
+      },
+
+      confirmRentalDemo: (handoffId) => {
+        set((state) => ({
+          rentalHandoffs: state.rentalHandoffs.map((h) =>
+            h.id === handoffId
+              ? {
+                  ...h,
+                  demonstratedWorking: true,
+                  completedAt: new Date().toISOString(),
+                }
+              : h,
+          ),
+        }));
+        systemNotify(
+          set,
+          "Pickup demo confirmed — tool works · handoff recorded",
+        );
+      },
+
       requestBorrow: (req) => {
+        const id = uid("br");
         set((state) => ({
           borrowRequests: [
             {
               ...req,
-              id: uid("br"),
+              id,
               status: "open",
               createdAt: new Date().toISOString(),
             },
             ...state.borrowRequests,
           ],
         }));
+        return id;
       },
 
       requestLocalRide: (req) => {
@@ -529,6 +598,32 @@ export const useShareStore = create<ShareState>()(
           ),
         }));
         systemNotify(set, `Volunteer ride matched with ${driverName}`);
+      },
+
+      updateVolunteerRide: (id, patch) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) => {
+            if (r.id !== id) return r;
+            if (
+              r.status !== "seeking_volunteer" &&
+              r.status !== "escalated_paid"
+            ) {
+              return r;
+            }
+            return { ...r, ...patch };
+          }),
+        }));
+      },
+
+      cancelVolunteerRide: (id) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id &&
+            (r.status === "seeking_volunteer" || r.status === "escalated_paid")
+              ? { ...r, status: "cancelled" as const }
+              : r,
+          ),
+        }));
       },
 
       processVolunteerEscalations: () => {
@@ -1068,6 +1163,7 @@ export const useShareStore = create<ShareState>()(
         driverApps: s.driverApps,
         riderApps: s.riderApps,
         rentals: s.rentals.filter((r) => r.id.startsWith("r_")),
+        rentalHandoffs: s.rentalHandoffs ?? [],
         borrowRequests: s.borrowRequests.filter((b) => b.id.startsWith("br_")),
         localRides: s.localRides,
         volunteerRides: s.volunteerRides,
@@ -1109,6 +1205,7 @@ export const useShareStore = create<ShareState>()(
             driverApps: p.driverApps ?? [],
             riderApps: p.riderApps ?? [],
             rentals: (p.rentals ?? []).filter((r) => r.id.startsWith("r_")),
+            rentalHandoffs: p.rentalHandoffs ?? [],
             borrowRequests: (p.borrowRequests ?? []).filter((b) =>
               b.id.startsWith("br_"),
             ),

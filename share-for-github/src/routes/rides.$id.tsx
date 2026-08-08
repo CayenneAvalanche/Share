@@ -166,6 +166,22 @@ function RideDetailPage() {
       solidHeader
     >
       <div className="space-y-4 py-3 pb-10">
+        {trip.vehiclePhoto && (
+          <Card className="overflow-hidden">
+            <div className="aspect-[16/9] w-full bg-[var(--color-bg-subtle)]">
+              <img
+                src={trip.vehiclePhoto}
+                alt={trip.vehicleLabel || trip.vehicleType || "Vehicle"}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            {(trip.vehicleType || trip.vehicleLabel) && (
+              <CardContent className="p-3 text-sm text-[var(--color-fg-muted)]">
+                {[trip.vehicleType, trip.vehicleLabel].filter(Boolean).join(" · ")}
+              </CardContent>
+            )}
+          </Card>
+        )}
         <Card className="overflow-hidden">
           <div className="bg-[var(--color-bg-inverse)] px-5 py-5 text-[var(--color-fg-inverse)]">
             <p className="text-xs uppercase tracking-wide opacity-70">

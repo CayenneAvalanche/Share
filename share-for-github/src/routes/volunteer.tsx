@@ -110,7 +110,7 @@ function VolunteerPage() {
   const myOpen = myLocal.filter(
     (r) =>
       r.status === "seeking_volunteer" || r.status === "escalated_paid",
-  );
+  ).filter((r) => r.status !== "cancelled");
   const myMatched = myLocal.filter(
     (r) => r.status === "matched" || r.status === "completed",
   );
@@ -196,13 +196,20 @@ function VolunteerPage() {
         Free volunteer first. If no driver in time, becomes a paid request.
       </p>
 
-      {/* Rider's own requests (always) */}
-      {(myOpen.length > 0 || myMatched.length > 0) && !canSeeOpenBoard && (
+      {/* Your requests — edit allowed until a driver accepts */}
+      {(myOpen.length > 0 || myMatched.length > 0) && (
         <section className="mt-6">
           <h2 className="font-display text-lg font-semibold">Your requests</h2>
           <div className="mt-3 flex flex-col gap-3">
             {[...myOpen, ...myMatched].map((r) => (
-              <VolunteerCard key={r.id} ride={r} />
+              <VolunteerCard
+                key={r.id}
+                ride={r}
+                canEdit={
+                  r.status === "seeking_volunteer" ||
+                  r.status === "escalated_paid"
+                }
+              />
             ))}
           </div>
           {myMatched.some((r) => r.status === "matched") && (
@@ -303,12 +310,14 @@ function VolunteerCard({
   onForceEscalate,
   demo,
   canClaim,
+  canEdit,
 }: {
   ride: VolunteerRide;
   onClaim?: () => void;
   onForceEscalate?: () => void;
   demo?: boolean;
   canClaim?: boolean;
+  canEdit?: boolean;
 }) {
   const hrs = hoursUntilEscalate(ride);
   const free = ride.status === "seeking_volunteer";
@@ -352,6 +361,13 @@ function VolunteerCard({
             </Badge>
           )}
         </div>
+        {canEdit && (
+          <Button size="sm" variant="secondary" asChild>
+            <a href={`/volunteer/new?edit=${encodeURIComponent(ride.id)}`}>
+              Edit request
+            </a>
+          </Button>
+        )}
         {ride.notes && (
           <p className="text-sm text-[var(--color-fg-muted)]">{ride.notes}</p>
         )}

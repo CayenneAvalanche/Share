@@ -74,6 +74,12 @@ export type Trip = {
   driverId: string;
   distanceMiles: number;
   durationHours: number;
+  /** Optional photo of the car for this trip */
+  vehiclePhoto?: string;
+  /** Sedan, SUV, etc. */
+  vehicleType?: string;
+  /** Free-text year/make/model */
+  vehicleLabel?: string;
 };
 
 export type Booking = {
@@ -1313,9 +1319,38 @@ export function getTrip(id: string) {
 }
 
 export const SCHEDULE_LABELS: Record<ScheduleStrictness, string> = {
-  flexible: "Flexible schedule",
-  moderate: "Somewhat firm",
+  flexible: "Fully flexible",
+  moderate: "Somewhat flexible",
   strict: "On-time departure",
+};
+
+/** Short badge text for trip cards (full words, not truncated “Somewhat”). */
+export const SCHEDULE_BADGE: Record<ScheduleStrictness, string> = {
+  flexible: "Fully flexible",
+  moderate: "Somewhat flexible",
+  strict: "On-time",
+};
+
+/** Common vehicle body styles for ride posts / driver apps. */
+export const VEHICLE_TYPES = [
+  "Sedan",
+  "SUV / Crossover",
+  "Truck",
+  "Van / Minivan",
+  "Hatchback",
+  "Coupe",
+  "Wagon",
+  "Other",
+] as const;
+
+export type RentalHandoff = {
+  id: string;
+  rentalId: string;
+  borrowerName: string;
+  /** Lender checked: demonstrated tool works at pickup */
+  demonstratedWorking: boolean;
+  createdAt: string;
+  completedAt?: string;
 };
 
 export const INTERVIEW_LABELS: Record<InterviewMode, string> = {

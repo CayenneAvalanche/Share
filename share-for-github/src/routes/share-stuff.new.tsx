@@ -14,6 +14,11 @@ import {
 import { useShareStore } from "@/lib/share/store";
 import { createBorrowFn, createRentalFn } from "@/lib/share/server-fns";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import {
+  QUICK_ITEMS,
+  draftFromQuickItem,
+  suggestPricesFromTitle,
+} from "@/lib/share/listing-suggest";
 
 export const Route = createFileRoute("/share-stuff/new")({
   component: NewShareStuffPage,
@@ -37,11 +42,37 @@ function NewShareStuffPage() {
   const [city, setCity] = useState("Lafayette, LA");
   const [deposit, setDeposit] = useState(20);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [forRent, setForRent] = useState(true);
+  const [forSale, setForSale] = useState(false);
+  const [salePrice, setSalePrice] = useState(50);
   const [neededBy, setNeededBy] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
+
+  function applyQuick(id: string) {
+    const d = draftFromQuickItem(id);
+    if (!d) return;
+    if (d.title) setTitle(d.title);
+    setDescription(d.description);
+    setCategory(d.category);
+    setRate(d.rate);
+    setRateUnit(d.rateUnit);
+    setSalePrice(d.salePrice);
+    setDeposit(d.deposit);
+    toast.message("Draft filled — edit anything before posting");
+  }
+
+  function onTitleBlur() {
+    const s = suggestPricesFromTitle(title);
+    if (!s) return;
+    if (s.rate != null) setRate(s.rate);
+    if (s.salePrice != null) setSalePrice(s.salePrice);
+    if (s.category) setCategory(s.category);
+    if (s.deposit != null) setDeposit(s.deposit);
+    if (s.rateUnit) setRateUnit(s.rateUnit);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,9 +81,15 @@ function NewShareStuffPage() {
       return;
     }
     if (mode === "list" && !photoUrl) {
-      toast.error(
-        "Add a photo of the item so neighbors know what they’re borrowing",
-      );
+      toast.error("Add a photo so neighbors know what it is");
+      return;
+    }
+    if (mode === "list" && !forRent && !forSale) {
+      toast.error("Choose rent, sell, or both");
+      return;
+    }
+    if (mode === "list" && forSale && (!salePrice || salePrice < 1)) {
+      toast.error("Set a sale price");
       return;
     }
 
@@ -62,32 +99,38 @@ function NewShareStuffPage() {
     if (mode === "list") {
       const localId = listRental({
         title: title.trim(),
-        description: description.trim() || "Available to share.",
+        description: description.trim() || "Available locally.",
         category,
-        rate,
+        rate: forRent ? rate : 0,
         rateUnit,
         city,
         ownerName,
         deposit: deposit || undefined,
         photoUrl,
+        forRent,
+        forSale,
+        salePrice: forSale ? salePrice : undefined,
       });
       try {
         const res = await createRentalFn({
           data: {
             title: title.trim(),
-            description: description.trim() || "Available to share.",
+            description: description.trim() || "Available locally.",
             category,
-            rate,
+            rate: forRent ? rate : 0,
             rateUnit,
             city,
             ownerName,
             ownerEmail,
             deposit: deposit || undefined,
             photoUrl,
+            forRent,
+            forSale,
+            salePrice: forSale ? salePrice : undefined,
           },
         });
         if (res?.id) replaceRentalId(localId, res.id);
-        toast.success("Listed for everyone on Share");
+        toast.success("Listed on Lagniappe");
       } catch {
         toast.message("Saved on this phone — cloud sync pending");
       }
@@ -120,7 +163,7 @@ function NewShareStuffPage() {
           },
         });
         if (res?.id) replaceBorrowId(localId, res.id);
-        toast.success("Need posted for everyone on Share");
+        toast.success("Need posted");
       } catch {
         toast.message("Saved on this phone — cloud sync pending");
       }
@@ -130,8 +173,8 @@ function NewShareStuffPage() {
 
   return (
     <AppShell
-      title={mode === "list" ? "List something" : "Post a need"}
-      subtitle="Garage economy · your terms"
+      title={mode === "list" ? "Post an item" : "Post a need"}
+      subtitle="Photo first · quick draft · edit freely"
       backTo="/share-stuff"
       solidHeader
     >
@@ -165,46 +208,89 @@ function NewShareStuffPage() {
           <CardContent className="space-y-4 p-5">
             <PhotoField
               id="item-photo"
-              label={
-                mode === "list"
-                  ? "Photo of the item"
-                  : "Reference photo (optional)"
-              }
+              label={mode === "list" ? "Photo of the item" : "Photo (optional)"}
               hint={
                 mode === "list"
-                  ? "Take a clear picture of what you’re renting out — required."
-                  : "Optional: photo of what you need or a similar item."
+                  ? "Snap a clear picture first — then tap what it is for a draft title & price."
+                  : "Optional reference photo."
               }
               value={photoUrl}
               onChange={setPhotoUrl}
               facing="environment"
               required={mode === "list"}
             />
+
+            {mode === "list" && photoUrl && (
+              <div>
+                <p className="mb-2 text-sm font-semibold">
+                  What is it? (fills title & prices)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_ITEMS.map((q) => (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => applyQuick(q.id)}
+                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-3 py-1.5 text-xs font-semibold text-[var(--color-fg)] active:scale-[0.98]"
+                    >
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-[var(--color-fg-subtle)]">
+                  Same idea as Letgo: photo → smart draft → you tweak. Full
+                  auto-title from the image alone needs a vision model later.
+                </p>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="title">
-                {mode === "list" ? "What are you sharing?" : "What do you need?"}
+                {mode === "list" ? "Title" : "What do you need?"}
               </Label>
               <Input
                 id="title"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={
-                  mode === "list"
-                    ? "e.g. DeWalt impact drill kit"
-                    : "e.g. Need a trailer Saturday AM"
-                }
+                onBlur={onTitleBlur}
+                placeholder="e.g. DeWalt impact drill kit"
               />
             </div>
             <div>
-              <Label htmlFor="desc">Details</Label>
+              <Label htmlFor="desc">Description</Label>
               <Textarea
                 id="desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Condition, pickup notes, rules…"
+                placeholder="Condition, what’s included, pickup notes…"
               />
             </div>
+
+            {mode === "list" && (
+              <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3">
+                <p className="text-sm font-semibold">How can people get it?</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--color-primary)]"
+                    checked={forRent}
+                    onChange={(e) => setForRent(e.target.checked)}
+                  />
+                  Available to rent
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--color-accent)]"
+                    checked={forSale}
+                    onChange={(e) => setForSale(e.target.checked)}
+                  />
+                  Also for sale (buy it)
+                </label>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="cat">Category</Label>
@@ -237,81 +323,96 @@ function NewShareStuffPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="rate">
-                  {mode === "list" ? "Rate ($)" : "Your offer ($)"}
-                </Label>
-                <Input
-                  id="rate"
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={rate}
-                  onChange={(e) => setRate(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="unit">Per</Label>
-                <Select
-                  id="unit"
-                  value={rateUnit}
-                  onChange={(e) =>
-                    setRateUnit(e.target.value as "hour" | "day" | "weekend")
-                  }
-                >
-                  <option value="hour">Hour</option>
-                  <option value="day">Day</option>
-                  <option value="weekend">Weekend</option>
-                </Select>
-              </div>
-            </div>
+
             {mode === "list" ? (
-              <div>
-                <Label htmlFor="deposit">Deposit ($ optional)</Label>
-                <Input
-                  id="deposit"
-                  type="number"
-                  min={0}
-                  max={1000}
-                  value={deposit}
-                  onChange={(e) => setDeposit(Number(e.target.value))}
-                />
-              </div>
+              <>
+                {forRent && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="rate">Rent rate ($)</Label>
+                      <Input
+                        id="rate"
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={rate}
+                        onChange={(e) => setRate(Number(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unit">Per</Label>
+                      <Select
+                        id="unit"
+                        value={rateUnit}
+                        onChange={(e) =>
+                          setRateUnit(
+                            e.target.value as "hour" | "day" | "weekend",
+                          )
+                        }
+                      >
+                        <option value="hour">Hour</option>
+                        <option value="day">Day</option>
+                        <option value="weekend">Weekend</option>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {forSale && (
+                  <div>
+                    <Label htmlFor="sale">Sale price ($)</Label>
+                    <Input
+                      id="sale"
+                      type="number"
+                      min={1}
+                      max={50000}
+                      value={salePrice}
+                      onChange={(e) => setSalePrice(Number(e.target.value))}
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="deposit">Deposit ($ optional)</Label>
+                  <Input
+                    id="deposit"
+                    type="number"
+                    min={0}
+                    max={1000}
+                    value={deposit}
+                    onChange={(e) => setDeposit(Number(e.target.value))}
+                  />
+                </div>
+              </>
             ) : (
-              <div>
-                <Label htmlFor="needed">Needed by</Label>
-                <Input
-                  id="needed"
-                  type="date"
-                  value={neededBy}
-                  onChange={(e) => setNeededBy(e.target.value)}
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="rate">Your offer ($)</Label>
+                    <Input
+                      id="rate"
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={rate}
+                      onChange={(e) => setRate(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="needed">Needed by</Label>
+                    <Input
+                      id="needed"
+                      type="date"
+                      value={neededBy}
+                      onChange={(e) => setNeededBy(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
-        {mode === "list" && (
-          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
-            <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-              <p className="font-semibold text-[var(--color-fg)]">
-                Pickup rule (required)
-              </p>
-              <p className="mt-1">
-                When the borrower picks up,{" "}
-                <strong className="text-[var(--color-fg)]">
-                  you must demonstrate the tool works
-                </strong>{" "}
-                and check the confirmation box on this listing. That protects
-                both of you if something was broken before handoff.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         <Button type="submit" size="xl" className="w-full">
-          {mode === "list" ? "List for Share" : "Post need"}
+          {mode === "list" ? "Post listing" : "Post need"}
         </Button>
       </form>
     </AppShell>

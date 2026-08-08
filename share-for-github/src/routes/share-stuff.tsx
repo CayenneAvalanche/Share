@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useChildMatches,
+} from "@tanstack/react-router";
 import { Plus, Search, Wrench, HandHelping } from "lucide-react";
-import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
 import { formatCurrency } from "@/lib/utils";
 import { listMarketplaceFn } from "@/lib/share/server-fns";
@@ -22,7 +26,6 @@ function ShareStuffLayout() {
   return <ShareStuffPage />;
 }
 
-/** Prefer cloud id; drop local dupes that match title+owner+city. */
 function mergeByFingerprint<T extends { id: string; title: string }>(
   cloud: T[],
   local: T[],
@@ -37,7 +40,7 @@ function mergeByFingerprint<T extends { id: string; title: string }>(
   for (const r of local) {
     if (byId.has(r.id)) continue;
     const fp = keyOf(r);
-    if (fingerprints.has(fp)) continue; // already have cloud copy
+    if (fingerprints.has(fp)) continue;
     byId.set(r.id, r);
     fingerprints.add(fp);
   }
@@ -47,9 +50,6 @@ function mergeByFingerprint<T extends { id: string; title: string }>(
 function ShareStuffPage() {
   const localRentals = useShareStore((s) => s.rentals);
   const localBorrows = useShareStore((s) => s.borrowRequests);
-  const handoffs = useShareStore((s) => s.rentalHandoffs);
-  const startRentalHandoff = useShareStore((s) => s.startRentalHandoff);
-  const confirmRentalDemo = useShareStore((s) => s.confirmRentalDemo);
   const [cloudRentals, setCloudRentals] = useState<RentalListing[]>([]);
   const [cloudBorrows, setCloudBorrows] = useState<BorrowRequest[]>([]);
   const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "offline">(
@@ -57,11 +57,6 @@ function ShareStuffPage() {
   );
   const [tab, setTab] = useState<"list" | "need">("list");
   const [query, setQuery] = useState("");
-  const [activeHandoffRental, setActiveHandoffRental] = useState<string | null>(
-    null,
-  );
-  const [borrowerName, setBorrowerName] = useState("");
-  const [demoChecked, setDemoChecked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,33 +120,10 @@ function ShareStuffPage() {
     });
   }, [borrows, query]);
 
-  function openHandoff(rentalId: string) {
-    setActiveHandoffRental(rentalId);
-    setBorrowerName("");
-    setDemoChecked(false);
-  }
-
-  function completeHandoff(rentalId: string) {
-    if (!borrowerName.trim()) {
-      toast.error("Enter the borrower’s name");
-      return;
-    }
-    if (!demoChecked) {
-      toast.error(
-        "Check the box — you must demonstrate the tool works before handoff",
-      );
-      return;
-    }
-    const id = startRentalHandoff(rentalId, borrowerName.trim());
-    confirmRentalDemo(id);
-    toast.success("Pickup recorded — demo confirmed");
-    setActiveHandoffRental(null);
-  }
-
   return (
     <AppShell
       title="Lagniappe"
-      subtitle="A little something extra · Acadiana"
+      subtitle="Rent · buy · borrow · Acadiana"
       solidHeader
       action={
         <Button size="sm" asChild>
@@ -163,15 +135,11 @@ function ShareStuffPage() {
       }
     >
       <p className="mt-3 text-sm text-[var(--color-fg-muted)]">
-        The little extra — tools, bikes, trailers, grills. List or request.
+        Tools, trailers, grills — rent for a day or buy from a neighbor. Tap a
+        listing to request it.
         {cloudStatus === "ok" && (
           <span className="block text-xs text-[var(--color-primary)]">
             Live board · posts sync for everyone
-          </span>
-        )}
-        {cloudStatus === "offline" && (
-          <span className="block text-xs text-[var(--color-fg-subtle)]">
-            Cloud offline — posts on this phone only until connection returns
           </span>
         )}
       </p>
@@ -223,98 +191,59 @@ function ShareStuffPage() {
             </p>
           )}
           {filteredListings.map((r) => {
-            const done = handoffs.find(
-              (h) => h.rentalId === r.id && h.demonstratedWorking,
-            );
-            const open = activeHandoffRental === r.id;
+            const forRent = r.forRent !== false;
+            const forSale = Boolean(r.forSale);
             return (
-              <Card key={r.id} className="overflow-hidden">
-                {r.photoUrl ? (
-                  <div className="aspect-[16/10] w-full bg-[var(--color-bg-subtle)]">
-                    <img
-                      src={r.photoUrl}
-                      alt={r.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : null}
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{r.title}</p>
-                      <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
-                        {r.city} · {r.ownerName}
-                      </p>
+              <a
+                key={r.id}
+                href={`/share-stuff/${r.id}`}
+                className="block"
+              >
+                <Card className="overflow-hidden transition-shadow hover:shadow-[var(--shadow-md)]">
+                  {r.photoUrl ? (
+                    <div className="aspect-[16/10] w-full bg-[var(--color-bg-subtle)]">
+                      <img
+                        src={r.photoUrl}
+                        alt={r.title}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
                     </div>
-                    <p className="shrink-0 font-semibold text-[var(--color-primary)]">
-                      {formatCurrency(r.rate)}
-                      <span className="text-xs font-normal text-[var(--color-fg-subtle)]">
-                        /{r.rateUnit}
-                      </span>
-                    </p>
-                  </div>
-                  <p className="line-clamp-2 text-sm text-[var(--color-fg-muted)]">
-                    {r.description}
-                  </p>
-                  {done ? (
-                    <Badge variant="success">
-                      Demo confirmed · {done.borrowerName}
-                    </Badge>
-                  ) : open ? (
-                    <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)]/50 p-3">
-                      <p className="text-sm font-semibold">
-                        Pickup handoff (lender)
-                      </p>
-                      <p className="text-xs text-[var(--color-fg-muted)]">
-                        Before the borrower leaves with the item, power it on /
-                        run it so both of you see it works.
-                      </p>
+                  ) : null}
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <Label htmlFor={`bor-${r.id}`}>Borrower name</Label>
-                        <Input
-                          id={`bor-${r.id}`}
-                          value={borrowerName}
-                          onChange={(e) => setBorrowerName(e.target.value)}
-                          placeholder="Who is borrowing"
-                        />
+                        <p className="font-semibold">{r.title}</p>
+                        <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
+                          {r.city} · {r.ownerName}
+                        </p>
                       </div>
-                      <label className="flex items-start gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="mt-1 size-4 accent-[var(--color-primary)]"
-                          checked={demoChecked}
-                          onChange={(e) => setDemoChecked(e.target.checked)}
-                        />
-                        <span>
-                          I demonstrated this tool works to the borrower at
-                          pickup
-                        </span>
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => completeHandoff(r.id)}>
-                          Complete handoff
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveHandoffRental(null)}
-                        >
-                          Cancel
-                        </Button>
+                      <div className="shrink-0 text-right">
+                        {forRent && (
+                          <p className="font-semibold text-[var(--color-primary)]">
+                            {formatCurrency(r.rate)}
+                            <span className="text-xs font-normal text-[var(--color-fg-subtle)]">
+                              /{r.rateUnit}
+                            </span>
+                          </p>
+                        )}
+                        {forSale && r.salePrice != null && (
+                          <p className="text-sm font-semibold text-[var(--color-accent)]">
+                            Buy {formatCurrency(r.salePrice)}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => openHandoff(r.id)}
-                    >
-                      Record pickup handoff
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+                    <p className="mt-2 line-clamp-2 text-sm text-[var(--color-fg-muted)]">
+                      {r.description}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {forRent && <Badge variant="secondary">Rent</Badge>}
+                      {forSale && <Badge variant="accent">For sale</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
             );
           })}
         </div>

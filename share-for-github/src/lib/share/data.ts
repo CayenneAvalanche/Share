@@ -203,8 +203,27 @@ export type RentalListing = {
   ownerName: string;
   available: boolean;
   deposit?: number;
-  /** Photo of the item for rent */
+  /** Photo of the item */
   photoUrl?: string;
+  /** Available to rent (default true) */
+  forRent?: boolean;
+  /** Also listed for sale (Letgo-style) */
+  forSale?: boolean;
+  /** Asking price if forSale */
+  salePrice?: number;
+};
+
+export type MarketplaceRequestKind = "rent" | "buy";
+
+export type MarketplaceRequest = {
+  id: string;
+  rentalId: string;
+  kind: MarketplaceRequestKind;
+  requesterName: string;
+  note: string;
+  preferredPickup?: string;
+  status: "pending" | "accepted" | "declined" | "completed";
+  createdAt: string;
 };
 
 export type BorrowRequest = {
@@ -939,6 +958,9 @@ export const RENTAL_LISTINGS: RentalListing[] = [
     ownerName: "Travis D.",
     available: true,
     deposit: 20,
+    forRent: true,
+    forSale: true,
+    salePrice: 45,
   },
   {
     id: "r2",
@@ -951,6 +973,9 @@ export const RENTAL_LISTINGS: RentalListing[] = [
     ownerName: "Sam L.",
     available: true,
     deposit: 50,
+    forRent: true,
+    forSale: true,
+    salePrice: 180,
   },
   {
     id: "r3",
@@ -1094,7 +1119,7 @@ export type ChatThread = {
   id: string;
   subject: string;
   participants: string[];
-  relatedType: "ride" | "delivery" | "volunteer" | "support" | "local";
+  relatedType: "ride" | "delivery" | "volunteer" | "support" | "local" | "rental";
   relatedId?: string;
   updatedAt: string;
   unread: number;

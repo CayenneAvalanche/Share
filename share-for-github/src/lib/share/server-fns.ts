@@ -417,8 +417,14 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
       deposit: number | null;
       available: boolean;
       photo: string | null;
+      for_rent: boolean;
+      for_sale: boolean;
+      sale_price: number | null;
     }>(
-      `select id, title, description, category, rate, rate_unit, city, owner_name, deposit, available, photo
+      `select id, title, description, category, rate, rate_unit, city, owner_name, deposit, available, photo,
+              coalesce(for_rent, true) as for_rent,
+              coalesce(for_sale, false) as for_sale,
+              sale_price
        from share_rentals where available = true order by created_at desc limit 100`,
     );
     const borrows = await sql.query<{
@@ -451,6 +457,9 @@ export const listMarketplaceFn = createServerFn({ method: "GET" }).handler(
         deposit: r.deposit ?? undefined,
         available: r.available,
         photoUrl: r.photo || undefined,
+        forRent: r.for_rent !== false,
+        forSale: Boolean(r.for_sale),
+        salePrice: r.sale_price != null ? Number(r.sale_price) : undefined,
       })),
       borrows: borrows.map((b) => ({
         id: b.id,
@@ -475,10 +484,13 @@ export const createRentalFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sql = await getSql();
     const id = uid("r");
+    const forRent = data.forRent === false ? false : true;
+    const forSale = Boolean(data.forSale);
     await sql`
       insert into share_rentals (
         id, title, description, category, rate, rate_unit, city,
-        owner_name, owner_email, deposit, available, photo, created_at
+        owner_name, owner_email, deposit, available, photo, created_at,
+        for_rent, for_sale, sale_price
       ) values (
         ${id},
         ${String(data.title ?? "").trim()},
@@ -492,7 +504,10 @@ export const createRentalFn = createServerFn({ method: "POST" })
         ${data.deposit != null ? Number(data.deposit) : null},
         ${true},
         ${String(data.photoUrl ?? data.photo ?? "")},
-        ${new Date().toISOString()}
+        ${new Date().toISOString()},
+        ${forRent},
+        ${forSale},
+        ${forSale && data.salePrice != null ? Number(data.salePrice) : null}
       )
     `;
     return { id };
@@ -520,6 +535,30 @@ export const createBorrowFn = createServerFn({ method: "POST" })
         ${data.requesterEmail ? String(data.requesterEmail) : null},
         ${"open"},
         ${String(data.photoUrl ?? data.photo ?? "")},
+        ${new Date().toISOString()}
+      )
+    `;
+    return { id };
+  });
+
+export const createMarketplaceRequestFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const id = uid("mreq");
+    await sql`
+      insert into share_marketplace_requests (
+        id, rental_id, kind, requester_name, requester_email, note,
+        preferred_pickup, status, created_at
+      ) values (
+        ${id},
+        ${String(data.rentalId ?? "")},
+        ${String(data.kind ?? "rent")},
+        ${String(data.requesterName ?? "Share member")},
+        ${data.requesterEmail ? String(data.requesterEmail) : null},
+        ${String(data.note ?? "")},
+        ${data.preferredPickup ? String(data.preferredPickup) : null},
+        ${"pending"},
         ${new Date().toISOString()}
       )
     `;

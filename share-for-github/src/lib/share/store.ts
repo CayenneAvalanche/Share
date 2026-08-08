@@ -33,6 +33,7 @@ import {
   type Trip,
   type VolunteerRide,
   type RentalHandoff,
+  type MarketplaceRequest,
   type CorridorRideRequest,
   type RideOffer,
 } from "./data";
@@ -137,6 +138,10 @@ type ShareState = {
   startRentalHandoff: (rentalId: string, borrowerName: string) => string;
   confirmRentalDemo: (handoffId: string) => void;
   rentalHandoffs: RentalHandoff[];
+  marketplaceRequests: MarketplaceRequest[];
+  requestListing: (
+    req: Omit<MarketplaceRequest, "id" | "status" | "createdAt">,
+  ) => MarketplaceRequest;
   requestBorrow: (
     req: Omit<BorrowRequest, "id" | "status" | "createdAt">,
   ) => string;
@@ -234,6 +239,7 @@ function emptySeed() {
     riderApps: [] as RiderApplication[],
     rentals: [] as RentalListing[],
     rentalHandoffs: [] as RentalHandoff[],
+    marketplaceRequests: [] as MarketplaceRequest[],
     borrowRequests: [] as BorrowRequest[],
     localRides: [] as LocalRideRequest[],
     volunteerRides: [] as VolunteerRide[],
@@ -257,6 +263,7 @@ function demoSeed() {
     riderApps: SEED_RIDER_APPS,
     rentals: RENTAL_LISTINGS,
     rentalHandoffs: [] as RentalHandoff[],
+    marketplaceRequests: [] as MarketplaceRequest[],
     borrowRequests: BORROW_REQUESTS,
     localRides: [] as LocalRideRequest[],
     volunteerRides: SEED_VOLUNTEERS,
@@ -507,6 +514,25 @@ export const useShareStore = create<ShareState>()(
           set,
           "Pickup demo confirmed — tool works · handoff recorded",
         );
+      },
+
+      requestListing: (req) => {
+        const full: MarketplaceRequest = {
+          ...req,
+          id: uid("mreq"),
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          marketplaceRequests: [full, ...(state.marketplaceRequests ?? [])],
+        }));
+        systemNotify(
+          set,
+          req.kind === "buy"
+            ? "Buy request sent to owner"
+            : "Rent request sent to owner",
+        );
+        return full;
       },
 
       requestBorrow: (req) => {
@@ -1164,6 +1190,7 @@ export const useShareStore = create<ShareState>()(
         riderApps: s.riderApps,
         rentals: s.rentals.filter((r) => r.id.startsWith("r_")),
         rentalHandoffs: s.rentalHandoffs ?? [],
+        marketplaceRequests: s.marketplaceRequests ?? [],
         borrowRequests: s.borrowRequests.filter((b) => b.id.startsWith("br_")),
         localRides: s.localRides,
         volunteerRides: s.volunteerRides,
@@ -1206,6 +1233,7 @@ export const useShareStore = create<ShareState>()(
             riderApps: p.riderApps ?? [],
             rentals: (p.rentals ?? []).filter((r) => r.id.startsWith("r_")),
             rentalHandoffs: p.rentalHandoffs ?? [],
+            marketplaceRequests: p.marketplaceRequests ?? [],
             borrowRequests: (p.borrowRequests ?? []).filter((b) =>
               b.id.startsWith("br_"),
             ),

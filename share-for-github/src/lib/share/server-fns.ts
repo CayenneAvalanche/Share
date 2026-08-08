@@ -306,24 +306,15 @@ export const deleteDriverAppFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const clearDriverAppsByNameFn = createServerFn({ method: "POST" })
-  .validator((data: { pin: string; nameContains: string }) => data)
+export const deleteRiderAppFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string; id: string }) => data)
   .handler(async ({ data }) => {
     checkPin(data.pin);
     const sql = await getSql();
-    const q = `%${data.nameContains.trim().toLowerCase()}%`;
-    const rows = await sql<{ id: string; full_name: string }>`
-      select id, full_name from share_driver_apps
-      where lower(full_name) like ${q}
-    `;
-    await sql`
-      delete from share_driver_apps where lower(full_name) like ${q}
-    `;
-    return {
-      ok: true as const,
-      deleted: rows.map((r) => ({ id: r.id, fullName: r.full_name })),
-    };
+    await sql`delete from share_rider_apps where id = ${data.id}`;
+    return { ok: true as const };
   });
+
 
 export const setRiderAppStatusFn = createServerFn({ method: "POST" })
   .validator(

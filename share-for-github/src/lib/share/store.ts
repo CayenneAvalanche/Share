@@ -161,6 +161,7 @@ type ShareState = {
     extra?: { interviewAt?: string; adminNote?: string },
   ) => void;
   removeDriverApp: (id: string) => void;
+  removeRiderApp: (id: string) => void;
   setRiderAppStatus: (
     id: string,
     status: ApplicationStatus,
@@ -634,6 +635,19 @@ export const useShareStore = create<ShareState>()(
           return {
             driverApps: remaining,
             isDriverApproved: stillActive,
+          };
+        });
+      },
+
+      removeRiderApp: (id) => {
+        set((state) => {
+          const remaining = state.riderApps.filter((a) => a.id !== id);
+          const stillActive = remaining.some(
+            (a) => a.status === "active" || a.status === "approved",
+          );
+          return {
+            riderApps: remaining,
+            isRiderApproved: stillActive,
           };
         });
       },

@@ -25,7 +25,7 @@ import {
   listAuthUsersFn,
   founderResetPasswordFn,
   deleteDriverAppFn,
-  clearDriverAppsByNameFn,
+  deleteRiderAppFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import type { DriverApplication, RiderApplication } from "@/lib/share/data";
@@ -74,6 +74,7 @@ function AdminPage() {
   const advanceDelivery = useShareStore((s) => s.advanceDelivery);
   const setDriverAppStatus = useShareStore((s) => s.setDriverAppStatus);
   const removeDriverApp = useShareStore((s) => s.removeDriverApp);
+  const removeRiderApp = useShareStore((s) => s.removeRiderApp);
   const setRiderAppStatus = useShareStore((s) => s.setRiderAppStatus);
   const setLocalRideStatus = useShareStore((s) => s.setLocalRideStatus);
   const resetDemo = useShareStore((s) => s.resetDemo);
@@ -253,58 +254,9 @@ function AdminPage() {
 
       {tab === "drivers" && (
         <section className="mt-3 space-y-3 pb-8">
-          <Card className="border-dashed">
-            <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-              <p className="text-[var(--color-fg-muted)]">
-                Accounts (0) are separate from driver applications. Delete a
-                leftover app to re-apply cleanly.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-[#b42318]/40 text-[#b42318]"
-                onClick={() => {
-                  if (
-                    !confirm(
-                      "Delete all driver apps matching “DeYoung” / Travis?",
-                    )
-                  )
-                    return;
-                  // local
-                  for (const a of driverApps) {
-                    if (/deyoung|travis/i.test(a.fullName)) {
-                      removeDriverApp(a.id);
-                    }
-                  }
-                  void clearDriverAppsByNameFn({
-                    data: { pin, nameContains: "deyoung" },
-                  })
-                    .then((res) => {
-                      refreshCloud(pin);
-                      toast.success(
-                        `Cleared ${res.deleted.length} driver app(s)`,
-                      );
-                    })
-                    .catch((e) =>
-                      toast.error(
-                        e instanceof Error ? e.message : "Clear failed",
-                      ),
-                    );
-                  // also try Travis
-                  void clearDriverAppsByNameFn({
-                    data: { pin, nameContains: "travis" },
-                  })
-                    .then(() => refreshCloud(pin))
-                    .catch(() => {});
-                }}
-              >
-                Clear Travis apps
-              </Button>
-            </CardContent>
-          </Card>
           {driverApps.length === 0 && (
             <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
-              No driver applications — ready for a fresh signup.
+              No driver applications.
             </p>
           )}
           {driverApps.map((a) => (
@@ -507,6 +459,11 @@ function AdminPage() {
 
       {tab === "riders" && (
         <section className="mt-3 space-y-3 pb-8">
+          {riderApps.length === 0 && (
+            <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
+              No rider applications.
+            </p>
+          )}
           {riderApps.map((a) => (
             <Card key={a.id}>
               <CardContent className="space-y-2 p-4">
@@ -553,6 +510,32 @@ function AdminPage() {
                     }}
                   >
                     Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-[#b42318]/40 text-[#b42318]"
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `Permanently delete rider application for ${a.fullName}?`,
+                        )
+                      )
+                        return;
+                      removeRiderApp(a.id);
+                      void deleteRiderAppFn({ data: { pin, id: a.id } })
+                        .then(() => {
+                          refreshCloud(pin);
+                          toast.success("Rider application deleted");
+                        })
+                        .catch((e) =>
+                          toast.error(
+                            e instanceof Error ? e.message : "Delete failed",
+                          ),
+                        );
+                    }}
+                  >
+                    Delete
                   </Button>
                   {(a.status === "approved" ||
                     a.status === "active" ||

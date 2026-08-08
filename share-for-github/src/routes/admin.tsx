@@ -126,7 +126,7 @@ function AdminPage() {
                   Unlock inbox
                 </h2>
                 <p className="text-sm text-[var(--color-fg-muted)]">
-                  Founder PIN for pilot demos
+                  Enter your access PIN
                 </p>
               </div>
             </div>
@@ -153,9 +153,6 @@ function AdminPage() {
                   }
                 }}
               />
-              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                PIN matches Netlify env <code className="text-[var(--color-fg)]">FOUNDER_PIN</code>
-              </p>
             </div>
             <Button
               className="w-full"

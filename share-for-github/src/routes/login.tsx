@@ -19,6 +19,30 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+/** UI order — broker-backed providers first, then upcoming ones. */
+const SOCIAL_BUTTONS: {
+  id: string;
+  label: string;
+  /** Maps to GROK_PROVIDERS.providerId when live */
+  providerId?: string;
+  live: boolean;
+}[] = [
+  { id: "apple", label: "Apple", live: false },
+  {
+    id: "google",
+    label: "Google",
+    providerId: "grok-google",
+    live: GROK_PROVIDERS.some((p) => p.providerId === "grok-google"),
+  },
+  {
+    id: "x",
+    label: "X",
+    providerId: "grok-x",
+    live: GROK_PROVIDERS.some((p) => p.providerId === "grok-x"),
+  },
+  { id: "facebook", label: "Facebook", live: false },
+];
+
 function LoginPage() {
   const navigate = useNavigate();
   const { user, isPending } = useCurrentUserState();
@@ -30,7 +54,6 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   if (!isPending && user) {
-    // Already signed in — send to app home
     if (typeof window !== "undefined") {
       queueMicrotask(() => navigate({ to: "/app" }));
     }
@@ -61,9 +84,7 @@ function LoginPage() {
         toast.success("Signed in");
       }
       const display =
-        name.trim() ||
-        email.split("@")[0] ||
-        "Share member";
+        name.trim() || email.split("@")[0] || "Share member";
       setRiderName(display);
       navigate({ to: "/app" });
     } catch (err) {
@@ -73,21 +94,33 @@ function LoginPage() {
     }
   }
 
-  async function onSocial(providerId: string) {
+  async function onSocial(providerId: string, label: string) {
     setBusy(true);
     try {
       await signIn(providerId, {
         callbackURL: "/app",
-        errorCallbackURL: "/login",
+        errorCallbackURL: "/login?err=social",
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      toast.error(
+        msg.includes("fetch") || msg.includes("Failed")
+          ? `${label} sign-in isn’t connected on this site yet — use email below, or try again later.`
+          : msg,
+      );
       setBusy(false);
     }
   }
 
+  function onComingSoon(label: string) {
+    toast.message(`${label} Sign In — almost ready`, {
+      description:
+        "Use Google, X, or email & password for now. We’ll turn on Apple and Facebook as soon as they’re linked to Share.",
+    });
+  }
+
   return (
-    <AppShell title="Sign in" subtitle="Your Share account" solidHeader backTo="/app">
+    <AppShell title="Sign in" subtitle="Your account" solidHeader backTo="/profile">
       <div className="mx-auto max-w-md space-y-4 py-4 pb-10">
         <div className="flex flex-col items-center text-center">
           <div className="mb-3 rounded-[var(--radius-xl)] bg-[#2a6b45] p-3">
@@ -97,8 +130,7 @@ function LoginPage() {
             {mode === "signup" ? "Create your account" : "Welcome back"}
           </p>
           <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-            Same account for riding and driving — apply for either role after you
-            sign in.
+            One account for riding and driving.
           </p>
         </div>
 
@@ -107,22 +139,37 @@ function LoginPage() {
             {authEnabled ? (
               <>
                 <div className="grid gap-2">
-                  {GROK_PROVIDERS.map((p) => (
+                  {SOCIAL_BUTTONS.map((p) => (
                     <Button
-                      key={p.providerId}
+                      key={p.id}
                       type="button"
                       variant="outline"
-                      className="w-full"
+                      className="w-full justify-center font-semibold"
                       disabled={busy}
-                      onClick={() => void onSocial(p.providerId)}
+                      onClick={() => {
+                        if (!p.live || !p.providerId) {
+                          onComingSoon(p.label);
+                          return;
+                        }
+                        void onSocial(p.providerId, p.label);
+                      }}
                     >
                       Continue with {p.label}
+                      {!p.live ? (
+                        <span className="ml-2 text-xs font-normal text-[var(--color-fg-subtle)]">
+                          soon
+                        </span>
+                      ) : null}
                     </Button>
                   ))}
                 </div>
+
                 <div className="relative py-1 text-center text-xs text-[var(--color-fg-subtle)]">
-                  <span className="bg-[var(--color-bg-elevated)] px-2">or email</span>
+                  <span className="bg-[var(--color-bg-elevated)] px-2">
+                    or email & password
+                  </span>
                 </div>
+
                 <form onSubmit={onEmailSubmit} className="space-y-3">
                   {mode === "signup" && (
                     <div>
@@ -171,6 +218,7 @@ function LoginPage() {
                         : "Sign in with email"}
                   </Button>
                 </form>
+
                 <p className="text-center text-sm text-[var(--color-fg-muted)]">
                   {mode === "signup" ? (
                     <>
@@ -206,15 +254,15 @@ function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-[var(--color-fg-subtle)]">
-          After sign-in:{" "}
-          <Link to="/apply/rider" className="underline">
-            apply as rider
+          By continuing you agree to our{" "}
+          <Link to="/terms" className="underline">
+            Terms
           </Link>{" "}
-          or{" "}
-          <Link to="/apply/driver" className="underline">
-            apply as driver
+          and{" "}
+          <Link to="/privacy" className="underline">
+            Privacy
           </Link>
-          . Same person can hold both roles.
+          .
         </p>
       </div>
     </AppShell>

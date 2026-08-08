@@ -26,7 +26,6 @@ import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
 import { lookupMyAppsFn } from "@/lib/share/server-fns";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES } from "@/lib/share/data";
-import { SHARE_DOMAIN } from "@/lib/share/tracking";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
@@ -148,39 +147,7 @@ function ProfilePage() {
   }, [user?.primaryEmail, setDriverAppStatus, setRiderAppStatus]);
 
   return (
-    <AppShell title="You" subtitle="Account · trust · places" solidHeader>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="ghost" asChild>
-          <Link to="/privacy">Privacy</Link>
-        </Button>
-        <Button size="sm" variant="ghost" asChild>
-          <Link to="/terms">Terms</Link>
-        </Button>
-        {demo && (
-          <>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/demo">Demo guide</Link>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-[#b42318]/40 text-[#b42318]"
-              onClick={() => {
-                if (
-                  confirm(
-                    "Reset demo data? Bookings, accepts, and apps you added will clear. Seed data comes back.",
-                  )
-                ) {
-                  resetDemo();
-                }
-              }}
-            >
-              Reset demo
-            </Button>
-          </>
-        )}
-      </div>
-
+    <AppShell title="You" solidHeader>
       <div className="space-y-4 py-3 pb-8">
         {notifications[0] && (
           <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
@@ -229,7 +196,7 @@ function ProfilePage() {
                 <p className="text-sm text-[var(--color-fg-muted)]">
                   {user?.primaryEmail
                     ? user.primaryEmail
-                    : `${SHARE_DOMAIN} · public beta`}
+                    : "Sign in to save your apps and trips"}
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {user ? (
@@ -282,9 +249,7 @@ function ProfilePage() {
               </Button>
             </div>
             <p className="text-xs text-[var(--color-fg-subtle)]">
-              Use one account per person. On your business phone apply as rider;
-              on your personal phone sign in as yourself and apply as driver. Both
-              roles can live on the same account if you prefer.
+              One person, one account. You can apply as both rider and driver.
             </p>
           </CardContent>
         </Card>
@@ -547,13 +512,34 @@ function ProfilePage() {
           </Link>
         ))}
 
-        {/* Hidden ops: 5 taps here, or hold avatar 2s, or open /admin */}
-        <p
-          className="select-none py-6 text-center text-[10px] tracking-wide text-[var(--color-fg-subtle)]/70"
-          onClick={onFounderSecretTap}
-        >
-          Share · Lafayette corridor
-        </p>
+        <div className="flex flex-col items-center gap-2 py-6">
+          <div className="flex gap-4 text-xs text-[var(--color-fg-subtle)]">
+            <Link to="/privacy" className="underline-offset-2 hover:underline">
+              Privacy
+            </Link>
+            <Link to="/terms" className="underline-offset-2 hover:underline">
+              Terms
+            </Link>
+          </div>
+          {/* Hidden ops: 5 taps, or hold avatar 2s, or open /admin */}
+          <p
+            className="select-none text-[10px] tracking-wide text-[var(--color-fg-subtle)]/50"
+            onClick={onFounderSecretTap}
+          >
+            Share
+          </p>
+          {demo && (
+            <button
+              type="button"
+              className="text-xs text-[#b42318] underline"
+              onClick={() => {
+                if (confirm("Reset demo data?")) resetDemo();
+              }}
+            >
+              Reset demo
+            </button>
+          )}
+        </div>
       </div>
     </AppShell>
   );

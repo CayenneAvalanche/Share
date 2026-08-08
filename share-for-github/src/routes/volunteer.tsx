@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
-import { HeartHandshake, Phone, Timer, BadgeDollarSign } from "lucide-react";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useChildMatches,
+} from "@tanstack/react-router";
+import { Phone, Timer, BadgeDollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
@@ -33,6 +38,17 @@ function VolunteerLayout() {
 }
 
 function VolunteerPage() {
+  const [searchPosted, setSearchPosted] = useState(false);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("share-vol-posted") === "1") {
+        setSearchPosted(true);
+        sessionStorage.removeItem("share-vol-posted");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const localRides = useShareStore((s) => s.volunteerRides);
   const processVolunteerEscalations = useShareStore(
     (s) => s.processVolunteerEscalations,
@@ -48,6 +64,7 @@ function VolunteerPage() {
   );
   const [, tick] = useState(0);
   const demo = isDemoMode();
+  const canSeeOpenBoard = demo || isDriverApproved;
 
   function refreshCloud() {
     listVolunteerRidesFn()
@@ -88,6 +105,16 @@ function VolunteerPage() {
     );
   }, [cloudRides, localRides]);
 
+  // Riders only see their own local requests (not the full open board)
+  const myLocal = localRides;
+  const myOpen = myLocal.filter(
+    (r) =>
+      r.status === "seeking_volunteer" || r.status === "escalated_paid",
+  );
+  const myMatched = myLocal.filter(
+    (r) => r.status === "matched" || r.status === "completed",
+  );
+
   const open = volunteerRides.filter(
     (r) =>
       r.status === "seeking_volunteer" || r.status === "escalated_paid",
@@ -96,8 +123,7 @@ function VolunteerPage() {
     (r) => r.status === "matched" || r.status === "completed",
   );
 
-  const driverLabel =
-    user?.displayName || riderName || "Share driver";
+  const driverLabel = user?.displayName || riderName || "Share driver";
 
   async function onClaim(r: VolunteerRide) {
     claimVolunteer(r.id, driverLabel);
@@ -107,8 +133,12 @@ function VolunteerPage() {
       });
       toast.success(
         r.status === "seeking_volunteer"
-          ? "You claimed this as a volunteer"
+          ? "You claimed this ride"
           : "You claimed this paid community ride",
+        {
+          description:
+            "Ask the rider to create an account + selfie so you can confirm identity at pickup.",
+        },
       );
       refreshCloud();
     } catch {
@@ -144,65 +174,124 @@ function VolunteerPage() {
         </span>
       </a>
 
+      {searchPosted && (
+        <Card className="mt-4 border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8">
+          <CardContent className="space-y-2 p-4 text-sm">
+            <p className="font-semibold text-[var(--color-primary)]">
+              Request sent — no account needed yet
+            </p>
+            <p className="text-[var(--color-fg-muted)]">
+              Drivers who are approved can see open requests. When someone
+              accepts your ride, create an account and add a selfie so they can
+              recognize you at pickup.
+            </p>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/login">I already got accepted — set up account</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <p className="mt-3 text-center text-sm text-[var(--color-fg-muted)]">
         Free volunteer first. If no driver in time, becomes a paid request.
-        {cloudStatus === "ok" && (
-          <span className="mt-1 block text-xs text-[var(--color-primary)]">
-            Live board · requests sync for all drivers
-          </span>
-        )}
       </p>
 
-      {!isDriverApproved && !demo && (
-        <Card className="mt-4 border-[var(--color-border)]">
-          <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-            Drivers: apply and get approved in the founder inbox to claim
-            rides. You can still request a ride for someone in need.
-            <Button size="sm" variant="secondary" className="mt-2" asChild>
+      {/* Rider's own requests (always) */}
+      {(myOpen.length > 0 || myMatched.length > 0) && !canSeeOpenBoard && (
+        <section className="mt-6">
+          <h2 className="font-display text-lg font-semibold">Your requests</h2>
+          <div className="mt-3 flex flex-col gap-3">
+            {[...myOpen, ...myMatched].map((r) => (
+              <VolunteerCard key={r.id} ride={r} />
+            ))}
+          </div>
+          {myMatched.some((r) => r.status === "matched") && (
+            <Card className="mt-3 border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
+              <CardContent className="space-y-2 p-4 text-sm">
+                <p className="font-semibold">Driver accepted — finish setup</p>
+                <p className="text-[var(--color-fg-muted)]">
+                  Create your Share account and add a recent selfie so your
+                  driver can confirm it's you.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" asChild>
+                    <Link to="/login">Create account</Link>
+                  </Button>
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link to="/apply/rider">Add selfie (rider app)</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      )}
+
+      {!canSeeOpenBoard && (
+        <Card className="mt-6 border-[var(--color-border)]">
+          <CardContent className="space-y-3 p-4 text-sm text-[var(--color-fg-muted)]">
+            <p className="font-semibold text-[var(--color-fg)]">
+              Open requests are for approved drivers
+            </p>
+            <p>
+              Riders request a ride above. Only active drivers see the board and
+              can claim rides.
+            </p>
+            <Button size="sm" variant="secondary" asChild>
               <Link to="/apply/driver">Apply as driver</Link>
             </Button>
           </CardContent>
         </Card>
       )}
 
-      <section className="mt-6">
-        <h2 className="font-display text-lg font-semibold">Open requests</h2>
-        <div className="mt-3 flex flex-col gap-3">
-          {open.length === 0 ? (
-            <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
-              No open requests yet. Tap <strong>REQUEST A RIDE</strong> above —
-              or call Share.
-            </p>
-          ) : (
-            open.map((r) => (
-              <VolunteerCard
-                key={r.id}
-                ride={r}
-                demo={demo}
-                canClaim={demo || isDriverApproved}
-                onClaim={() => void onClaim(r)}
-                onForceEscalate={() => {
-                  forceEscalateVolunteer(r.id);
-                  void escalateVolunteerRideFn({ data: { id: r.id } })
-                    .then(refreshCloud)
-                    .catch(() => {});
-                  toast.message("Switched to paid request");
-                }}
-              />
-            ))
-          )}
-        </div>
-      </section>
+      {canSeeOpenBoard && (
+        <>
+          <section className="mt-6">
+            <h2 className="font-display text-lg font-semibold">
+              Open requests
+              {cloudStatus === "ok" && (
+                <span className="ml-2 text-xs font-normal text-[var(--color-primary)]">
+                  live board
+                </span>
+              )}
+            </h2>
+            <div className="mt-3 flex flex-col gap-3">
+              {open.length === 0 ? (
+                <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
+                  No open requests yet.
+                </p>
+              ) : (
+                open.map((r) => (
+                  <VolunteerCard
+                    key={r.id}
+                    ride={r}
+                    demo={demo}
+                    canClaim
+                    onClaim={() => void onClaim(r)}
+                    onForceEscalate={() => {
+                      forceEscalateVolunteer(r.id);
+                      void escalateVolunteerRideFn({ data: { id: r.id } })
+                        .then(refreshCloud)
+                        .catch(() => {});
+                      toast.message("Switched to paid request");
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </section>
 
-      {rest.length > 0 && (
-        <section className="mt-8 pb-6">
-          <h2 className="font-display text-lg font-semibold">Matched</h2>
-          <div className="mt-3 flex flex-col gap-3">
-            {rest.map((r) => (
-              <VolunteerCard key={r.id} ride={r} demo={demo} />
-            ))}
-          </div>
-        </section>
+          {rest.length > 0 && (
+            <section className="mt-8 pb-6">
+              <h2 className="font-display text-lg font-semibold">Matched</h2>
+              <div className="mt-3 flex flex-col gap-3">
+                {rest.map((r) => (
+                  <VolunteerCard key={r.id} ride={r} demo={demo} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </AppShell>
   );

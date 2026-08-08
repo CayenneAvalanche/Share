@@ -620,3 +620,70 @@ export const lookupMyAppsFn = createServerFn({ method: "POST" })
       riders: riders.map(mapRider),
     };
   });
+
+/** Founder: list sign-up accounts (Better Auth "user" table). */
+export const listAuthUsersFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      name: string;
+      email: string;
+      createdAt: string | Date;
+    }>(
+      `select id, name, email, "createdAt" from "user" order by "createdAt" desc limit 200`,
+    );
+    return {
+      users: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        createdAt:
+          r.createdAt instanceof Date
+            ? r.createdAt.toISOString()
+            : String(r.createdAt),
+      })),
+    };
+  });
+
+/** Founder: set a temporary password for an account (email/password credential). */
+export const founderResetPasswordFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: { pin: string; email: string; newPassword: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const email = data.email.trim().toLowerCase();
+    const newPassword = data.newPassword;
+    if (!email.includes("@") || newPassword.length < 8) {
+      throw new Error("Valid email and password (8+ chars) required");
+    }
+    const { hashPassword } = await import("better-auth/crypto");
+    const sql = await getSql();
+    const users = await sql<{ id: string }>`
+      select id from "user" where lower(email) = ${email} limit 1
+    `;
+    if (!users.length) {
+      throw new Error("No account with that email");
+    }
+    const userId = users[0].id;
+    const hashed = await hashPassword(newPassword);
+    const accounts = await sql<{ id: string }>`
+      select id from "account" where "userId" = ${userId} and "providerId" = ${"credential"} limit 1
+    `;
+    const now = new Date().toISOString();
+    if (accounts.length) {
+      await sql`
+        update "account" set password = ${hashed}, "updatedAt" = ${now} where id = ${accounts[0].id}
+      `;
+    } else {
+      const id = uid("acc");
+      await sql`
+        insert into "account" (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
+        values (${id}, ${userId}, ${"credential"}, ${userId}, ${hashed}, ${now}, ${now})
+      `;
+    }
+    return { ok: true as const, email };
+  });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -13,22 +13,48 @@ export const Route = createFileRoute("/volunteer/new")({
   component: NewVolunteerPage,
 });
 
+function defaultDate(): string {
+  const d = new Date();
+  // Prefer next Sunday if still this week; else today
+  return d.toISOString().slice(0, 10);
+}
+
 function NewVolunteerPage() {
   const requestVolunteerRide = useShareStore((s) => s.requestVolunteerRide);
   const riderName = useShareStore((s) => s.riderName);
   const savedPlaces = useShareStore((s) => s.savedPlaces);
   const navigate = useNavigate();
 
-  const [category, setCategory] = useState<VolunteerCategory>("veteran");
+  const [category, setCategory] = useState<VolunteerCategory>("elder");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pickup, setPickup] = useState<string>(LOCAL_SPOTS[7]);
-  const [dropoff, setDropoff] = useState<string>(LOCAL_SPOTS[4]);
-  const [when, setWhen] = useState("ASAP");
+  const [pickup, setPickup] = useState<string>(LOCAL_SPOTS[7] ?? LOCAL_SPOTS[0]);
+  const [dropoff, setDropoff] = useState<string>(LOCAL_SPOTS[4] ?? LOCAL_SPOTS[1]);
+  const [asap, setAsap] = useState(true);
+  const [rideDate, setRideDate] = useState(defaultDate);
+  const [rideTime, setRideTime] = useState("10:00");
   const [notes, setNotes] = useState("");
   const [escalateAfterHours, setEscalateAfterHours] = useState(2);
   const [paidOffer, setPaidOffer] = useState(12);
-  const [daytimeOnly, setDaytimeOnly] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const minDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  function formatWhen(): string {
+    if (asap) return "ASAP";
+    try {
+      const dt = new Date(`${rideDate}T${rideTime}:00`);
+      return dt.toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch {
+      return `${rideDate} ${rideTime}`;
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,10 +66,12 @@ function NewVolunteerPage() {
       toast.error("Pick two different places");
       return;
     }
-    const quiet =
-      daytimeOnly && (category === "elder" || category === "disabled")
-        ? "Quiet hours: daytime / early evening only (no late-night)."
-        : "";
+    if (!asap && (!rideDate || !rideTime)) {
+      toast.error("Pick a date and pickup time");
+      return;
+    }
+    setBusy(true);
+    const when = formatWhen();
     const payload = {
       category,
       fullName: fullName.trim(),
@@ -51,19 +79,28 @@ function NewVolunteerPage() {
       pickup,
       dropoff,
       when,
-      notes: [notes.trim(), quiet].filter(Boolean).join(" "),
+      notes: notes.trim(),
       escalateAfterHours,
       paidOffer,
-      requesterName: riderName || "Community",
+      requesterName: riderName || fullName.trim() || "Community",
     };
     requestVolunteerRide(payload);
     try {
-      await createVolunteerRideFn({ data: payload as unknown as Record<string, unknown> });
-      toast.success("Volunteer ride posted — drivers will see it");
+      await createVolunteerRideFn({
+        data: payload as unknown as Record<string, unknown>,
+      });
+      toast.success("Request posted — no account needed yet");
     } catch {
       toast.message("Saved on this phone — cloud sync pending");
     }
+    setBusy(false);
     navigate({ to: "/volunteer" });
+    // flag for success banner on board
+    try {
+      sessionStorage.setItem("share-vol-posted", "1");
+    } catch {
+      /* ignore */
+    }
   }
 
   const placeOptions = [
@@ -73,17 +110,16 @@ function NewVolunteerPage() {
 
   return (
     <AppShell
-      title="Request volunteer ride"
-      subtitle="Elder · veteran · disabled"
+      title="Request a ride"
+      subtitle="No account needed to request"
       backTo="/volunteer"
       solidHeader
     >
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
         <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
           <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-            Free first. Auto-paid after your window. Elders/disabled default to{" "}
-            <strong className="text-[var(--color-fg)]">daytime-only</strong>{" "}
-            quiet hours.
+            Anyone can request. When a driver accepts, you'll create an
+            account and add a selfie so they can recognize you at pickup.
           </CardContent>
         </Card>
 
@@ -111,15 +147,18 @@ function NewVolunteerPage() {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  placeholder="First and last"
                 />
               </div>
               <div>
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
+                  type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(337) 555-0100"
                 />
               </div>
             </div>
@@ -151,31 +190,60 @@ function NewVolunteerPage() {
                 ))}
               </Select>
             </div>
-            <div>
-              <Label htmlFor="when">When</Label>
-              <Select
-                id="when"
-                value={when}
-                onChange={(e) => setWhen(e.target.value)}
-              >
-                <option>ASAP</option>
-                <option>In 1 hour</option>
-                <option>This afternoon</option>
-                <option>Tomorrow morning</option>
-              </Select>
+
+            <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3">
+              <p className="text-sm font-semibold">When do you need the ride?</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAsap(true)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                    asap
+                      ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]"
+                      : "bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]"
+                  }`}
+                >
+                  ASAP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAsap(false)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                    !asap
+                      ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]"
+                      : "bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]"
+                  }`}
+                >
+                  Pick date & time
+                </button>
+              </div>
+              {!asap && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="date">Date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      required={!asap}
+                      min={minDate}
+                      value={rideDate}
+                      onChange={(e) => setRideDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="time">Pickup time</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      required={!asap}
+                      value={rideTime}
+                      onChange={(e) => setRideTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="day"
-                type="checkbox"
-                checked={daytimeOnly}
-                onChange={(e) => setDaytimeOnly(e.target.checked)}
-                className="size-4 accent-[var(--color-primary)]"
-              />
-              <Label htmlFor="day" className="mb-0">
-                Daytime / quiet hours only (recommended for elders)
-              </Label>
-            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="esc">Free window (hours)</Label>
@@ -217,8 +285,8 @@ function NewVolunteerPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" size="xl" className="w-full">
-          Post volunteer request
+        <Button type="submit" size="xl" className="w-full" disabled={busy}>
+          {busy ? "Posting…" : "Post ride request"}
         </Button>
       </form>
     </AppShell>

@@ -22,6 +22,8 @@ import {
   setRiderAppStatusFn,
   dbHealthFn,
   verifyFounderPinFn,
+  listAuthUsersFn,
+  founderResetPasswordFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import type { DriverApplication, RiderApplication } from "@/lib/share/data";
@@ -36,7 +38,8 @@ type Tab =
   | "deliveries"
   | "local"
   | "volunteer"
-  | "waitlist";
+  | "waitlist"
+  | "accounts";
 
 function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
@@ -46,6 +49,11 @@ function AdminPage() {
   const [cloudRiders, setCloudRiders] = useState<RiderApplication[] | null>(null);
   const [cloudWaitlist, setCloudWaitlist] = useState<string[] | null>(null);
   const [dbOk, setDbOk] = useState("…");
+  const [authUsers, setAuthUsers] = useState<
+    { id: string; name: string; email: string; createdAt: string }[]
+  >([]);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPass, setResetPass] = useState("");
 
   const localDriverApps = useShareStore((s) => s.driverApps);
   const localRiderApps = useShareStore((s) => s.riderApps);
@@ -97,6 +105,12 @@ function AdminPage() {
       setCloudDrivers(res.drivers);
       setCloudRiders(res.riders);
       setCloudWaitlist(res.waitlistEmails);
+      try {
+        const acc = await listAuthUsersFn({ data: { pin: p } });
+        setAuthUsers(acc.users);
+      } catch {
+        /* older deploys */
+      }
       toast.message(
         `Cloud · ${res.drivers.length} drivers · ${res.riders.length} riders`,
       );
@@ -193,6 +207,7 @@ function AdminPage() {
     { id: "local", label: "Local" },
     { id: "volunteer", label: "Volunteer" },
     { id: "waitlist", label: "Waitlist" },
+    { id: "accounts", label: "Accounts" },
   ];
 
   return (
@@ -634,6 +649,97 @@ function AdminPage() {
               </CardContent>
             </Card>
           ))}
+        </section>
+      )}
+
+      {tab === "accounts" && (
+        <section className="mt-3 space-y-3 pb-8">
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <p className="text-sm font-semibold">Set temporary password</p>
+              <p className="text-xs text-[var(--color-fg-muted)]">
+                For riders/drivers who forgot password or never finished signup.
+                Tell them the temp password; they sign in and can change it later.
+              </p>
+              <div>
+                <Label htmlFor="re">Email</Label>
+                <Input
+                  id="re"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="member@email.com"
+                />
+              </div>
+              <div>
+                <Label htmlFor="rp">New temporary password</Label>
+                <Input
+                  id="rp"
+                  type="text"
+                  value={resetPass}
+                  onChange={(e) => setResetPass(e.target.value)}
+                  placeholder="At least 8 characters"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await founderResetPasswordFn({
+                        data: {
+                          pin,
+                          email: resetEmail,
+                          newPassword: resetPass,
+                        },
+                      });
+                      toast.success("Password set — tell them securely");
+                      setResetPass("");
+                    } catch (e) {
+                      toast.error(
+                        e instanceof Error ? e.message : "Reset failed",
+                      );
+                    }
+                  })();
+                }}
+              >
+                Set password
+              </Button>
+            </CardContent>
+          </Card>
+          <p className="text-xs text-[var(--color-fg-muted)]">
+            {authUsers.length} account{authUsers.length === 1 ? "" : "s"} in
+            database
+          </p>
+          {authUsers.length === 0 ? (
+            <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
+              No accounts yet — people who hit “Invalid origin” never saved.
+              Have them Create account again after the origin fix.
+            </p>
+          ) : (
+            authUsers.map((u) => (
+              <Card key={u.id}>
+                <CardContent className="flex items-start justify-between gap-2 p-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{u.name || "—"}</p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {u.email}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-subtle)]">
+                      {new Date(u.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setResetEmail(u.email)}
+                  >
+                    Reset
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </section>
       )}
     </AppShell>

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { AddressField } from "@/components/share/address-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import { LOCAL_SPOTS, type VolunteerCategory } from "@/lib/share/data";
+import type { VolunteerCategory } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import {
   createVolunteerRideFn,
@@ -37,7 +38,6 @@ function NewVolunteerPage() {
   const cancelVolunteerRide = useShareStore((s) => s.cancelVolunteerRide);
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const riderName = useShareStore((s) => s.riderName);
-  const savedPlaces = useShareStore((s) => s.savedPlaces);
   const navigate = useNavigate();
 
   const [editId, setEditId] = useState<string | null>(null);
@@ -84,13 +84,6 @@ function NewVolunteerPage() {
   }, [volunteerRides, navigate]);
 
   const minDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
-  const quickPlaces = useMemo(() => {
-    return [
-      ...LOCAL_SPOTS.slice(0, 8),
-      ...savedPlaces.map((p) => p.address || p.label).filter(Boolean),
-    ].filter((v, i, a) => a.indexOf(v) === i);
-  }, [savedPlaces]);
 
   function formatWhen(): string {
     if (asap) return "ASAP";
@@ -205,9 +198,8 @@ function NewVolunteerPage() {
         {!editId && (
           <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
             <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-              Anyone can request. Enter full street addresses so a driver can
-              find you. When a driver accepts, you'll create an account and add
-              a selfie so they can recognize you at pickup.
+              Anyone can request. Start typing a street or place name — pick a
+              suggestion or type the full address. Apt / gate code goes in notes.
             </CardContent>
           </Card>
         )}
@@ -261,65 +253,25 @@ function NewVolunteerPage() {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="pickup">Pickup address</Label>
-              <Textarea
-                id="pickup"
-                required
-                rows={2}
-                value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-                placeholder="Street number & name, city (e.g. 123 Main St, Lafayette LA)"
-                autoComplete="street-address"
-              />
-              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Full address — apartment or gate code can go in notes.
-              </p>
-              {quickPlaces.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {quickPlaces.slice(0, 6).map((s) => (
-                    <button
-                      key={`pu-${s}`}
-                      type="button"
-                      onClick={() => setPickup(s)}
-                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-fg-muted)] active:bg-[var(--color-primary)]/10"
-                    >
-                      {s.length > 28 ? `${s.slice(0, 26)}…` : s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <AddressField
+              id="pickup"
+              label="Pickup address"
+              required
+              value={pickup}
+              onChange={setPickup}
+              placeholder="Start typing street or place (Lafayette area)…"
+              hint="Suggestions appear as you type."
+            />
 
-            <div>
-              <Label htmlFor="dropoff">Drop-off address</Label>
-              <Textarea
-                id="dropoff"
-                required
-                rows={2}
-                value={dropoff}
-                onChange={(e) => setDropoff(e.target.value)}
-                placeholder="Street or place name + city (e.g. Our Lady of Lourdes, Lafayette)"
-                autoComplete="street-address"
-              />
-              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Hospital, clinic, work, or home — be as specific as you can.
-              </p>
-              {quickPlaces.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {quickPlaces.slice(0, 6).map((s) => (
-                    <button
-                      key={`do-${s}`}
-                      type="button"
-                      onClick={() => setDropoff(s)}
-                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-fg-muted)] active:bg-[var(--color-primary)]/10"
-                    >
-                      {s.length > 28 ? `${s.slice(0, 26)}…` : s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <AddressField
+              id="dropoff"
+              label="Drop-off address"
+              required
+              value={dropoff}
+              onChange={setDropoff}
+              placeholder="Hospital, clinic, work, or home address…"
+              hint="Be as specific as you can."
+            />
 
             <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3">
               <p className="text-sm font-semibold">When do you need the ride?</p>

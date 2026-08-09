@@ -8,4 +8,4 @@ export const FOUNDER_NOTIFY_EMAIL_DEFAULT = "tmd5458@me.com";
 export const FOUNDER_NOTIFY_PHONE_DEFAULT = "+13375010195";
 
 /** Bump when shipping so we can verify Netlify actually deployed. */
-export const SHARE_BUILD = "2026-08-09c";
+export const SHARE_BUILD = "2026-08-09d";

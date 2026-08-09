@@ -1,11 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Share mark">
-  <!-- Share Technologies S-curve mark — solid green on transparent -->
-  <rect width="64" height="64" rx="14" fill="#1f6b45"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Share">
+  <title>Share mark</title>
+  <!-- Road-curve S mark · Share Technologies -->
+  <rect width="512" height="512" rx="112" fill="#1f6b45"/>
+  <!-- Soft inner glow -->
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="#2a8a58" stroke-width="2" opacity="0.35"/>
+  <!-- Backward S as a road / path -->
   <path
-    d="M18 14c8-6 22-4 26 6 3 8-2 14-10 16-8 2-12 6-10 14 2 8 14 12 24 6"
+    d="M144 112c64-48 176-32 208 48 24 64-16 112-80 128-64 16-96 48-80 112 16 64 112 96 192 48"
     stroke="#ffffff"
-    stroke-width="6"
+    stroke-width="48"
     stroke-linecap="round"
     stroke-linejoin="round"
+  />
+  <!-- Center dashed “lane” for road read -->
+  <path
+    d="M144 112c64-48 176-32 208 48 24 64-16 112-80 128-64 16-96 48-80 112 16 64 112 96 192 48"
+    stroke="#1f6b45"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-dasharray="18 22"
+    opacity="0.55"
   />
 </svg>

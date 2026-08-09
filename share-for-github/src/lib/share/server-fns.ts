@@ -829,12 +829,18 @@ export const createMarketplaceRequestFn = createServerFn({ method: "POST" })
 
 
 async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
-  try {
-    await sql.query(
-      `alter table share_volunteer_rides add column if not exists cancelled_at timestamptz`,
-    );
-  } catch (e) {
-    console.warn("[schema] cancelled_at", e);
+  for (const col of [
+    "cancelled_at timestamptz",
+    "trip_started_at timestamptz",
+    "trip_ended_at timestamptz",
+  ]) {
+    try {
+      await sql.query(
+        `alter table share_volunteer_rides add column if not exists ${col}`,
+      );
+    } catch (e) {
+      console.warn("[schema]", col, e);
+    }
   }
 }
 
@@ -858,6 +864,8 @@ export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
       matched_driver_name: string | null;
       escalated_at: string | Date | null;
       cancelled_at: string | Date | null;
+      trip_started_at: string | Date | null;
+      trip_ended_at: string | Date | null;
       created_at: string | Date;
     }>(
       `select * from share_volunteer_rides order by created_at desc limit 100`,
@@ -878,6 +886,8 @@ export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
       matchedDriverName: r.matched_driver_name ?? undefined,
       escalatedAt: iso(r.escalated_at),
       cancelledAt: iso(r.cancelled_at),
+      tripStartedAt: iso(r.trip_started_at),
+      tripEndedAt: iso(r.trip_ended_at),
       createdAt: iso(r.created_at) ?? new Date().toISOString(),
     }));
     return { rides };
@@ -1141,6 +1151,38 @@ export const completeVolunteerRideFn = createServerFn({ method: "POST" })
         and status = 'matched'
     `;
     return { ok: true as const };
+  });
+
+
+export const beginVolunteerTripFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+    const at = new Date().toISOString();
+    await sql`
+      update share_volunteer_rides set
+        trip_started_at = ${at},
+        trip_ended_at = null
+      where id = ${data.id}
+        and status = 'matched'
+    `;
+    return { ok: true as const, tripStartedAt: at };
+  });
+
+export const endVolunteerTripFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+    const at = new Date().toISOString();
+    await sql`
+      update share_volunteer_rides set
+        trip_ended_at = ${at}
+      where id = ${data.id}
+        and status = 'matched'
+    `;
+    return { ok: true as const, tripEndedAt: at };
   });
 
 /** Drivers/riders check their application status by email after approval. */

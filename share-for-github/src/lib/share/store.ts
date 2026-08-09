@@ -173,6 +173,8 @@ type ShareState = {
     >,
   ) => void;
   completeVolunteerRide: (id: string) => void;
+  beginVolunteerTrip: (id: string, startedAt?: string) => void;
+  endVolunteerTrip: (id: string, endedAt?: string) => void;
   updateVolunteerRide: (
     id: string,
     patch: Partial<
@@ -947,6 +949,32 @@ export const useShareStore = create<ShareState>()(
           ),
         }));
         systemNotify(set, "Ride marked complete");
+      },
+
+      beginVolunteerTrip: (id, startedAt) => {
+        const at = startedAt || new Date().toISOString();
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  tripStartedAt: at,
+                  tripEndedAt: undefined,
+                }
+              : r,
+          ),
+        }));
+        systemNotify(set, "Ride in progress — SOS available for rider & driver");
+      },
+
+      endVolunteerTrip: (id, endedAt) => {
+        const at = endedAt || new Date().toISOString();
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id ? { ...r, tripEndedAt: at } : r,
+          ),
+        }));
+        systemNotify(set, "Ride ended");
       },
 
       updateVolunteerRide: (id, patch) => {

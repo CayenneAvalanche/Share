@@ -928,6 +928,10 @@ export type VolunteerRide = {
   escalatedAt?: string;
   /** When the request was cancelled (history) */
   cancelledAt?: string;
+  /** Driver tapped Begin ride — rider sees SOS/audio */
+  tripStartedAt?: string;
+  /** Driver tapped End ride */
+  tripEndedAt?: string;
   paidOffer: number;
   matchedDriverName?: string;
   requesterName: string;

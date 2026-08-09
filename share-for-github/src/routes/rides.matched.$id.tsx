@@ -28,6 +28,8 @@ import {
   reopenVolunteerRideFn,
   completeVolunteerRideFn,
   cancelVolunteerRideFn,
+  beginVolunteerTripFn,
+  endVolunteerTripFn,
 } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/rides/matched/$id")({
@@ -50,6 +52,8 @@ function MatchedRidePage() {
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const reopen = useShareStore((s) => s.reopenVolunteerForReaccept);
   const complete = useShareStore((s) => s.completeVolunteerRide);
+  const beginTripLocal = useShareStore((s) => s.beginVolunteerTrip);
+  const endTripLocal = useShareStore((s) => s.endVolunteerTrip);
   const cancelLocal = useShareStore((s) => s.cancelVolunteerRide);
   const localRides = useShareStore((s) => s.localRides);
   const setLocalRideStatus = useShareStore((s) => s.setLocalRideStatus);
@@ -104,26 +108,49 @@ function MatchedRidePage() {
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
 
-  // Restore in-progress trip after refresh
+  // Sync trip phase from cloud ride (driver Begin → rider sees SOS)
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(`share-trip-run-${id}`);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        phase: "idle" | "in_progress" | "ended";
-        startedAt?: number;
-        endedDuration?: string;
-      };
-      if (parsed.phase === "in_progress" && parsed.startedAt) {
+    if (!vol) return;
+    if (vol.tripStartedAt && !vol.tripEndedAt) {
+      const ms = +new Date(vol.tripStartedAt);
+      if (!Number.isNaN(ms)) {
         setTripPhase("in_progress");
-        setStartedAt(parsed.startedAt);
-      } else if (parsed.phase === "ended") {
-        setTripPhase("ended");
-        setEndedDuration(parsed.endedDuration ?? null);
+        setStartedAt(ms);
       }
-    } catch {
-      /* ignore */
+    } else if (vol.tripStartedAt && vol.tripEndedAt) {
+      setTripPhase("ended");
+      const a = +new Date(vol.tripStartedAt);
+      const b = +new Date(vol.tripEndedAt);
+      if (!Number.isNaN(a) && !Number.isNaN(b) && b >= a) {
+        setEndedDuration(formatElapsed(Math.floor((b - a) / 1000)));
+      }
     }
+  }, [vol?.id, vol?.tripStartedAt, vol?.tripEndedAt]);
+
+  // Poll cloud so rider gets Begin without refresh
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await listVolunteerRidesFn();
+        if (cancelled) return;
+        const hit = res.rides.find((r) => r.id === id);
+        if (!hit) return;
+        setCloudRide(hit);
+        useShareStore.setState((s) => ({
+          volunteerRides: s.volunteerRides.some((r) => r.id === hit.id)
+            ? s.volunteerRides.map((r) => (r.id === hit.id ? { ...r, ...hit } : r))
+            : [hit, ...s.volunteerRides],
+        }));
+      } catch {
+        /* ignore */
+      }
+    }
+    const t = window.setInterval(() => void poll(), 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
   }, [id]);
 
   // Live timer while ride is in progress
@@ -423,6 +450,26 @@ function MatchedRidePage() {
 
         {!editing && (
           <div className="flex flex-col gap-3">
+            {tripPhase === "in_progress" && (
+              <Card className="border-[#b42318]/40 bg-[#b42318]/5">
+                <CardContent className="space-y-3 p-4">
+                  <div className="text-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#b42318]">
+                      Ride in progress
+                    </p>
+                    <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-[var(--color-fg)]">
+                      {formatElapsed(elapsedSec)}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
+                      Safety tools are live for you and your driver
+                    </p>
+                  </div>
+                  <SosPanel
+                    tripLabel={`${vol.fullName} · ${vol.pickup} → ${vol.dropoff}`}
+                  />
+                </CardContent>
+              </Card>
+            )}
             {telHref && tripPhase === "idle" && (
               <Button size="lg" asChild>
                 <a href={telHref}>
@@ -456,22 +503,26 @@ function MatchedRidePage() {
                       className="w-full"
                       onClick={() => {
                         const at = Date.now();
+                        const iso = new Date(at).toISOString();
                         setTripPhase("in_progress");
                         setStartedAt(at);
                         setElapsedSec(0);
                         setEndedDuration(null);
-                        try {
-                          sessionStorage.setItem(
-                            `share-trip-run-${id}`,
-                            JSON.stringify({
-                              phase: "in_progress",
-                              startedAt: at,
-                            }),
+                        beginTripLocal(id, iso);
+                        void beginVolunteerTripFn({ data: { id } })
+                          .then((res) => {
+                            if (res.tripStartedAt) {
+                              beginTripLocal(id, res.tripStartedAt);
+                            }
+                            toast.success(
+                              "Ride started — rider can open Rides for SOS",
+                            );
+                          })
+                          .catch(() =>
+                            toast.message(
+                              "Started on this phone — cloud sync pending",
+                            ),
                           );
-                        } catch {
-                          /* ignore */
-                        }
-                        toast.success("Ride started — timer running");
                       }}
                     >
                       <Play className="size-4" />
@@ -499,29 +550,23 @@ function MatchedRidePage() {
                         variant="secondary"
                         onClick={() => {
                           const dur = formatElapsed(elapsedSec);
+                          const iso = new Date().toISOString();
                           setTripPhase("ended");
                           setEndedDuration(dur);
-                          try {
-                            sessionStorage.setItem(
-                              `share-trip-run-${id}`,
-                              JSON.stringify({
-                                phase: "ended",
-                                endedDuration: dur,
-                              }),
+                          endTripLocal(id, iso);
+                          void endVolunteerTripFn({ data: { id } })
+                            .then(() => toast.success(`Ride ended · ${dur}`))
+                            .catch(() =>
+                              toast.message(`Ended on this phone · ${dur}`),
                             );
-                          } catch {
-                            /* ignore */
-                          }
-                          toast.success(`Ride ended · ${dur}`);
                         }}
                       >
                         <Square className="size-4" />
                         End ride
                       </Button>
-                      <SosPanel
-                        compact
-                        tripLabel={`${vol.fullName} · ${vol.pickup} → ${vol.dropoff}`}
-                      />
+                      <p className="text-center text-xs text-[var(--color-fg-muted)]">
+                        SOS & Record audio are above for both rider and driver.
+                      </p>
                     </>
                   )}
 

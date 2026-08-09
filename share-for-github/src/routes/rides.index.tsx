@@ -31,16 +31,21 @@ function RidesPage() {
   const [cloudVol, setCloudVol] = useState<VolunteerRide[]>([]);
 
   useEffect(() => {
-    listVolunteerRidesFn()
-      .then((res) => {
-        setCloudVol(res.rides);
-        useShareStore.setState((s) => {
-          const byId = new Map(s.volunteerRides.map((r) => [r.id, r]));
-          for (const r of res.rides) byId.set(r.id, r);
-          return { volunteerRides: Array.from(byId.values()) };
-        });
-      })
-      .catch(() => {});
+    function pull() {
+      listVolunteerRidesFn()
+        .then((res) => {
+          setCloudVol(res.rides);
+          useShareStore.setState((s) => {
+            const byId = new Map(s.volunteerRides.map((r) => [r.id, r]));
+            for (const r of res.rides) byId.set(r.id, r);
+            return { volunteerRides: Array.from(byId.values()) };
+          });
+        })
+        .catch(() => {});
+    }
+    pull();
+    const t = window.setInterval(pull, 5000);
+    return () => window.clearInterval(t);
   }, []);
 
   const activeMatched = useMemo(() => {
@@ -183,12 +188,19 @@ function RidesPage() {
             requires a new accept.
           </p>
           <div className="mt-3 flex flex-col gap-2">
-            {activeMatched.map((r) => (
+            {activeMatched.map((r) => {
+              const live =
+                !!r.tripStartedAt && !r.tripEndedAt && r.status === "matched";
+              return (
               <Link
                 key={r.id}
                 to="/rides/matched/$id"
                 params={{ id: r.id }}
-                className="block rounded-[var(--radius-lg)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 p-4 transition-colors active:bg-[var(--color-primary)]/10"
+                className={
+                  live
+                    ? "block rounded-[var(--radius-lg)] border-2 border-[#b42318]/50 bg-[#b42318]/8 p-4"
+                    : "block rounded-[var(--radius-lg)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 p-4 transition-colors active:bg-[var(--color-primary)]/10"
+                }
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -206,13 +218,18 @@ function RidesPage() {
                       Requested {formatRequestedAt(r.createdAt)}
                     </p>
                   </div>
-                  <Badge variant="success">Matched</Badge>
+                  <Badge variant={live ? "outline" : "success"}>
+                    {live ? "In progress" : "Matched"}
+                  </Badge>
                 </div>
                 <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
-                  Open ride →
+                  {live
+                    ? "Open for SOS · Record audio →"
+                    : "Open ride →"}
                 </p>
               </Link>
-            ))}
+            );
+            })}
             {activeLocal.map((r) => (
               <Link
                 key={r.id}

@@ -18,7 +18,7 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { hoursUntilEscalate } from "@/lib/share/tracking";
-import { formatCurrency, formatRequestedAt } from "@/lib/utils";
+import { formatCurrency, formatRequestedAt, formatInCarTripSummary } from "@/lib/utils";
 import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
 import { isDemoMode } from "@/lib/share/mode";
 import { OpenInMaps } from "@/components/share/open-in-maps";
@@ -534,6 +534,17 @@ function VolunteerCard({
                       : ride.cancelledByName
                         ? `by ${ride.cancelledByName}`
                         : "by unknown"}
+              </p>
+            )}
+
+            {ride.status === "completed" && (
+              <p className="mt-0.5 text-xs font-semibold text-[var(--color-primary)]">
+                {formatInCarTripSummary({
+                  tripStartedAt: ride.tripStartedAt,
+                  tripEndedAt: ride.tripEndedAt,
+                  completedAt: ride.completedAt,
+                }) ||
+                  `Completed ${formatRequestedAt(ride.completedAt || ride.createdAt)}`}
               </p>
             )}
           </div>

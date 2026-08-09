@@ -23,7 +23,7 @@ import {
   type VolunteerRide,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { formatRequestedAt } from "@/lib/utils";
+import { formatRequestedAt, formatInCarTripSummary, formatDurationSeconds, tripInCarSeconds } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   listVolunteerRidesFn,
@@ -260,10 +260,27 @@ function MatchedRidePage() {
     } catch {
       /* ignore */
     }
+    // If driver forgot End ride, close the stopwatch so duration is saved
+    let endedAt = vol.tripEndedAt;
+    if (vol.tripStartedAt && !endedAt) {
+      endedAt = new Date().toISOString();
+      endTripLocal(id, endedAt);
+      try {
+        await endVolunteerTripFn({ data: { id: vol.id } });
+      } catch {
+        /* local duration still kept */
+      }
+    }
     complete(vol.id);
+    const inCar = formatInCarTripSummary({
+      tripStartedAt: vol.tripStartedAt,
+      tripEndedAt: endedAt || vol.tripEndedAt,
+    });
     // Go to Rides tab immediately so the driver isn't stuck on the trip screen
     navigate({ to: "/rides", replace: true });
-    toast.success("Ride completed — back on Rides");
+    toast.success(
+      inCar ? `Ride completed · ${inCar}` : "Ride completed — back on Rides",
+    );
     try {
       await completeVolunteerRideFn({ data: { id: vol.id } });
     } catch {
@@ -381,6 +398,58 @@ function MatchedRidePage() {
                 {vol.status.replace(/_/g, " ")}
               </Badge>
             </div>
+
+            {(vol.status === "completed" ||
+              (vol.tripStartedAt && vol.tripEndedAt)) && (
+              <div className="rounded-[var(--radius-md)] border border-[var(--color-primary)]/25 bg-[var(--color-primary)]/8 p-3 text-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                  Trip timing (saved)
+                </p>
+                <p className="mt-1 font-semibold text-[var(--color-fg)]">
+                  Phase 1 · Accepted / en route
+                </p>
+                <p className="text-xs text-[var(--color-fg-muted)]">
+                  Matched
+                  {vol.matchedDriverName ? ` with ${vol.matchedDriverName}` : ""}
+                  {" · "}
+                  requested {formatRequestedAt(vol.createdAt)}
+                </p>
+                {vol.tripStartedAt && vol.tripEndedAt ? (
+                  <>
+                    <p className="mt-2 font-semibold text-[var(--color-fg)]">
+                      Phase 2 · In the car (Begin → End)
+                    </p>
+                    <p className="font-mono text-lg font-semibold tabular-nums text-[var(--color-primary)]">
+                      {formatDurationSeconds(
+                        tripInCarSeconds(vol.tripStartedAt, vol.tripEndedAt) ??
+                          0,
+                      )}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      Begin {formatRequestedAt(vol.tripStartedAt)} → End{" "}
+                      {formatRequestedAt(vol.tripEndedAt)}
+                    </p>
+                  </>
+                ) : vol.tripStartedAt ? (
+                  <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
+                    Phase 2 started {formatRequestedAt(vol.tripStartedAt)} — end
+                    not recorded yet
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
+                    No Begin/End ride times on this trip (older complete).
+                  </p>
+                )}
+                {vol.status === "completed" && (
+                  <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
+                    Marked complete{" "}
+                    {formatRequestedAt(
+                      vol.completedAt || vol.tripEndedAt || vol.createdAt,
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
 
             {!editing ? (
               <>

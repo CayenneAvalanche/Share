@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { VOLUNTEER_LABELS } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { formatCurrency, formatRequestedAt } from "@/lib/utils";
+import { formatCurrency, formatRequestedAt, formatInCarTripSummary, formatDurationSeconds, tripInCarSeconds } from "@/lib/utils";
 import {
   listApplicationsFn,
   setDriverAppStatusFn,
@@ -1063,15 +1063,40 @@ function AdminPage() {
                       </p>
                     )}
                     {r.status === "completed" && (
-                      <p className="text-sm font-semibold text-[var(--color-primary)]">
-                        Completed:{" "}
-                        {formatRequestedAt(
-                          r.completedAt || r.tripEndedAt || r.createdAt,
+                      <div className="space-y-1 rounded-[var(--radius-md)] border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 p-2.5">
+                        <p className="text-sm font-semibold text-[var(--color-primary)]">
+                          Completed:{" "}
+                          {formatRequestedAt(
+                            r.completedAt || r.tripEndedAt || r.createdAt,
+                          )}
+                          {r.matchedDriverName
+                            ? ` · driver ${r.matchedDriverName}`
+                            : ""}
+                        </p>
+                        {r.tripStartedAt && r.tripEndedAt ? (
+                          <p className="text-sm font-semibold text-[var(--color-fg)]">
+                            In car:{" "}
+                            <span className="font-mono tabular-nums text-[var(--color-primary)]">
+                              {formatDurationSeconds(
+                                tripInCarSeconds(
+                                  r.tripStartedAt,
+                                  r.tripEndedAt,
+                                ) ?? 0,
+                              )}
+                            </span>
+                            <span className="mt-0.5 block text-xs font-normal text-[var(--color-fg-muted)]">
+                              Phase 2 Begin{" "}
+                              {formatRequestedAt(r.tripStartedAt)} → End{" "}
+                              {formatRequestedAt(r.tripEndedAt)}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-[var(--color-fg-muted)]">
+                            In-car duration not recorded (no Begin/End on this
+                            trip).
+                          </p>
                         )}
-                        {r.matchedDriverName
-                          ? ` · driver ${r.matchedDriverName}`
-                          : ""}
-                      </p>
+                      </div>
                     )}
                     <p className="text-[10px] text-[var(--color-fg-subtle)]">
                       ID {r.id}
@@ -1359,6 +1384,10 @@ function AdminPage() {
                               Requested {formatRequestedAt(r.createdAt)}
                               {r.status === "completed" &&
                                 ` · Completed ${formatRequestedAt(r.completedAt || r.tripEndedAt || r.createdAt)}`}
+                              {r.status === "completed" &&
+                                r.tripStartedAt &&
+                                r.tripEndedAt &&
+                                ` · In car ${formatDurationSeconds(tripInCarSeconds(r.tripStartedAt, r.tripEndedAt) ?? 0)} (${formatRequestedAt(r.tripStartedAt)} → ${formatRequestedAt(r.tripEndedAt)})`}
                               {r.status === "cancelled" &&
                                 ` · Cancelled ${formatRequestedAt(r.cancelledAt || r.createdAt)} by ${
                                   r.cancelledBy === "admin"

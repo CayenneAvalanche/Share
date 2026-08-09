@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Car, Plus, Star, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { DashcamBadge } from "@/components/share/dashcam-badge";
 import { useShareStore } from "@/lib/share/store";
 import { PLATFORM_TAKE_RATE } from "@/lib/share/data";
 import { formatCurrency } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/cars")({
   component: CarsLayout,
@@ -27,12 +28,25 @@ function CarsPage() {
   const bookCar = useShareStore((s) => s.bookCar);
   const carBookings = useShareStore((s) => s.carBookings);
   const idVerified = useShareStore((s) => s.idVerified);
+  const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
   const [daysById, setDaysById] = useState<Record<string, number>>({});
+
+  const me = (user?.displayName || riderName || "").toLowerCase();
+  const myCars = useMemo(
+    () =>
+      cars.filter(
+        (c) =>
+          c.id.startsWith("car_") ||
+          (me && c.ownerName.toLowerCase().includes(me.split(" ")[0] || me)),
+      ),
+    [cars, me],
+  );
 
   return (
     <AppShell
       title="Share a car"
-      subtitle="Local peer cars · Turo-style"
+      subtitle="List · reserve · pay host in person (pilot)"
       solidHeader
       action={
         <Button size="sm" asChild>
@@ -48,20 +62,32 @@ function CarsPage() {
           <Car className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" />
           <div className="text-sm text-[var(--color-fg-muted)]">
             <p className="font-semibold text-[var(--color-fg)]">
-              Own lane — not tools, not seats
+              Peer cars by the day
             </p>
             <p className="mt-1">
-              Borrow a neighbor’s car by the day (Turo energy, Hub City scale).
-              Drills and bikes stay under{" "}
+              Host lists a car → renter reserves → meet up and settle payment
+              in person for the pilot. Platform take ~{Math.round(PLATFORM_TAKE_RATE * 100)}%
+              only when card payments go live. Tools stay under{" "}
               <Link to="/share-stuff" className="underline">
                 Lagniappe
               </Link>
-              . Platform take still ~{Math.round(PLATFORM_TAKE_RATE * 100)}% when
-              you take payments live.
+              .
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {myCars.some((c) => c.id.startsWith("car_")) && (
+        <section className="mt-4">
+          <h2 className="text-sm font-semibold text-[var(--color-fg-muted)]">
+            Your listings
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-subtle)]">
+            Saved on this phone — open an incognito window or another account to
+            test Reserve as a renter.
+          </p>
+        </section>
+      )}
 
       {carBookings.length > 0 && (
         <section className="mt-4">
@@ -73,14 +99,20 @@ function CarsPage() {
               const car = cars.find((c) => c.id === b.carId);
               return (
                 <Card key={b.id}>
-                  <CardContent className="flex justify-between p-3 text-sm">
-                    <span>
-                      {car?.makeModel ?? "Car"} · {b.days} day
-                      {b.days > 1 ? "s" : ""}
-                    </span>
-                    <span className="font-semibold">
-                      {formatCurrency(b.total)}
-                    </span>
+                  <CardContent className="space-y-1 p-3 text-sm">
+                    <div className="flex justify-between gap-2">
+                      <span className="font-medium">
+                        {car?.makeModel ?? "Car"} · {b.days} day
+                        {b.days > 1 ? "s" : ""}
+                      </span>
+                      <span className="font-semibold">
+                        {formatCurrency(b.total)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      Status: {b.status} · Pay host in person ·{" "}
+                      {car?.ownerName ? `Host: ${car.ownerName}` : "Host TBD"}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -108,6 +140,7 @@ function CarsPage() {
             const days = daysById[car.id] ?? 2;
             const total = car.ratePerDay * days;
             const hostKeeps = Math.round(total * (1 - PLATFORM_TAKE_RATE));
+            const isMine = car.id.startsWith("car_");
             return (
               <Card key={car.id} className="overflow-hidden">
                 {car.photoUrl ? (
@@ -125,6 +158,11 @@ function CarsPage() {
                       {formatCurrency(car.ratePerDay)}
                       <span className="font-normal opacity-80"> / day</span>
                     </div>
+                    {isMine && (
+                      <div className="absolute left-2 top-2 rounded-full bg-[var(--color-primary)] px-2.5 py-1 text-[11px] font-semibold text-white">
+                        Your listing
+                      </div>
+                    )}
                   </div>
                 ) : null}
                 <CardContent className="space-y-3 p-4">
@@ -135,6 +173,7 @@ function CarsPage() {
                       </p>
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         {car.city} · {car.ownerName}
+                        {isMine ? " · you" : ""}
                       </p>
                     </div>
                     {!car.photoUrl && (
@@ -164,6 +203,7 @@ function CarsPage() {
                       <Star className="mr-1 size-3 fill-current" />
                       {car.rating.toFixed(2)}
                     </Badge>
+                    {isMine && <Badge>Your car</Badge>}
                   </div>
                   <p className="text-sm text-[var(--color-fg-muted)]">
                     {car.rules}
@@ -193,20 +233,29 @@ function CarsPage() {
                       <p className="text-[var(--color-fg-muted)]">You pay</p>
                       <p className="font-semibold">{formatCurrency(total)}</p>
                       <p className="text-[10px] text-[var(--color-fg-subtle)]">
-                        Host ~{formatCurrency(hostKeeps)} after take
+                        Host ~{formatCurrency(hostKeeps)} after take (when live)
                       </p>
                     </div>
                     <Button
+                      disabled={isMine}
                       onClick={() => {
-                        if (!idVerified) {
-                          toast.error("Verify ID under You before renting a car");
+                        if (isMine) {
+                          toast.message("This is your listing — reserve from another phone/account");
                           return;
                         }
+                        if (!idVerified) {
+                          toast.message(
+                            "Pilot: reserving without full ID verify — still verify under You when you can",
+                          );
+                        }
                         bookCar(car.id, days);
-                        toast.success("Car reserved (demo)");
+                        toast.success("Car reserved", {
+                          description:
+                            "Contact the host and pay in person for the pilot. Deposit terms are on the listing.",
+                        });
                       }}
                     >
-                      Reserve
+                      {isMine ? "Yours" : "Reserve"}
                     </Button>
                   </div>
                 </CardContent>

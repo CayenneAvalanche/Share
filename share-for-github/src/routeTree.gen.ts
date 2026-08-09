@@ -19,6 +19,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as DeliveriesRouteImport } from './routes/deliveries'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as LafayetteFreeRidesRouteImport } from './routes/lafayette-free-rides'
 import { Route as LocalRouteImport } from './routes/local'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -96,6 +97,11 @@ const DemoRoute = DemoRouteImport.update({
 const EarningsRoute = EarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LafayetteFreeRidesRoute = LafayetteFreeRidesRouteImport.update({
+  id: '/lafayette-free-rides',
+  path: '/lafayette-free-rides',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LocalRoute = LocalRouteImport.update({
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/deliveries': typeof DeliveriesRouteWithChildren
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
+  '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/deliveries': typeof DeliveriesRouteWithChildren
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
+  '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/deliveries': typeof DeliveriesRouteWithChildren
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
+  '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/deliveries'
     | '/demo'
     | '/earnings'
+    | '/lafayette-free-rides'
     | '/local'
     | '/login'
     | '/messages'
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/deliveries'
     | '/demo'
     | '/earnings'
+    | '/lafayette-free-rides'
     | '/local'
     | '/login'
     | '/messages'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/deliveries'
     | '/demo'
     | '/earnings'
+    | '/lafayette-free-rides'
     | '/local'
     | '/login'
     | '/messages'
@@ -494,6 +506,7 @@ export interface RootRouteChildren {
   DeliveriesRoute: typeof DeliveriesRouteWithChildren
   DemoRoute: typeof DemoRoute
   EarningsRoute: typeof EarningsRoute
+  LafayetteFreeRidesRoute: typeof LafayetteFreeRidesRoute
   LocalRoute: typeof LocalRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRouteWithChildren
@@ -583,6 +596,13 @@ declare module '@tanstack/react-router' {
       path: '/earnings'
       fullPath: '/earnings'
       preLoaderRoute: typeof EarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lafayette-free-rides': {
+      id: '/lafayette-free-rides'
+      path: '/lafayette-free-rides'
+      fullPath: '/lafayette-free-rides'
+      preLoaderRoute: typeof LafayetteFreeRidesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/local': {
@@ -883,6 +903,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeliveriesRoute: DeliveriesRouteWithChildren,
   DemoRoute: DemoRoute,
   EarningsRoute: EarningsRoute,
+  LafayetteFreeRidesRoute: LafayetteFreeRidesRoute,
   LocalRoute: LocalRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRouteWithChildren,

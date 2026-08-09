@@ -5,8 +5,10 @@ import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { PhotoField } from "@/components/share/photo-field";
 import { HUB_CITIES } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/cars/new")({
   component: ListCarPage,
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/cars/new")({
 function ListCarPage() {
   const listCar = useShareStore((s) => s.listCar);
   const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
   const navigate = useNavigate();
   const [makeModel, setMakeModel] = useState("");
   const [year, setYear] = useState(2020);
@@ -25,7 +28,7 @@ function ListCarPage() {
   const [city, setCity] = useState("Lafayette, LA");
   const [hasDashcam, setHasDashcam] = useState(true);
   const [insuranceNote, setInsurance] = useState(
-    "Owner policy primary · renter 21+",
+    "Owner policy primary · renter 21+ · pilot: pay host in person",
   );
   const [rules, setRules] = useState("No smoking. Full tank on return.");
   const [photoUrl, setPhotoUrl] = useState("");
@@ -36,6 +39,8 @@ function ListCarPage() {
       toast.error("Make & model required");
       return;
     }
+    const owner =
+      user?.displayName || riderName || user?.primaryEmail || "Host";
     listCar({
       makeModel: makeModel.trim(),
       year,
@@ -44,30 +49,36 @@ function ListCarPage() {
       ratePerDay,
       deposit,
       city,
-      ownerName: riderName || "Host",
+      ownerName: owner,
       hasDashcam,
       insuranceNote,
       rules,
       photoUrl: photoUrl.trim() || undefined,
     });
-    toast.success("Car listed");
+    toast.success("Car listed — visible under Share a car");
     navigate({ to: "/cars" });
   }
 
   return (
     <AppShell
       title="List your car"
-      subtitle="Peer host · local first"
+      subtitle="Peer host · local pilot"
       backTo="/cars"
       solidHeader
     >
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
         <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
-          <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-            This is <strong className="text-[var(--color-fg)]">Share a car</strong>{" "}
-            — whole-vehicle rental, not a seat and not a drill. A clear photo of
-            the vehicle helps renters trust the listing. Insurance is still on
-            you + broker for pilot; badge honesty on dashcam helps trust.
+          <CardContent className="space-y-2 p-4 text-sm text-[var(--color-fg-muted)]">
+            <p>
+              <strong className="text-[var(--color-fg)]">Share a car</strong>{" "}
+              is whole-vehicle rental (Turo-style), not a ride seat. During the
+              pilot: list → someone reserves →{" "}
+              <strong className="text-[var(--color-fg)]">
+                pay / handoff in person
+              </strong>
+              . Insurance stays on you + your broker until platform coverage is
+              live.
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -82,31 +93,14 @@ function ListCarPage() {
                 placeholder="Toyota Camry"
               />
             </div>
-            <div>
-              <Label htmlFor="photo">Vehicle photo URL</Label>
-              <Input
-                id="photo"
-                type="url"
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-                placeholder="https://… (front or 3/4 view works best)"
-              />
-              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                Paste a link for now — phone upload comes later.
-              </p>
-              {photoUrl.trim() && (
-                <div className="mt-2 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)]">
-                  <img
-                    src={photoUrl.trim()}
-                    alt="Vehicle preview"
-                    className="aspect-[16/10] w-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <PhotoField
+              id="car-photo"
+              label="Vehicle photo"
+              hint="Front or ¾ view · clear daylight helps renters trust the listing"
+              value={photoUrl}
+              onChange={setPhotoUrl}
+              facing="environment"
+            />
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="year">Year</Label>
@@ -148,7 +142,7 @@ function ListCarPage() {
                 <Input
                   id="rate"
                   type="number"
-                  min={20}
+                  min={1}
                   value={ratePerDay}
                   onChange={(e) => setRate(Number(e.target.value))}
                 />

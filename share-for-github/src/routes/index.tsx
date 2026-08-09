@@ -34,7 +34,7 @@ function LandingPage() {
         <div className="relative mx-auto max-w-5xl px-4 pb-16 pt-14 sm:pb-20 sm:pt-20">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[var(--color-fg-inverse)]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[var(--color-fg-inverse)]/90">
             <span className="size-1.5 rounded-full bg-emerald-400" />
-            Public beta · open now
+            Local pilot · open now
           </div>
           <div className="mb-8 inline-flex items-center gap-4 rounded-2xl bg-[#2a6b45] px-5 py-4 shadow-[var(--shadow-md)] sm:px-6 sm:py-5">
             <ShareMark inverted className="size-14 sm:size-16" />
@@ -69,6 +69,13 @@ function LandingPage() {
               asChild
             >
               <Link to="/apply">Apply to ride or drive</Link>
+            </Button>
+            <Button
+              size="lg"
+              className="border border-[var(--color-fg-inverse)]/30 bg-transparent text-[var(--color-fg-inverse)] hover:bg-[var(--color-fg-inverse)]/10"
+              asChild
+            >
+              <Link to="/lafayette-free-rides">Free rides (Lafayette)</Link>
             </Button>
           </div>
         </div>

@@ -24,7 +24,7 @@ import {
   type VolunteerRide,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { formatRequestedAt, formatInCarTripSummary, formatDurationSeconds, tripInCarSeconds } from "@/lib/utils";
+import { formatRequestedAt, formatInCarTripSummary, formatDurationSeconds, tripInCarSeconds, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   listVolunteerRidesFn,
@@ -326,6 +326,16 @@ function MatchedRidePage() {
             </p>
             <p className="text-sm text-[var(--color-fg-muted)]">
               When: {local.when} · {local.requesterName}
+            </p>
+            <p className="text-base font-semibold text-[var(--color-primary)]">
+              Offer{" "}
+              {local.sharePrice > 0
+                ? formatCurrency(local.sharePrice)
+                : "FREE / $0"}
+              <span className="ml-2 text-xs font-normal text-[var(--color-fg-muted)]">
+                Uber ~{formatCurrency(local.uberEstimate)} · Lyft ~
+                {formatCurrency(local.lyftEstimate)}
+              </span>
             </p>
             <p className="text-xs text-[var(--color-fg-subtle)]">
               Requested {formatRequestedAt(local.createdAt)}

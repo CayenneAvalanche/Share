@@ -12,6 +12,7 @@ import {
   DRIVERS,
   PREF_LABELS,
   estimateLocalFares,
+  suggestedOfferFromEstimates,
   type DriverPreference,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
@@ -65,6 +66,10 @@ function LocalRidePage() {
   const [when, setWhen] = useState("ASAP");
   const [seats, setSeats] = useState(1);
   const [notes, setNotes] = useState("");
+  const [uberEst, setUberEst] = useState<string>("");
+  const [lyftEst, setLyftEst] = useState<string>("");
+  const [offer, setOffer] = useState<string>("");
+  const [offerTouched, setOfferTouched] = useState(false);
   const [driverPreference, setDriverPreference] =
     useState<DriverPreference>("any");
   const [preferredDriverId, setPreferredDriverId] = useState(
@@ -168,6 +173,32 @@ function LocalRidePage() {
     [pickup, dropoff],
   );
 
+  // Prefill comparison estimates from address heuristic (editable)
+  useEffect(() => {
+    if (!pickup.trim() || !dropoff.trim()) return;
+    if (!uberEst && !lyftEst) {
+      setUberEst(String(fares.uberEstimate));
+      setLyftEst(String(fares.lyftEstimate));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup, dropoff, fares.uberEstimate, fares.lyftEstimate]);
+
+  const uberNum = Number(uberEst);
+  const lyftNum = Number(lyftEst);
+  const guideOffer = useMemo(
+    () =>
+      suggestedOfferFromEstimates(
+        Number.isFinite(uberNum) && uberNum > 0 ? uberNum : null,
+        Number.isFinite(lyftNum) && lyftNum > 0 ? lyftNum : null,
+      ),
+    [uberNum, lyftNum],
+  );
+
+  useEffect(() => {
+    if (offerTouched) return;
+    if (guideOffer != null) setOffer(String(guideOffer));
+  }, [guideOffer, offerTouched]);
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const pu = pickup.trim();
@@ -184,22 +215,36 @@ function LocalRidePage() {
       toast.error("Pickup and drop-off need to be different places");
       return;
     }
+    const offerAmt = Math.max(0, Math.round(Number(offer) || 0));
+    const u =
+      Number.isFinite(uberNum) && uberNum > 0
+        ? Math.round(uberNum)
+        : fares.uberEstimate;
+    const l =
+      Number.isFinite(lyftNum) && lyftNum > 0
+        ? Math.round(lyftNum)
+        : fares.lyftEstimate;
     const ride = requestLocalRide({
       pickup: pu,
       dropoff: doff,
       when,
       seats,
       notes: notes.trim(),
-      sharePrice: 0, // Free local rides during pilot
-      uberEstimate: fares.uberEstimate,
-      lyftEstimate: fares.lyftEstimate,
-      requesterName: riderName || "Guest",
+      sharePrice: offerAmt,
+      uberEstimate: u,
+      lyftEstimate: l,
+      requesterName:
+        user?.displayName || riderName || "Guest",
       driverPreference,
       preferredDriverId:
         driverPreference === "preferred" ? preferredDriverId : undefined,
     });
     setDoneId(ride.id);
-    toast.success("Pinged nearby Share drivers");
+    toast.success(
+      offerAmt > 0
+        ? `Drivers notified · your offer ${formatCurrency(offerAmt)}`
+        : "Drivers notified · free / $0 offer",
+    );
   }
 
   async function toggleAvailable() {
@@ -250,8 +295,12 @@ function LocalRidePage() {
             <strong className="text-[var(--color-fg)]">
               {ride ? PREF_LABELS[ride.driverPreference] : "—"}
             </strong>
-            . Share price{" "}
-            <strong className="text-[var(--color-fg)]">FREE</strong>
+            . Your offer{" "}
+            <strong className="text-[var(--color-fg)]">
+              {ride && ride.sharePrice > 0
+                ? formatCurrency(ride.sharePrice)
+                : "FREE / $0"}
+            </strong>
             .
           </p>
           {ride && (
@@ -266,9 +315,11 @@ function LocalRidePage() {
                   <span className="text-right font-medium">{ride.dropoff}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--color-fg-muted)]">Share</span>
+                  <span className="text-[var(--color-fg-muted)]">Your offer</span>
                   <span className="font-semibold text-[var(--color-primary)]">
-                    FREE
+                    {ride.sharePrice > 0
+                      ? formatCurrency(ride.sharePrice)
+                      : "FREE / $0"}
                   </span>
                 </div>
                 <div className="flex justify-between text-[var(--color-fg-subtle)]">
@@ -303,7 +354,7 @@ function LocalRidePage() {
   return (
     <AppShell
       title="Local ride"
-      subtitle="Share is FREE · Uber & Lyft for comparison"
+      subtitle="You set the offer · Uber/Lyft optional guide"
       solidHeader
       backTo="/rides"
     >
@@ -429,35 +480,113 @@ function LocalRidePage() {
         </Card>
 
         <Card>
-          <CardContent className="grid grid-cols-3 gap-2 p-4 text-center">
+          <CardContent className="space-y-4 p-4">
             <div>
-              <p className="text-xs text-[var(--color-fg-subtle)]">Share</p>
-              <p className="font-semibold text-[var(--color-primary)]">FREE</p>
-              <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
-                pilot
+              <p className="text-sm font-semibold">Price guide (optional)</p>
+              <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+                Enter what Uber and Lyft show for this trip. We average them and
+                take <strong className="text-[var(--color-fg)]">30% off</strong>{" "}
+                as a suggested Share offer. Edit freely.
               </p>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="uber-est">Uber est. $</Label>
+                <Input
+                  id="uber-est"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="decimal"
+                  placeholder="e.g. 18"
+                  value={uberEst}
+                  onChange={(e) => setUberEst(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="lyft-est">Lyft est. $</Label>
+                <Input
+                  id="lyft-est"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="decimal"
+                  placeholder="e.g. 17"
+                  value={lyftEst}
+                  onChange={(e) => setLyftEst(e.target.value)}
+                />
+              </div>
+            </div>
+            {guideOffer != null && (
+              <p className="rounded-[var(--radius-md)] bg-[var(--color-primary)]/8 px-3 py-2 text-sm text-[var(--color-fg)]">
+                Suggested offer{" "}
+                <strong className="text-[var(--color-primary)]">
+                  {formatCurrency(guideOffer)}
+                </strong>
+                <span className="block text-xs text-[var(--color-fg-muted)]">
+                  (avg of Uber + Lyft, then −30%)
+                </span>
+              </p>
+            )}
             <div>
-              <p className="text-xs text-[var(--color-fg-subtle)]">Uber est.</p>
-              <p className="font-semibold">
-                {formatCurrency(fares.uberEstimate)}
+              <Label htmlFor="offer">Your OFFER $</Label>
+              <Input
+                id="offer"
+                type="number"
+                min={0}
+                step={1}
+                inputMode="decimal"
+                required
+                value={offer}
+                onChange={(e) => {
+                  setOfferTouched(true);
+                  setOffer(e.target.value);
+                }}
+                placeholder={guideOffer != null ? String(guideOffer) : "0"}
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                What you'll pay the driver (cash/app at drop-off for now).
+                Use $0 for a free community ride.
               </p>
             </div>
-            <div>
-              <p className="text-xs text-[var(--color-fg-subtle)]">Lyft est.</p>
-              <p className="font-semibold">
-                {formatCurrency(fares.lyftEstimate)}
-              </p>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-subtle)] p-2">
+                <p className="text-[var(--color-fg-subtle)]">Offer</p>
+                <p className="font-semibold text-[var(--color-primary)]">
+                  {Number(offer) > 0
+                    ? formatCurrency(Math.round(Number(offer) || 0))
+                    : "$0"}
+                </p>
+              </div>
+              <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-subtle)] p-2">
+                <p className="text-[var(--color-fg-subtle)]">Uber</p>
+                <p className="font-semibold">
+                  {Number(uberEst) > 0
+                    ? formatCurrency(Math.round(Number(uberEst)))
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-subtle)] p-2">
+                <p className="text-[var(--color-fg-subtle)]">Lyft</p>
+                <p className="font-semibold">
+                  {Number(lyftEst) > 0
+                    ? formatCurrency(Math.round(Number(lyftEst)))
+                    : "—"}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
         <p className="text-center text-[10px] text-[var(--color-fg-subtle)]">
-          Share local rides are free during the pilot · Uber/Lyft are rough
-          comparison only · {SHARE_BUILD}
+          Approved drivers see your offer under Rides · pay driver in person
+          (pilot) · {SHARE_BUILD}
         </p>
 
         <Button type="submit" size="xl" className="w-full">
           Request local ride
+          {Number(offer) > 0
+            ? ` · offer ${formatCurrency(Math.round(Number(offer) || 0))}`
+            : " · free"}
         </Button>
       </form>
     </AppShell>

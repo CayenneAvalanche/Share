@@ -9,11 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { HUB_CITIES, VOLUNTEER_LABELS, type Trip, type VolunteerRide } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { formatRequestedAt } from "@/lib/utils";
+import { formatRequestedAt, formatCurrency } from "@/lib/utils";
 import { listVolunteerRidesFn } from "@/lib/share/server-fns";
 import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useMyAppStatus } from "@/lib/share/use-my-apps";
 
 export const Route = createFileRoute("/rides/")({
   component: RidesPage,
@@ -29,6 +30,8 @@ function RidesPage() {
   const user = useCurrentUser();
   const riderName = useShareStore((s) => s.riderName);
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
+  const setLocalRideStatus = useShareStore((s) => s.setLocalRideStatus);
+  const { driverActive } = useMyAppStatus();
   const [from, setFrom] = useState("Any");
   const [to, setTo] = useState("Any");
   const [query, setQuery] = useState("");
@@ -135,6 +138,15 @@ function RidesPage() {
       localRides.filter(
         (r) => r.status === "matched" || r.status === "broadcasting",
       ),
+    [localRides],
+  );
+
+  /** Open local ride offers — visible to approved active drivers */
+  const openLocalOffers = useMemo(
+    () =>
+      localRides
+        .filter((r) => r.status === "broadcasting")
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
     [localRides],
   );
 
@@ -316,6 +328,12 @@ function RidesPage() {
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--color-primary)]">
+                      Offer{" "}
+                      {r.sharePrice > 0
+                        ? formatCurrency(r.sharePrice)
+                        : "FREE / $0"}
+                    </p>
                   </div>
                   <Badge variant="outline">{r.status}</Badge>
                 </div>
@@ -323,6 +341,79 @@ function RidesPage() {
                   Open ride →
                 </p>
               </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {driverActive && openLocalOffers.length > 0 && (
+        <section className="mt-5">
+          <h2 className="font-display text-lg font-semibold">
+            Local offers nearby
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Open requests from riders — OFFER is what they'll pay (pilot:
+            settle in person).
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {openLocalOffers.map((r) => (
+              <div
+                key={`offer-${r.id}`}
+                className="rounded-[var(--radius-lg)] border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/5 p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{r.requesterName}</p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                      {r.when} · {r.seats} seat{r.seats === 1 ? "" : "s"}
+                      {r.uberEstimate > 0 || r.lyftEstimate > 0
+                        ? ` · Uber ~${formatCurrency(r.uberEstimate)} · Lyft ~${formatCurrency(r.lyftEstimate)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                      Offer
+                    </p>
+                    <p className="text-lg font-bold text-[var(--color-primary)]">
+                      {r.sharePrice > 0
+                        ? formatCurrency(r.sharePrice)
+                        : "$0"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setLocalRideStatus(
+                        r.id,
+                        "matched",
+                        `Accepted by ${user?.displayName || riderName || "driver"}`,
+                      );
+                      toast.success(
+                        r.sharePrice > 0
+                          ? `Accepted · offer ${formatCurrency(r.sharePrice)}`
+                          : "Accepted · free local ride",
+                      );
+                      navigate({
+                        to: "/rides/matched/$id",
+                        params: { id: r.id },
+                      });
+                    }}
+                  >
+                    Accept offer
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to="/rides/matched/$id" params={{ id: r.id }}>
+                      Details
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             ))}
           </div>
         </section>

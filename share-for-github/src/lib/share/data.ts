@@ -1474,7 +1474,37 @@ export function estimateLocalFares(pickup: string, dropoff: string) {
   const sharePrice = Math.max(6, Math.round(miles * 1.35 + 3));
   const uberEstimate = Math.round(sharePrice * 2.1 + 4);
   const lyftEstimate = Math.round(sharePrice * 2.0 + 5);
-  return { miles, sharePrice, uberEstimate, lyftEstimate };
+  const suggestedOffer = suggestedOfferFromEstimates(
+    uberEstimate,
+    lyftEstimate,
+  );
+  return {
+    miles,
+    sharePrice,
+    uberEstimate,
+    lyftEstimate,
+    suggestedOffer: suggestedOffer ?? sharePrice,
+  };
+}
+
+/**
+ * Guide offer: average of Uber + Lyft estimates, then 30% off.
+ * If only one estimate is set, uses that × 0.7.
+ */
+export function suggestedOfferFromEstimates(
+  uber?: number | null,
+  lyft?: number | null,
+): number | null {
+  const u = Number(uber);
+  const l = Number(lyft);
+  const hasU = Number.isFinite(u) && u > 0;
+  const hasL = Number.isFinite(l) && l > 0;
+  if (hasU && hasL) {
+    return Math.max(0, Math.round(((u + l) / 2) * 0.7));
+  }
+  if (hasU) return Math.max(0, Math.round(u * 0.7));
+  if (hasL) return Math.max(0, Math.round(l * 0.7));
+  return null;
 }
 
 /** Share take rate demo — keep drivers whole. */

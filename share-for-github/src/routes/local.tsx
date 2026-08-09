@@ -90,7 +90,7 @@ function LocalRidePage() {
       when,
       seats,
       notes: notes.trim(),
-      sharePrice: fares.sharePrice,
+      sharePrice: 0, // Free local rides during pilot (Sun/Tue community beta)
       uberEstimate: fares.uberEstimate,
       lyftEstimate: fares.lyftEstimate,
       requesterName: riderName || "Guest",
@@ -154,9 +154,7 @@ function LocalRidePage() {
               {ride ? PREF_LABELS[ride.driverPreference] : "—"}
             </strong>
             . Share price{" "}
-            <strong className="text-[var(--color-fg)]">
-              {ride ? formatCurrency(ride.sharePrice) : "—"}
-            </strong>
+            <strong className="text-[var(--color-fg)]">FREE</strong>
             .
           </p>
           {ride && (
@@ -173,7 +171,7 @@ function LocalRidePage() {
                 <div className="flex justify-between">
                   <span className="text-[var(--color-fg-muted)]">Share</span>
                   <span className="font-semibold text-[var(--color-primary)]">
-                    {formatCurrency(ride.sharePrice)}
+                    FREE
                   </span>
                 </div>
                 <div className="flex justify-between text-[var(--color-fg-subtle)]">
@@ -208,7 +206,7 @@ function LocalRidePage() {
   return (
     <AppShell
       title="Local ride"
-      subtitle="Compare Share · Uber · Lyft"
+      subtitle="Share is FREE · Uber & Lyft for comparison"
       solidHeader
       backTo="/rides"
     >
@@ -337,8 +335,9 @@ function LocalRidePage() {
           <CardContent className="grid grid-cols-3 gap-2 p-4 text-center">
             <div>
               <p className="text-xs text-[var(--color-fg-subtle)]">Share</p>
-              <p className="font-semibold text-[var(--color-primary)]">
-                {formatCurrency(fares.sharePrice)}
+              <p className="font-semibold text-[var(--color-primary)]">FREE</p>
+              <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                pilot
               </p>
             </div>
             <div>
@@ -356,7 +355,8 @@ function LocalRidePage() {
           </CardContent>
         </Card>
         <p className="text-center text-[10px] text-[var(--color-fg-subtle)]">
-          Fare estimates are rough guides · {SHARE_BUILD}
+          Share local rides are free during the pilot · Uber/Lyft are rough
+          comparison only · {SHARE_BUILD}
         </p>
 
         <Button type="submit" size="xl" className="w-full">

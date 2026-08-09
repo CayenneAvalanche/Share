@@ -617,7 +617,7 @@ function ProfilePage() {
           {
             to: "/volunteer",
             title: "Volunteer rides",
-            sub: "Veterans · disabled · elders",
+            sub: "Elders · veterans · medical · hardship",
             icon: Star,
           },
         ].map((link) => (

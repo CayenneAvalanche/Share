@@ -149,7 +149,7 @@ function VolunteerPage() {
   return (
     <AppShell
       title="Volunteer rides"
-      subtitle="Veterans · disabled · elders 75+"
+      subtitle="Elders · veterans · medical · hardship · work"
       solidHeader
     >
       <Link

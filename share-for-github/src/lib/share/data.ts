@@ -898,7 +898,13 @@ export const SEED_RIDER_APPS: RiderApplication[] = [
   },
 ];
 
-export type VolunteerCategory = "veteran" | "disabled" | "elder";
+export type VolunteerCategory =
+  | "veteran"
+  | "disabled"
+  | "elder"
+  | "hardship"
+  | "medical"
+  | "work";
 
 export type VolunteerRideStatus =
   | "seeking_volunteer"
@@ -929,6 +935,9 @@ export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {
   veteran: "Veteran",
   disabled: "Disabled / mobility need",
   elder: "Elder (75+)",
+  hardship: "Hardship (can't pay right now)",
+  medical: "Medical appointment",
+  work: "Work / job interview",
 };
 
 export const SEED_VOLUNTEERS: VolunteerRide[] = [

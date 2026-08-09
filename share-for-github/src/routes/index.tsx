@@ -144,7 +144,7 @@ function LandingPage() {
               {[
                 "Screened drivers and riders",
                 "Corridor focus: Lafayette · Shreveport · Houston · beyond",
-                "Volunteer rides for veterans, elders, and mobility needs",
+                "Volunteer rides for elders, veterans, medical, hardship & work",
               ].map((line) => (
                 <li key={line} className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" />

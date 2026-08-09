@@ -214,7 +214,14 @@ function NewVolunteerPage() {
                 <option value="veteran">Veteran</option>
                 <option value="disabled">Disabled / mobility need</option>
                 <option value="elder">Elder (75+)</option>
+                <option value="hardship">Hardship (can't pay right now)</option>
+                <option value="medical">Medical appointment</option>
+                <option value="work">Work / job interview</option>
               </Select>
+              <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
+                Pick the main reason. Add details in notes (e.g. dialysis, VA
+                clinic, first day on the job).
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>

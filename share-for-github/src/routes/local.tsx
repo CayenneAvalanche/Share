@@ -3,13 +3,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bell, MapPinned } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { AddressField } from "@/components/share/address-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import {
   DRIVERS,
-  LOCAL_SPOTS,
   PREF_LABELS,
   estimateLocalFares,
   type DriverPreference,
@@ -22,6 +22,7 @@ import {
 } from "@/lib/share/server-fns";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { SHARE_BUILD } from "@/lib/share/contact";
 
 export const Route = createFileRoute("/local")({
   component: LocalRidePage,
@@ -35,8 +36,8 @@ function LocalRidePage() {
   const { driverActive, latestDriver } = useMyAppStatus();
   const user = useCurrentUser();
 
-  const [pickup, setPickup] = useState<string>(LOCAL_SPOTS[0]);
-  const [dropoff, setDropoff] = useState<string>(LOCAL_SPOTS[1]);
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
   const [when, setWhen] = useState("ASAP");
   const [seats, setSeats] = useState(1);
   const [notes, setNotes] = useState("");
@@ -63,19 +64,29 @@ function LocalRidePage() {
   }, []);
 
   const fares = useMemo(
-    () => estimateLocalFares(pickup, dropoff),
+    () => estimateLocalFares(pickup || "a", dropoff || "b"),
     [pickup, dropoff],
   );
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (pickup === dropoff) {
-      toast.error("Pick two different places");
+    const pu = pickup.trim();
+    const doff = dropoff.trim();
+    if (pu.length < 5) {
+      toast.error("Enter a full pickup address (street + city)");
+      return;
+    }
+    if (doff.length < 5) {
+      toast.error("Enter a full drop-off address (street + city)");
+      return;
+    }
+    if (pu.toLowerCase() === doff.toLowerCase()) {
+      toast.error("Pickup and drop-off need to be different places");
       return;
     }
     const ride = requestLocalRide({
-      pickup,
-      dropoff,
+      pickup: pu,
+      dropoff: doff,
       when,
       seats,
       notes: notes.trim(),
@@ -179,7 +190,7 @@ function LocalRidePage() {
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button onClick={() => setDoneId(null)}>Request another</Button>
             <Button variant="outline" asChild>
-              <a href="/profile">Your profile</a>
+              <Link to="/profile">Your profile</Link>
             </Button>
           </div>
         </div>
@@ -199,7 +210,7 @@ function LocalRidePage() {
       title="Local ride"
       subtitle="Compare Share · Uber · Lyft"
       solidHeader
-      backTo="/app"
+      backTo="/rides"
     >
       <Card className="mt-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -236,34 +247,26 @@ function LocalRidePage() {
               <MapPinned className="size-4 text-[var(--color-primary)]" />
               Where to?
             </div>
-            <div>
-              <Label htmlFor="pickup">Pickup</Label>
-              <Select
-                id="pickup"
-                value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-              >
-                {LOCAL_SPOTS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="dropoff">Drop-off</Label>
-              <Select
-                id="dropoff"
-                value={dropoff}
-                onChange={(e) => setDropoff(e.target.value)}
-              >
-                {LOCAL_SPOTS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <p className="text-xs text-[var(--color-fg-muted)]">
+              Type a full street address — suggestions appear as you type
+              (Lafayette area).
+            </p>
+            <AddressField
+              id="local-pickup"
+              label="Pickup address"
+              required
+              value={pickup}
+              onChange={setPickup}
+              placeholder="Start typing street or place…"
+            />
+            <AddressField
+              id="local-dropoff"
+              label="Drop-off address"
+              required
+              value={dropoff}
+              onChange={setDropoff}
+              placeholder="Where are you going?"
+            />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="when">When</Label>
@@ -271,6 +274,7 @@ function LocalRidePage() {
                   id="when"
                   value={when}
                   onChange={(e) => setWhen(e.target.value)}
+                  placeholder="ASAP"
                 />
               </div>
               <div>
@@ -323,7 +327,7 @@ function LocalRidePage() {
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Luggage, grocery bags, gate code…"
+                placeholder="Apt #, gate code, bags, bus stop nearby…"
               />
             </div>
           </CardContent>
@@ -351,6 +355,9 @@ function LocalRidePage() {
             </div>
           </CardContent>
         </Card>
+        <p className="text-center text-[10px] text-[var(--color-fg-subtle)]">
+          Fare estimates are rough guides · {SHARE_BUILD}
+        </p>
 
         <Button type="submit" size="xl" className="w-full">
           Request local ride

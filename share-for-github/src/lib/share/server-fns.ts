@@ -921,6 +921,16 @@ export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/** Founder: permanently remove a volunteer request from the database. */
+export const founderDeleteVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string; id: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    await sql`delete from share_volunteer_rides where id = ${data.id}`;
+    return { ok: true as const };
+  });
+
 export const escalateVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {

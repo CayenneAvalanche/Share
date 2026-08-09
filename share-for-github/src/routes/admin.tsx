@@ -27,10 +27,19 @@ import {
   deleteDriverAppFn,
   deleteRiderAppFn,
   listOnlineDriversFn,
+  listVolunteerRidesFn,
+  claimVolunteerRideFn,
+  cancelVolunteerRideFn,
+  escalateVolunteerRideFn,
+  founderDeleteVolunteerRideFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import { SHARE_BUILD } from "@/lib/share/contact";
-import type { DriverApplication, RiderApplication } from "@/lib/share/data";
+import type {
+  DriverApplication,
+  RiderApplication,
+  VolunteerRide,
+} from "@/lib/share/data";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -42,6 +51,7 @@ type Tab =
   | "deliveries"
   | "local"
   | "volunteer"
+  | "trips"
   | "waitlist"
   | "accounts";
 
@@ -70,12 +80,28 @@ function AdminPage() {
   const driverApps = cloudDrivers ?? localDriverApps;
   const riderApps = cloudRiders ?? localRiderApps;
   const waitlistEmails = cloudWaitlist ?? localWaitlist;
-  const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const localVolunteerRides = useShareStore((s) => s.volunteerRides);
+  const [cloudVolunteers, setCloudVolunteers] = useState<
+    VolunteerRide[] | null
+  >(null);
+  const volunteerRides = useMemo(() => {
+    if (!cloudVolunteers) return localVolunteerRides;
+    const byId = new Map<string, VolunteerRide>();
+    for (const r of localVolunteerRides) byId.set(r.id, r);
+    for (const r of cloudVolunteers) byId.set(r.id, r); // cloud wins
+    return Array.from(byId.values()).sort((a, b) =>
+      (b.createdAt || "").localeCompare(a.createdAt || ""),
+    );
+  }, [cloudVolunteers, localVolunteerRides]);
+  const trips = useShareStore((s) => s.trips);
+  const rideRequests = useShareStore((s) => s.rideRequests);
+  const deleteTrip = useShareStore((s) => s.deleteTrip);
   const claimVolunteer = useShareStore((s) => s.claimVolunteer);
   const forceEscalateVolunteer = useShareStore((s) => s.forceEscalateVolunteer);
   const processVolunteerEscalations = useShareStore(
     (s) => s.processVolunteerEscalations,
   );
+  const cancelVolunteerRide = useShareStore((s) => s.cancelVolunteerRide);
   const advanceDelivery = useShareStore((s) => s.advanceDelivery);
   const setDriverAppStatus = useShareStore((s) => s.setDriverAppStatus);
   const removeDriverApp = useShareStore((s) => s.removeDriverApp);
@@ -135,6 +161,15 @@ function AdminPage() {
       setCloudDrivers(res.drivers);
       setCloudRiders(res.riders);
       setCloudWaitlist(res.waitlistEmails);
+      let volCount = 0;
+      try {
+        const vols = await listVolunteerRidesFn();
+        setCloudVolunteers(vols.rides);
+        useShareStore.setState({ volunteerRides: vols.rides });
+        volCount = vols.rides.length;
+      } catch {
+        /* older deploys */
+      }
       try {
         const acc = await listAuthUsersFn({ data: { pin: p } });
         setAuthUsers(acc.users);
@@ -142,7 +177,7 @@ function AdminPage() {
         /* older deploys */
       }
       toast.message(
-        `Cloud · ${res.drivers.length} drivers · ${res.riders.length} riders`,
+        `Cloud · ${res.drivers.length} drivers · ${res.riders.length} riders · ${volCount} volunteer`,
       );
     } catch (e) {
       setDbOk("DB offline / local only");
@@ -233,9 +268,10 @@ function AdminPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "drivers", label: "Drivers" },
     { id: "riders", label: "Riders" },
+    { id: "volunteer", label: "Volunteer" },
+    { id: "trips", label: "Trips" },
     { id: "deliveries", label: "Deliveries" },
     { id: "local", label: "Local" },
-    { id: "volunteer", label: "Volunteer" },
     { id: "waitlist", label: "Waitlist" },
     { id: "accounts", label: "Accounts" },
   ];
@@ -715,51 +751,293 @@ function AdminPage() {
 
       {tab === "volunteer" && (
         <section className="mt-3 space-y-3 pb-8">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              const n = processVolunteerEscalations();
-              toast.message(
-                n ? `${n} escalated to paid` : "None ready to escalate",
-              );
-            }}
-          >
-            Process escalations
-          </Button>
-          {volunteerRides.map((r) => (
-            <Card key={r.id}>
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between">
-                  <p className="font-semibold">
-                    {r.pickup} → {r.dropoff}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void refreshCloud(pin)}
+            >
+              Refresh cloud list
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                const n = processVolunteerEscalations();
+                toast.message(
+                  n ? `${n} escalated to paid` : "None ready to escalate",
+                );
+              }}
+            >
+              Process escalations
+            </Button>
+          </div>
+          {volunteerRides.length === 0 && (
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              No volunteer requests yet. New requests from the app show here
+              after Refresh.
+            </p>
+          )}
+          {volunteerRides.map((r) => {
+            const open =
+              r.status === "seeking_volunteer" ||
+              r.status === "escalated_paid";
+            return (
+              <Card key={r.id}>
+                <CardContent className="space-y-2 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">
+                        {r.pickup} → {r.dropoff}
+                      </p>
+                      <p className="text-sm text-[var(--color-fg-muted)]">
+                        {(VOLUNTEER_LABELS as Record<string, string>)[
+                          r.category
+                        ] ?? r.category}{" "}
+                        · {r.fullName || r.requesterName} · {r.phone}
+                      </p>
+                    </div>
+                    <Badge>{r.status.replace(/_/g, " ")}</Badge>
+                  </div>
+                  <p className="text-xs text-[var(--color-fg-subtle)]">
+                    When: {r.when}
+                    {r.notes ? ` · Notes: ${r.notes}` : ""}
+                    {r.matchedDriverName
+                      ? ` · Matched: ${r.matchedDriverName}`
+                      : ""}
                   </p>
-                  <Badge>{r.status}</Badge>
-                </div>
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  {VOLUNTEER_LABELS[r.category]} · {r.requesterName}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      claimVolunteer(r.id, "Founder match");
-                      toast.success("Matched");
-                    }}
-                  >
-                    Claim free
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => forceEscalateVolunteer(r.id)}
-                  >
-                    Force paid
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="text-[10px] text-[var(--color-fg-subtle)]">
+                    ID {r.id} · created {r.createdAt?.slice(0, 16) || "—"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {open && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            claimVolunteer(r.id, "Founder match");
+                            void claimVolunteerRideFn({
+                              data: { id: r.id, driverName: "Founder match" },
+                            }).catch(() => {});
+                            toast.success("Matched");
+                            void refreshCloud(pin);
+                          }}
+                        >
+                          Claim free
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            forceEscalateVolunteer(r.id);
+                            void escalateVolunteerRideFn({
+                              data: { id: r.id },
+                            }).catch(() => {});
+                            toast.message("Escalated to paid");
+                            void refreshCloud(pin);
+                          }}
+                        >
+                          Force paid
+                        </Button>
+                        <Button size="sm" variant="secondary" asChild>
+                          <Link to={`/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"}>
+                            Edit
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `Cancel request for ${r.fullName || r.requesterName}?`,
+                              )
+                            )
+                              return;
+                            cancelVolunteerRide(r.id);
+                            void cancelVolunteerRideFn({
+                              data: { id: r.id },
+                            })
+                              .then(() => {
+                                toast.success("Cancelled");
+                                void refreshCloud(pin);
+                              })
+                              .catch(() =>
+                                toast.error("Cloud cancel failed — try Delete"),
+                              );
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-[#b42318]/40 text-[#b42318]"
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `Permanently delete volunteer request ${r.id}? This cannot be undone.`,
+                          )
+                        )
+                          return;
+                        void founderDeleteVolunteerRideFn({
+                          data: { pin, id: r.id },
+                        })
+                          .then(() => {
+                            cancelVolunteerRide(r.id);
+                            setCloudVolunteers((prev) =>
+                              (prev ?? []).filter((x) => x.id !== r.id),
+                            );
+                            useShareStore.setState((s) => ({
+                              volunteerRides: s.volunteerRides.filter(
+                                (x) => x.id !== r.id,
+                              ),
+                            }));
+                            toast.success("Deleted");
+                          })
+                          .catch((e) =>
+                            toast.error(
+                              e instanceof Error
+                                ? e.message
+                                : "Delete failed",
+                            ),
+                          );
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </section>
+      )}
+
+      {tab === "trips" && (
+        <section className="mt-3 space-y-4 pb-8">
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">Trip posts</h3>
+            <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
+              Corridor / posted trips on this device (and demo seeds). Delete
+              removes them from the live list on this phone.
+            </p>
+            {trips.length === 0 && (
+              <p className="text-sm text-[var(--color-fg-muted)]">
+                No trip posts.
+              </p>
+            )}
+            <div className="space-y-3">
+              {trips.map((t) => (
+                <Card key={t.id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">
+                          {t.fromShort || t.from} → {t.toShort || t.to}
+                        </p>
+                        <p className="text-sm text-[var(--color-fg-muted)]">
+                          {t.departAt?.slice(0, 16) || "—"} ·{" "}
+                          {t.seatsAvailable}/{t.seatsTotal} seats · $
+                          {t.pricePerSeat}/seat
+                        </p>
+                        <p className="text-xs text-[var(--color-fg-subtle)]">
+                          {t.postedByName || t.driverId}
+                          {t.postedByEmail ? ` · ${t.postedByEmail}` : ""} ·{" "}
+                          {t.id}
+                        </p>
+                      </div>
+                      <Badge variant="outline">{t.type}</Badge>
+                    </div>
+                    {t.notes && (
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        {t.notes}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link to="/rides/$id" params={{ id: t.id }}>
+                          View
+                        </Link>
+                      </Button>
+                      {t.id.startsWith("user_") && (
+                        <Button size="sm" variant="secondary" asChild>
+                          <Link to="/rides/$id" params={{ id: t.id }}>
+                            Edit on trip page
+                          </Link>
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Delete trip ${t.fromShort || t.from} → ${t.toShort || t.to}?`,
+                            )
+                          )
+                            return;
+                          if (deleteTrip(t.id)) toast.success("Trip deleted");
+                          else toast.error("Could not delete");
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">Ride requests</h3>
+            <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
+              Corridor / “I need a ride” requests on this device.
+            </p>
+            {rideRequests.length === 0 && (
+              <p className="text-sm text-[var(--color-fg-muted)]">
+                No ride requests.
+              </p>
+            )}
+            <div className="space-y-3">
+              {rideRequests.map((r) => (
+                <Card key={r.id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex justify-between gap-2">
+                      <p className="font-semibold">
+                        {r.from} → {r.to}
+                      </p>
+                      <Badge>{r.status}</Badge>
+                    </div>
+                    <p className="text-sm text-[var(--color-fg-muted)]">
+                      {r.requesterName} · need by{" "}
+                      {r.neededBy?.slice(0, 10) || "flexible"} · {r.seats} seat
+                      {r.seats === 1 ? "" : "s"}
+                    </p>
+                    {r.notes && (
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        {r.notes}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link
+                          to="/rides/requests/$id"
+                          params={{ id: r.id }}
+                        >
+                          View
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </section>
       )}
 

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Mail,
   CheckCircle2,
   Calendar,
   XCircle,
   Shield,
+  MessageCircle,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -56,9 +58,12 @@ type Tab =
   | "accounts";
 
 function AdminPage() {
+  const navigate = useNavigate();
+  const startThread = useShareStore((s) => s.startThread);
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [tab, setTab] = useState<Tab>("drivers");
+  const [showDeclinedRiders, setShowDeclinedRiders] = useState(false);
   const [cloudDrivers, setCloudDrivers] = useState<DriverApplication[] | null>(null);
   const [cloudRiders, setCloudRiders] = useState<RiderApplication[] | null>(null);
   const [cloudWaitlist, setCloudWaitlist] = useState<string[] | null>(null);
@@ -521,122 +526,310 @@ function AdminPage() {
 
       {tab === "riders" && (
         <section className="mt-3 space-y-3 pb-8">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-[var(--color-fg-muted)]">
+              Tap a selfie to enlarge. Decline = retake photo (they can reapply).
+              Approve → Active for rides. Message opens in-app chat on{" "}
+              <strong>your</strong> phone.
+            </p>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={showDeclinedRiders}
+                onChange={(e) => setShowDeclinedRiders(e.target.checked)}
+              />
+              Show declined
+            </label>
+          </div>
           {riderApps.length === 0 && (
             <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
               No rider applications.
             </p>
           )}
-          {riderApps.map((a) => (
-            <Card key={a.id}>
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {a.selfie ? (
-                      <img
-                        src={a.selfie}
-                        alt=""
-                        className="size-12 shrink-0 rounded-full object-cover"
-                      />
-                    ) : null}
-                    <p className="font-semibold">{a.fullName}</p>
+          {riderApps
+            .filter((a) => showDeclinedRiders || a.status !== "declined")
+            .map((a) => (
+              <Card key={a.id}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {a.selfie ? (
+                        <a
+                          href={a.selfie}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0"
+                          title="Open full size"
+                        >
+                          <img
+                            src={a.selfie}
+                            alt=""
+                            className="size-16 rounded-full object-cover ring-2 ring-[var(--color-border)]"
+                          />
+                        </a>
+                      ) : (
+                        <div className="flex size-16 items-center justify-center rounded-full bg-[var(--color-bg-subtle)] text-xs text-[var(--color-fg-subtle)]">
+                          No photo
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-semibold">{a.fullName}</p>
+                        <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                          {a.email}
+                        </p>
+                        <p className="text-sm text-[var(--color-fg-muted)]">
+                          {a.phone}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={
+                        a.status === "active" || a.status === "approved"
+                          ? "success"
+                          : a.status === "declined"
+                            ? "outline"
+                            : "secondary"
+                      }
+                    >
+                      {a.status.replace(/_/g, " ")}
+                    </Badge>
                   </div>
-                  <Badge variant="outline">{a.status}</Badge>
-                </div>
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  {a.city} · {a.typicalRoutes}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setRiderAppStatus(a.id, "approved");
-                      void setRiderAppStatusFn({
-                        data: { pin, id: a.id, status: "approved" },
-                      })
-                        .then(() => refreshCloud(pin))
-                        .catch(() => {});
-                    }}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setRiderAppStatus(a.id, "declined");
-                      void setRiderAppStatusFn({
-                        data: { pin, id: a.id, status: "declined" },
-                      })
-                        .then(() => refreshCloud(pin))
-                        .catch(() => {});
-                    }}
-                  >
-                    Decline
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-[#b42318]/40 text-[#b42318]"
-                    onClick={() => {
-                      if (
-                        !confirm(
-                          `Permanently delete rider application for ${a.fullName}?`,
-                        )
-                      )
-                        return;
-                      removeRiderApp(a.id);
-                      void deleteRiderAppFn({ data: { pin, id: a.id } })
-                        .then(() => {
-                          refreshCloud(pin);
-                          toast.success("Rider application deleted");
-                        })
-                        .catch((e) =>
-                          toast.error(
-                            e instanceof Error ? e.message : "Delete failed",
-                          ),
-                        );
-                    }}
-                  >
-                    Delete
-                  </Button>
-                  {(a.status === "approved" ||
-                    a.status === "active" ||
-                    a.status === "inactive") && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant={a.status === "active" ? "default" : "outline"}
-                        onClick={() => {
-                          setRiderAppStatus(a.id, "active");
-                          void setRiderAppStatusFn({
-                            data: { pin, id: a.id, status: "active" },
-                          })
-                            .then(() => refreshCloud(pin))
-                            .catch(() => {});
-                        }}
-                      >
-                        Active
+                  <p className="text-sm text-[var(--color-fg-muted)]">
+                    {a.city} · {a.typicalRoutes}
+                  </p>
+                  {a.preferredTime && (
+                    <p className="text-xs text-[var(--color-fg-subtle)]">
+                      Preferred interview: {a.preferredTime} ·{" "}
+                      {a.interviewMode}
+                    </p>
+                  )}
+                  {a.notes && (
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      Notes: {a.notes}
+                    </p>
+                  )}
+                  {a.adminNote && (
+                    <p className="text-xs font-medium text-[#b42318]">
+                      Founder note: {a.adminNote}
+                    </p>
+                  )}
+                  {a.interviewAt && (
+                    <p className="text-xs text-[var(--color-primary)]">
+                      Interview: {formatRequestedAt(a.interviewAt)}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-[var(--color-fg-subtle)]">
+                    Applied {formatRequestedAt(a.createdAt)} · ID {a.id}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {a.phone && (
+                      <Button size="sm" variant="secondary" asChild>
+                        <a
+                          href={`tel:+1${a.phone.replace(/\D/g, "").slice(-10)}`}
+                        >
+                          <Phone className="size-3.5" />
+                          Call
+                        </a>
                       </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        const tid = startThread({
+                          subject: `Rider · ${a.fullName}`,
+                          withName: a.fullName,
+                          relatedType: "support",
+                          relatedId: a.id,
+                          firstMessage: `Hi ${a.fullName.split(" ")[0] || "there"} — this is Travis with Share. I have your rider application. Let's set a quick chat / interview.`,
+                        });
+                        toast.success("Chat opened — Messages tab");
+                        navigate({
+                          to: "/messages/$id",
+                          params: { id: tid },
+                        });
+                      }}
+                    >
+                      <MessageCircle className="size-3.5" />
+                      Message
+                    </Button>
+                    {(a.status === "pending_interview" ||
+                      a.status === "scheduled" ||
+                      a.status === "declined") && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const interviewAt = new Date(
+                              Date.now() + 86400000,
+                            ).toISOString();
+                            setRiderAppStatus(a.id, "scheduled", {
+                              interviewAt,
+                              adminNote: "Interview scheduled by founder",
+                            });
+                            void setRiderAppStatusFn({
+                              data: {
+                                pin,
+                                id: a.id,
+                                status: "scheduled",
+                                interviewAt,
+                                adminNote: "Interview scheduled by founder",
+                              },
+                            })
+                              .then(() => refreshCloud(pin))
+                              .catch(() => {});
+                            toast.success(
+                              "Interview marked scheduled — call or message her to confirm time",
+                            );
+                          }}
+                        >
+                          <Calendar className="size-3.5" />
+                          Schedule interview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setRiderAppStatus(a.id, "active");
+                            void setRiderAppStatusFn({
+                              data: { pin, id: a.id, status: "active" },
+                            })
+                              .then(() => refreshCloud(pin))
+                              .catch(() => {});
+                            toast.success("Rider approved & ACTIVE");
+                          }}
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          Approve & Active
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const note =
+                              "Selfie unclear — please reapply with a clear face photo (not wall/background only).";
+                            setRiderAppStatus(a.id, "declined", {
+                              adminNote: note,
+                            });
+                            void setRiderAppStatusFn({
+                              data: {
+                                pin,
+                                id: a.id,
+                                status: "declined",
+                                adminNote: note,
+                              },
+                            })
+                              .then(() => refreshCloud(pin))
+                              .catch(() => {});
+                            toast.message(
+                              "Declined — she can reapply with a new selfie",
+                            );
+                          }}
+                        >
+                          Decline photo (retake)
+                        </Button>
+                      </>
+                    )}
+                    {(a.status === "approved" ||
+                      a.status === "active" ||
+                      a.status === "inactive") && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant={
+                            a.status === "active" ? "default" : "outline"
+                          }
+                          onClick={() => {
+                            setRiderAppStatus(a.id, "active");
+                            void setRiderAppStatusFn({
+                              data: { pin, id: a.id, status: "active" },
+                            })
+                              .then(() => refreshCloud(pin))
+                              .catch(() => {});
+                          }}
+                        >
+                          Active
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRiderAppStatus(a.id, "inactive");
+                            void setRiderAppStatusFn({
+                              data: { pin, id: a.id, status: "inactive" },
+                            })
+                              .then(() => refreshCloud(pin))
+                              .catch(() => {});
+                          }}
+                        >
+                          Not active
+                        </Button>
+                      </>
+                    )}
+                    {a.status === "declined" && (
                       <Button
                         size="sm"
                         variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
                         onClick={() => {
-                          setRiderAppStatus(a.id, "inactive");
-                          void setRiderAppStatusFn({
-                            data: { pin, id: a.id, status: "inactive" },
-                          })
-                            .then(() => refreshCloud(pin))
-                            .catch(() => {});
+                          if (
+                            !confirm(
+                              `Delete old declined app for ${a.fullName}?`,
+                            )
+                          )
+                            return;
+                          removeRiderApp(a.id);
+                          void deleteRiderAppFn({ data: { pin, id: a.id } })
+                            .then(() => {
+                              refreshCloud(pin);
+                              toast.success("Removed declined app");
+                            })
+                            .catch((e) =>
+                              toast.error(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Delete failed",
+                              ),
+                            );
                         }}
                       >
-                        Not active
+                        Delete old
                       </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    )}
+                    {a.status !== "declined" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Permanently delete rider application for ${a.fullName}?`,
+                            )
+                          )
+                            return;
+                          removeRiderApp(a.id);
+                          void deleteRiderAppFn({ data: { pin, id: a.id } })
+                            .then(() => {
+                              refreshCloud(pin);
+                              toast.success("Rider application deleted");
+                            })
+                            .catch((e) =>
+                              toast.error(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Delete failed",
+                              ),
+                            );
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
         </section>
       )}
 

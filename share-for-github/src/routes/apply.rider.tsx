@@ -115,6 +115,11 @@ function RiderApplyPage() {
             {latestRider?.fullName ? ` · ${latestRider.fullName}` : ""}.
             You don't need to apply again.
           </p>
+          {latestRider?.adminNote && (
+            <p className="mt-2 max-w-sm text-sm text-[var(--color-fg-muted)]">
+              Note from Share: {latestRider.adminNote}
+            </p>
+          )}
           <div className="mt-6 flex w-full flex-col gap-2">
             <Button asChild>
               <a href="/profile">Back to You</a>
@@ -128,6 +133,21 @@ function RiderApplyPage() {
     );
   }
 
+  // Declined (e.g. bad selfie) — can reapply; show clear reason above the form
+  const retakeBanner =
+    riderStatus === "declined" && latestRider ? (
+      <Card className="border-[#b42318]/30 bg-[#b42318]/5">
+        <CardContent className="space-y-2 p-4 text-sm">
+          <p className="font-semibold text-[var(--color-fg)]">
+            We need a clearer selfie — apply again below
+          </p>
+          <p className="text-[var(--color-fg-muted)]">
+            {latestRider.adminNote ||
+              "Your last photo couldn’t be verified (e.g. wall or no face). Use a recent face photo — good light, face centered."}
+          </p>
+        </CardContent>
+      </Card>
+    ) : null;
 
   return (
     <AppShell
@@ -137,6 +157,7 @@ function RiderApplyPage() {
       solidHeader
     >
       <form onSubmit={onSubmit} className="space-y-4 py-3 pb-10">
+        {retakeBanner}
         <Card>
           <CardContent className="space-y-4 p-5">
             <PhotoField

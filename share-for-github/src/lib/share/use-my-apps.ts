@@ -107,8 +107,14 @@ export function useMyAppStatus() {
     ? riderApps.filter((a) => a.email?.toLowerCase() === email)
     : riderApps;
 
-  const latestDriver = myDrivers[0] ?? (email ? undefined : driverApps[0]);
-  const latestRider = myRiders[0] ?? (email ? undefined : riderApps[0]);
+  const latestDriver =
+    myDrivers.find((a) => a.status !== "declined") ??
+    myDrivers[0] ??
+    (email ? undefined : driverApps[0]);
+  const latestRider =
+    myRiders.find((a) => a.status !== "declined") ??
+    myRiders[0] ??
+    (email ? undefined : riderApps[0]);
 
   const driverStatus: ApplicationStatus | null =
     latestDriver?.status ?? (isDriverApproved ? "active" : null);

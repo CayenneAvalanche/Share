@@ -925,8 +925,10 @@ function AdminPage() {
                   {r.pickup} → {r.dropoff}
                 </p>
                 <p className="text-sm text-[var(--color-fg-muted)]">
-                  {formatCurrency(r.sharePrice)} Share · Uber ~
-                  {formatCurrency(r.uberEstimate)}
+                  {r.sharePrice === 0
+                    ? "FREE Share"
+                    : `${formatCurrency(r.sharePrice)} Share`}{" "}
+                  · Uber ~{formatCurrency(r.uberEstimate)}
                 </p>
                 <Button
                   size="sm"

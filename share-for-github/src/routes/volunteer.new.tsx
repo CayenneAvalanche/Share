@@ -176,7 +176,7 @@ function NewVolunteerPage() {
     cancelVolunteerRide(editId);
     try {
       await cancelVolunteerRideFn({ data: { id: editId } });
-      toast.success("Request cancelled");
+      toast.success("Request cancelled — kept in history");
     } catch {
       toast.message("Cancelled on this phone");
     }

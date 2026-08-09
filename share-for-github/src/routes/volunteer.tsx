@@ -58,15 +58,22 @@ function VolunteerPage() {
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const riderName = useShareStore((s) => s.riderName);
   const user = useCurrentUser();
+  const signedIn = !!user?.primaryEmail;
   const [cloudRides, setCloudRides] = useState<VolunteerRide[]>([]);
-  const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "offline">(
-    "loading",
-  );
+  const [cloudStatus, setCloudStatus] = useState<
+    "loading" | "ok" | "offline" | "signed_out"
+  >("loading");
   const [, tick] = useState(0);
   const demo = isDemoMode();
-  const canSeeOpenBoard = demo || isDriverApproved;
+  // Open board only for signed-in approved drivers (demo always open)
+  const canSeeOpenBoard = demo || (signedIn && isDriverApproved);
 
   function refreshCloud() {
+    if (!demo && !signedIn) {
+      setCloudRides([]);
+      setCloudStatus("signed_out");
+      return;
+    }
     listVolunteerRidesFn()
       .then((data) => {
         setCloudRides(data.rides);
@@ -79,7 +86,7 @@ function VolunteerPage() {
     refreshCloud();
     const id = setInterval(refreshCloud, 20_000);
     return () => clearInterval(id);
-  }, []);
+  }, [signedIn, demo]);
 
   useEffect(() => {
     const n = processVolunteerEscalations();
@@ -97,31 +104,42 @@ function VolunteerPage() {
   }, [processVolunteerEscalations]);
 
   const volunteerRides = useMemo(() => {
+    // Signed out: never merge cloud board (privacy for real requests)
+    if (!demo && !signedIn) {
+      return [...localRides].sort(
+        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+      );
+    }
     const byId = new Map<string, VolunteerRide>();
     for (const r of cloudRides) byId.set(r.id, r);
     for (const r of localRides) byId.set(r.id, r);
     return Array.from(byId.values()).sort(
       (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
     );
-  }, [cloudRides, localRides]);
+  }, [cloudRides, localRides, signedIn, demo]);
 
   // Riders only see their own local requests (not the full open board)
   const myLocal = localRides;
   const myOpen = myLocal.filter(
     (r) =>
       r.status === "seeking_volunteer" || r.status === "escalated_paid",
-  ).filter((r) => r.status !== "cancelled");
+  );
   const myMatched = myLocal.filter(
     (r) => r.status === "matched" || r.status === "completed",
   );
+  const myCancelled = myLocal.filter((r) => r.status === "cancelled");
 
-  const open = volunteerRides.filter(
-    (r) =>
-      r.status === "seeking_volunteer" || r.status === "escalated_paid",
-  );
-  const rest = volunteerRides.filter(
-    (r) => r.status === "matched" || r.status === "completed",
-  );
+  const open = canSeeOpenBoard
+    ? volunteerRides.filter(
+        (r) =>
+          r.status === "seeking_volunteer" || r.status === "escalated_paid",
+      )
+    : [];
+  const rest = canSeeOpenBoard
+    ? volunteerRides.filter(
+        (r) => r.status === "matched" || r.status === "completed",
+      )
+    : [];
 
   const driverLabel = user?.displayName || riderName || "Share driver";
 
@@ -181,7 +199,7 @@ function VolunteerPage() {
               Request sent — no account needed yet
             </p>
             <p className="text-[var(--color-fg-muted)]">
-              Drivers who are approved can see open requests. When someone
+              Signed-in approved drivers can see open requests. When someone
               accepts your ride, create an account and add a selfie so they can
               recognize you at pickup.
             </p>
@@ -197,7 +215,7 @@ function VolunteerPage() {
       </p>
 
       {/* Your requests — edit allowed until a driver accepts */}
-      {(myOpen.length > 0 || myMatched.length > 0) && (
+      {(myOpen.length > 0 || myMatched.length > 0 || myCancelled.length > 0) && (
         <section className="mt-6">
           <h2 className="font-display text-lg font-semibold">Your requests</h2>
           <div className="mt-3 flex flex-col gap-3">
@@ -212,6 +230,18 @@ function VolunteerPage() {
               />
             ))}
           </div>
+          {myCancelled.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-[var(--color-fg-muted)]">
+                Cancelled (kept for your records)
+              </h3>
+              <div className="mt-2 flex flex-col gap-2">
+                {myCancelled.map((r) => (
+                  <VolunteerCard key={r.id} ride={r} />
+                ))}
+              </div>
+            </div>
+          )}
           {myMatched.some((r) => r.status === "matched") && (
             <Card className="mt-3 border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
               <CardContent className="space-y-2 p-4 text-sm">
@@ -234,15 +264,33 @@ function VolunteerPage() {
         </section>
       )}
 
-      {!canSeeOpenBoard && (
+      {!signedIn && !demo && (
+        <Card className="mt-6 border-[var(--color-border)]">
+          <CardContent className="space-y-3 p-4 text-sm text-[var(--color-fg-muted)]">
+            <p className="font-semibold text-[var(--color-fg)]">
+              Sign in to see the ride board
+            </p>
+            <p>
+              Open requests are private. Sign in as an approved driver to view
+              and claim rides. Anyone can still request a ride above without an
+              account.
+            </p>
+            <Button size="sm" asChild>
+              <Link to="/login">Sign in</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {signedIn && !canSeeOpenBoard && !demo && (
         <Card className="mt-6 border-[var(--color-border)]">
           <CardContent className="space-y-3 p-4 text-sm text-[var(--color-fg-muted)]">
             <p className="font-semibold text-[var(--color-fg)]">
               Open requests are for approved drivers
             </p>
             <p>
-              Riders request a ride above. Only active drivers see the board and
-              can claim rides.
+              You're signed in. Apply as a driver and get approved to see
+              the board and claim rides.
             </p>
             <Button size="sm" variant="secondary" asChild>
               <Link to="/apply/driver">Apply as driver</Link>

@@ -778,141 +778,216 @@ function AdminPage() {
               after Refresh.
             </p>
           )}
-          {volunteerRides.map((r) => {
-            const open =
-              r.status === "seeking_volunteer" ||
-              r.status === "escalated_paid";
-            return (
-              <Card key={r.id}>
-                <CardContent className="space-y-2 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">
-                        {r.pickup} → {r.dropoff}
-                      </p>
-                      <p className="text-sm text-[var(--color-fg-muted)]">
-                        {(VOLUNTEER_LABELS as Record<string, string>)[
-                          r.category
-                        ] ?? r.category}{" "}
-                        · {r.fullName || r.requesterName} · {r.phone}
-                      </p>
-                    </div>
-                    <Badge>{r.status.replace(/_/g, " ")}</Badge>
-                  </div>
-                  <p className="text-xs text-[var(--color-fg-subtle)]">
-                    When: {r.when}
-                    {r.notes ? ` · Notes: ${r.notes}` : ""}
-                    {r.matchedDriverName
-                      ? ` · Matched: ${r.matchedDriverName}`
-                      : ""}
-                  </p>
-                  <p className="text-[10px] text-[var(--color-fg-subtle)]">
-                    ID {r.id} · created {r.createdAt?.slice(0, 16) || "—"}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {open && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            claimVolunteer(r.id, "Founder match");
-                            void claimVolunteerRideFn({
-                              data: { id: r.id, driverName: "Founder match" },
-                            }).catch(() => {});
-                            toast.success("Matched");
-                            void refreshCloud(pin);
-                          }}
-                        >
-                          Claim free
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            forceEscalateVolunteer(r.id);
-                            void escalateVolunteerRideFn({
-                              data: { id: r.id },
-                            }).catch(() => {});
-                            toast.message("Escalated to paid");
-                            void refreshCloud(pin);
-                          }}
-                        >
-                          Force paid
-                        </Button>
-                        <Button size="sm" variant="secondary" asChild>
-                          <Link to={`/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"}>
-                            Edit
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            if (
-                              !confirm(
-                                `Cancel request for ${r.fullName || r.requesterName}?`,
-                              )
-                            )
-                              return;
-                            cancelVolunteerRide(r.id);
-                            void cancelVolunteerRideFn({
-                              data: { id: r.id },
-                            })
-                              .then(() => {
-                                toast.success("Cancelled");
-                                void refreshCloud(pin);
-                              })
-                              .catch(() =>
-                                toast.error("Cloud cancel failed — try Delete"),
-                              );
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-[#b42318]/40 text-[#b42318]"
-                      onClick={() => {
-                        if (
-                          !confirm(
-                            `Permanently delete volunteer request ${r.id}? This cannot be undone.`,
-                          )
-                        )
-                          return;
-                        void founderDeleteVolunteerRideFn({
-                          data: { pin, id: r.id },
-                        })
-                          .then(() => {
-                            cancelVolunteerRide(r.id);
-                            setCloudVolunteers((prev) =>
-                              (prev ?? []).filter((x) => x.id !== r.id),
-                            );
-                            useShareStore.setState((s) => ({
-                              volunteerRides: s.volunteerRides.filter(
-                                (x) => x.id !== r.id,
-                              ),
-                            }));
-                            toast.success("Deleted");
-                          })
-                          .catch((e) =>
-                            toast.error(
-                              e instanceof Error
-                                ? e.message
-                                : "Delete failed",
-                            ),
-                          );
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+          {(() => {
+            const openRides = volunteerRides.filter(
+              (r) =>
+                r.status === "seeking_volunteer" ||
+                r.status === "escalated_paid",
             );
-          })}
+            const historyRides = volunteerRides.filter(
+              (r) =>
+                r.status === "cancelled" ||
+                r.status === "matched" ||
+                r.status === "completed",
+            );
+            const renderRide = (r: VolunteerRide) => {
+              const open =
+                r.status === "seeking_volunteer" ||
+                r.status === "escalated_paid";
+              return (
+                <Card key={r.id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">
+                          {r.fullName || r.requesterName}
+                        </p>
+                        <p className="text-sm text-[var(--color-fg-muted)]">
+                          {r.pickup} → {r.dropoff}
+                        </p>
+                        <p className="text-sm text-[var(--color-fg-muted)]">
+                          {(VOLUNTEER_LABELS as Record<string, string>)[
+                            r.category
+                          ] ?? r.category}{" "}
+                          · {r.phone}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          r.status === "cancelled"
+                            ? "outline"
+                            : r.status === "matched" ||
+                                r.status === "completed"
+                              ? "success"
+                              : "default"
+                        }
+                      >
+                        {r.status.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-[var(--color-fg-subtle)]">
+                      When: {r.when}
+                      {r.notes ? ` · Notes: ${r.notes}` : ""}
+                      {r.matchedDriverName
+                        ? ` · Matched: ${r.matchedDriverName}`
+                        : ""}
+                    </p>
+                    <p className="text-[10px] text-[var(--color-fg-subtle)]">
+                      ID {r.id} · created {r.createdAt?.slice(0, 16) || "—"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {open && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              claimVolunteer(r.id, "Founder match");
+                              void claimVolunteerRideFn({
+                                data: {
+                                  id: r.id,
+                                  driverName: "Founder match",
+                                },
+                              }).catch(() => {});
+                              toast.success("Matched");
+                              void refreshCloud(pin);
+                            }}
+                          >
+                            Claim free
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              forceEscalateVolunteer(r.id);
+                              void escalateVolunteerRideFn({
+                                data: { id: r.id },
+                              }).catch(() => {});
+                              toast.message("Escalated to paid");
+                              void refreshCloud(pin);
+                            }}
+                          >
+                            Force paid
+                          </Button>
+                          <Button size="sm" variant="secondary" asChild>
+                            <Link
+                              to={
+                                `/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"
+                              }
+                            >
+                              Edit
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (
+                                !confirm(
+                                  `Cancel request for ${r.fullName || r.requesterName}? It stays in History.`,
+                                )
+                              )
+                                return;
+                              cancelVolunteerRide(r.id);
+                              void cancelVolunteerRideFn({
+                                data: { id: r.id },
+                              })
+                                .then(() => {
+                                  toast.success(
+                                    "Cancelled — saved in History below",
+                                  );
+                                  void refreshCloud(pin);
+                                })
+                                .catch(() =>
+                                  toast.error(
+                                    "Cloud cancel failed — try again",
+                                  ),
+                                );
+                            }}
+                          >
+                            Cancel (keep history)
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Permanently delete ${r.fullName || r.id}? This removes them from History too.`,
+                            )
+                          )
+                            return;
+                          void founderDeleteVolunteerRideFn({
+                            data: { pin, id: r.id },
+                          })
+                            .then(() => {
+                              cancelVolunteerRide(r.id);
+                              setCloudVolunteers((prev) =>
+                                (prev ?? []).filter((x) => x.id !== r.id),
+                              );
+                              useShareStore.setState((s) => ({
+                                volunteerRides: s.volunteerRides.filter(
+                                  (x) => x.id !== r.id,
+                                ),
+                              }));
+                              toast.success("Permanently deleted");
+                            })
+                            .catch((e) =>
+                              toast.error(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Delete failed",
+                              ),
+                            );
+                        }}
+                      >
+                        Delete forever
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            };
+            return (
+              <>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    Open ({openRides.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {openRides.length === 0 ? (
+                      <p className="text-sm text-[var(--color-fg-muted)]">
+                        No open requests.
+                      </p>
+                    ) : (
+                      openRides.map(renderRide)
+                    )}
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <h3 className="mb-1 text-sm font-semibold">
+                    History ({historyRides.length})
+                  </h3>
+                  <p className="mb-2 text-xs text-[var(--color-fg-muted)]">
+                    Cancelled, matched, and completed rides stay here for your
+                    records (Chloe and every free-ride request). Use Delete
+                    forever only if you need them gone.
+                  </p>
+                  <div className="space-y-3">
+                    {historyRides.length === 0 ? (
+                      <p className="text-sm text-[var(--color-fg-muted)]">
+                        No history yet — cancelled rides will appear here.
+                      </p>
+                    ) : (
+                      historyRides.map(renderRide)
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </section>
       )}
 

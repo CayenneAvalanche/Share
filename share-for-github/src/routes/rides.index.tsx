@@ -7,8 +7,12 @@ import { TripCard } from "@/components/share/trip-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
-import { HUB_CITIES, type Trip } from "@/lib/share/data";
+import { HUB_CITIES, VOLUNTEER_LABELS, type Trip, type VolunteerRide } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { formatRequestedAt } from "@/lib/utils";
+import { listVolunteerRidesFn } from "@/lib/share/server-fns";
+import { Badge } from "@/components/ui/badge";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/rides/")({
   component: RidesPage,
@@ -18,10 +22,43 @@ function RidesPage() {
   const trips = useShareStore((s) => s.trips);
   const postTrip = useShareStore((s) => s.postTrip);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
+  const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const localRides = useShareStore((s) => s.localRides);
   const navigate = useNavigate();
   const [from, setFrom] = useState("Any");
   const [to, setTo] = useState("Any");
   const [query, setQuery] = useState("");
+  const [cloudVol, setCloudVol] = useState<VolunteerRide[]>([]);
+
+  useEffect(() => {
+    listVolunteerRidesFn()
+      .then((res) => {
+        setCloudVol(res.rides);
+        useShareStore.setState((s) => {
+          const byId = new Map(s.volunteerRides.map((r) => [r.id, r]));
+          for (const r of res.rides) byId.set(r.id, r);
+          return { volunteerRides: Array.from(byId.values()) };
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const activeMatched = useMemo(() => {
+    const byId = new Map<string, VolunteerRide>();
+    for (const r of cloudVol) byId.set(r.id, r);
+    for (const r of volunteerRides) byId.set(r.id, r);
+    return Array.from(byId.values())
+      .filter((r) => r.status === "matched")
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  }, [cloudVol, volunteerRides]);
+
+  const activeLocal = useMemo(
+    () =>
+      localRides.filter(
+        (r) => r.status === "matched" || r.status === "broadcasting",
+      ),
+    [localRides],
+  );
 
   const filtered = useMemo(() => {
     return trips
@@ -136,7 +173,72 @@ function RidesPage() {
         </span>
       </Link>
 
-      <p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+      
+      {/* Matched / active rides — rider + driver home base */}
+      {(activeMatched.length > 0 || activeLocal.length > 0) && (
+        <section className="mt-5">
+          <h2 className="font-display text-lg font-semibold">Your rides</h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Matched trips live here — open one to call, edit, or complete. Edit
+            requires a new accept.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {activeMatched.map((r) => (
+              <Link
+                key={r.id}
+                to="/rides/matched/$id"
+                params={{ id: r.id }}
+                className="block rounded-[var(--radius-lg)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 p-4 transition-colors active:bg-[var(--color-primary)]/10"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{r.fullName}</p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                      {r.when}
+                      {r.matchedDriverName
+                        ? ` · Driver: ${r.matchedDriverName}`
+                        : ""}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-fg-subtle)]">
+                      Requested {formatRequestedAt(r.createdAt)}
+                    </p>
+                  </div>
+                  <Badge variant="success">Matched</Badge>
+                </div>
+                <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
+                  Open ride →
+                </p>
+              </Link>
+            ))}
+            {activeLocal.map((r) => (
+              <Link
+                key={r.id}
+                to="/rides/matched/$id"
+                params={{ id: r.id }}
+                className="block rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">Local · {r.requesterName}</p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                  </div>
+                  <Badge variant="outline">{r.status}</Badge>
+                </div>
+                <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
+                  Open ride →
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+<p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
         Long-distance / corridor
       </p>
 

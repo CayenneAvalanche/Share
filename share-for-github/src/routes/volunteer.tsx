@@ -4,6 +4,7 @@ import {
   Link,
   Outlet,
   useChildMatches,
+  useNavigate,
 } from "@tanstack/react-router";
 import { Phone, Timer, BadgeDollarSign } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ function VolunteerPage() {
   const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const riderName = useShareStore((s) => s.riderName);
   const user = useCurrentUser();
+  const navigate = useNavigate();
   const signedIn = !!user?.primaryEmail;
   const [cloudRides, setCloudRides] = useState<VolunteerRide[]>([]);
   const [cloudStatus, setCloudStatus] = useState<
@@ -156,12 +158,14 @@ function VolunteerPage() {
           : "You claimed this paid community ride",
         {
           description:
-            "Ask the rider to create an account + selfie so you can confirm identity at pickup.",
+            "Find it under Rides → Your rides. Call the rider to confirm pickup.",
         },
       );
       refreshCloud();
+      navigate({ to: "/rides/matched/$id", params: { id: r.id } });
     } catch {
       toast.message("Claimed on this phone — cloud sync pending");
+      navigate({ to: "/rides/matched/$id", params: { id: r.id } });
     }
   }
 

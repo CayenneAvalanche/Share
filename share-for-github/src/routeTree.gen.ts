@@ -44,6 +44,7 @@ import { Route as TrackCodeRouteImport } from './routes/track.$code'
 import { Route as VolunteerManageRouteImport } from './routes/volunteer.manage'
 import { Route as VolunteerNewRouteImport } from './routes/volunteer.new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as RidesMatchedIdRouteImport } from './routes/rides.matched.$id'
 import { Route as RidesRequestNewRouteImport } from './routes/rides.request.new'
 import { Route as RidesRequestsIdRouteImport } from './routes/rides.requests.$id'
 
@@ -222,6 +223,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RidesMatchedIdRoute = RidesMatchedIdRouteImport.update({
+  id: '/rides/matched/$id',
+  path: '/rides/matched/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesRequestNewRoute = RidesRequestNewRouteImport.update({
   id: '/rides/request/new',
   path: '/rides/request/new',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -308,6 +315,7 @@ export interface FileRoutesByTo {
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -348,6 +356,7 @@ export interface FileRoutesById {
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
 }
@@ -389,6 +398,7 @@ export interface FileRouteTypes {
     | '/volunteer/new'
     | '/rides/'
     | '/api/auth/$'
+    | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -428,6 +438,7 @@ export interface FileRouteTypes {
     | '/volunteer/new'
     | '/rides'
     | '/api/auth/$'
+    | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
   id:
@@ -467,6 +478,7 @@ export interface FileRouteTypes {
     | '/volunteer/new'
     | '/rides/'
     | '/api/auth/$'
+    | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
   fileRoutesById: FileRoutesById
@@ -497,6 +509,7 @@ export interface RootRouteChildren {
   TrackCodeRoute: typeof TrackCodeRoute
   RidesIndexRoute: typeof RidesIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  RidesMatchedIdRoute: typeof RidesMatchedIdRoute
   RidesRequestNewRoute: typeof RidesRequestNewRoute
 }
 
@@ -747,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rides/matched/$id': {
+      id: '/rides/matched/$id'
+      path: '/rides/matched/$id'
+      fullPath: '/rides/matched/$id'
+      preLoaderRoute: typeof RidesMatchedIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/request/new': {
       id: '/rides/request/new'
       path: '/rides/request/new'
@@ -878,6 +898,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrackCodeRoute: TrackCodeRoute,
   RidesIndexRoute: RidesIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  RidesMatchedIdRoute: RidesMatchedIdRoute,
   RidesRequestNewRoute: RidesRequestNewRoute,
 }
 export const routeTree = rootRouteImport

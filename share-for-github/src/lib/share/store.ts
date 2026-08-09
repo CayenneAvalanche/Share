@@ -162,6 +162,17 @@ type ShareState = {
     >,
   ) => VolunteerRide;
   claimVolunteer: (id: string, driverName: string) => void;
+  /** Rider/driver changed trip details after match — back to open board for re-accept */
+  reopenVolunteerForReaccept: (
+    id: string,
+    patch?: Partial<
+      Omit<
+        VolunteerRide,
+        "id" | "status" | "createdAt" | "matchedDriverName" | "escalatedAt"
+      >
+    >,
+  ) => void;
+  completeVolunteerRide: (id: string) => void;
   updateVolunteerRide: (
     id: string,
     patch: Partial<
@@ -903,6 +914,39 @@ export const useShareStore = create<ShareState>()(
           ),
         }));
         systemNotify(set, `Volunteer ride matched with ${driverName}`);
+      },
+
+      reopenVolunteerForReaccept: (id, patch) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) => {
+            if (r.id !== id) return r;
+            if (r.status !== "matched" && r.status !== "escalated_paid" && r.status !== "seeking_volunteer") {
+              return r;
+            }
+            return {
+              ...r,
+              ...patch,
+              status: "seeking_volunteer" as const,
+              matchedDriverName: undefined,
+              escalatedAt: undefined,
+            };
+          }),
+        }));
+        systemNotify(
+          set,
+          "Ride details changed — needs a driver to accept again",
+        );
+      },
+
+      completeVolunteerRide: (id) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id && r.status === "matched"
+              ? { ...r, status: "completed" as const }
+              : r,
+          ),
+        }));
+        systemNotify(set, "Ride marked complete");
       },
 
       updateVolunteerRide: (id, patch) => {

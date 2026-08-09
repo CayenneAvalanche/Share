@@ -4,6 +4,7 @@ import {
   Phone,
   Pencil,
   CheckCircle2,
+  Star,
   RotateCcw,
   Play,
   Square,
@@ -29,6 +30,7 @@ import {
   listVolunteerRidesFn,
   reopenVolunteerRideFn,
   completeVolunteerRideFn,
+  submitVolunteerReviewFn,
   cancelVolunteerRideFn,
   beginVolunteerTripFn,
   endVolunteerTripFn,
@@ -56,6 +58,7 @@ function MatchedRidePage() {
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const reopen = useShareStore((s) => s.reopenVolunteerForReaccept);
   const complete = useShareStore((s) => s.completeVolunteerRide);
+  const rateVolunteerRide = useShareStore((s) => s.rateVolunteerRide);
   const beginTripLocal = useShareStore((s) => s.beginVolunteerTrip);
   const endTripLocal = useShareStore((s) => s.endVolunteerTrip);
   const cancelLocal = useShareStore((s) => s.cancelVolunteerRide);
@@ -65,6 +68,9 @@ function MatchedRidePage() {
   const [cloudRide, setCloudRide] = useState<VolunteerRide | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reviewStars, setReviewStars] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
   /** idle → in_progress (timer) → ended (can mark complete) */
   const [tripPhase, setTripPhase] = useState<"idle" | "in_progress" | "ended">(
     "idle",
@@ -449,6 +455,124 @@ function MatchedRidePage() {
                   </p>
                 )}
               </div>
+            )}
+
+            {vol.status === "completed" && (
+              <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
+                <CardContent className="space-y-3 p-4">
+                  {vol.riderRating ? (
+                    <>
+                      <p className="text-sm font-semibold text-[var(--color-fg)]">
+                        Your rating for{" "}
+                        {vol.matchedDriverName || "your driver"}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={n}
+                            className={`size-6 ${
+                              n <= (vol.riderRating ?? 0)
+                                ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                : "text-[var(--color-fg-subtle)]"
+                            }`}
+                          />
+                        ))}
+                        <span className="ml-2 text-sm font-semibold">
+                          {vol.riderRating}/5
+                        </span>
+                      </div>
+                      {vol.riderReview && (
+                        <p className="text-sm text-[var(--color-fg-muted)]">
+                          “{vol.riderReview}”
+                        </p>
+                      )}
+                      {vol.ratedAt && (
+                        <p className="text-xs text-[var(--color-fg-subtle)]">
+                          Submitted {formatRequestedAt(vol.ratedAt)}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-[var(--color-fg)]">
+                        Rate your driver
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        How was your ride with{" "}
+                        <strong className="text-[var(--color-fg)]">
+                          {vol.matchedDriverName || "your driver"}
+                        </strong>
+                        ? Tap a star, optional note below.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                            onClick={() => setReviewStars(n)}
+                            className="rounded-[var(--radius-md)] p-1.5 transition-transform active:scale-95"
+                          >
+                            <Star
+                              className={`size-9 ${
+                                n <= reviewStars
+                                  ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                  : "text-[var(--color-fg-subtle)]"
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <div>
+                        <Label htmlFor="rider-review">Review (optional)</Label>
+                        <Textarea
+                          id="rider-review"
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value)}
+                          placeholder="Safe, kind, on time…"
+                          rows={3}
+                        />
+                      </div>
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        disabled={reviewBusy}
+                        onClick={() => {
+                          void (async () => {
+                            setReviewBusy(true);
+                            rateVolunteerRide(
+                              vol.id,
+                              reviewStars,
+                              reviewText.trim(),
+                            );
+                            try {
+                              await submitVolunteerReviewFn({
+                                data: {
+                                  id: vol.id,
+                                  rating: reviewStars,
+                                  review: reviewText.trim() || undefined,
+                                  reviewerName: vol.fullName,
+                                },
+                              });
+                              toast.success("Thanks — review saved");
+                            } catch {
+                              toast.message(
+                                "Saved on this phone — cloud sync pending",
+                              );
+                            } finally {
+                              setReviewBusy(false);
+                            }
+                          })();
+                        }}
+                      >
+                        {reviewBusy
+                          ? "Sending…"
+                          : `Submit ${reviewStars}-star review`}
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {!editing ? (

@@ -192,6 +192,11 @@ type ShareState = {
     id: string,
     as?: "matched" | "seeking_volunteer",
   ) => void;
+  rateVolunteerRide: (
+    id: string,
+    rating: number,
+    review?: string,
+  ) => void;
   processVolunteerEscalations: () => number;
   forceEscalateVolunteer: (id: string) => void;
   joinWaitlist: (email: string) => void;
@@ -1041,6 +1046,24 @@ export const useShareStore = create<ShareState>()(
           }),
         }));
         systemNotify(set, "Cancelled ride restored");
+      },
+
+      rateVolunteerRide: (id, rating, review) => {
+        const stars = Math.min(5, Math.max(1, Math.round(rating)));
+        const at = new Date().toISOString();
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  riderRating: stars,
+                  riderReview: review?.trim() || undefined,
+                  ratedAt: at,
+                }
+              : r,
+          ),
+        }));
+        systemNotify(set, `Thanks — ${stars}-star review saved`);
       },
 
       processVolunteerEscalations: () => {

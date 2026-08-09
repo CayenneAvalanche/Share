@@ -955,6 +955,11 @@ export type VolunteerRide = {
   paidOffer: number;
   matchedDriverName?: string;
   requesterName: string;
+  /** Rider rated the driver after complete (1–5) */
+  riderRating?: number;
+  /** Optional written review from rider */
+  riderReview?: string;
+  ratedAt?: string;
 };
 
 export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {

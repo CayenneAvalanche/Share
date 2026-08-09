@@ -1096,6 +1096,14 @@ function AdminPage() {
                             trip).
                           </p>
                         )}
+                        {r.riderRating != null && (
+                          <p className="text-sm font-semibold text-[var(--color-fg)]">
+                            Rider rating:{" "}
+                            {"★".repeat(r.riderRating)}
+                            {"☆".repeat(5 - r.riderRating)} ({r.riderRating}/5)
+                            {r.riderReview ? ` — “${r.riderReview}”` : ""}
+                          </p>
+                        )}
                       </div>
                     )}
                     <p className="text-[10px] text-[var(--color-fg-subtle)]">
@@ -1388,6 +1396,9 @@ function AdminPage() {
                                 r.tripStartedAt &&
                                 r.tripEndedAt &&
                                 ` · In car ${formatDurationSeconds(tripInCarSeconds(r.tripStartedAt, r.tripEndedAt) ?? 0)} (${formatRequestedAt(r.tripStartedAt)} → ${formatRequestedAt(r.tripEndedAt)})`}
+                              {r.status === "completed" &&
+                                r.riderRating != null &&
+                                ` · Rider ${r.riderRating}/5★`}
                               {r.status === "cancelled" &&
                                 ` · Cancelled ${formatRequestedAt(r.cancelledAt || r.createdAt)} by ${
                                   r.cancelledBy === "admin"

@@ -78,21 +78,56 @@ function RidesPage() {
       /* ignore */
     }
     const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
+    const isMine = (r: VolunteerRide) => {
+      if (phone10.length >= 10) {
+        const rp = r.phone.replace(/\D/g, "").slice(-10);
+        if (rp === phone10) return true;
+      }
+      const n = (r.matchedDriverName || "").toLowerCase();
+      if (me && n) {
+        if (n === me) return true;
+        if (meFirst.length >= 3 && n.includes(meFirst)) return true;
+      }
+      return false;
+    };
     return Array.from(byId.values())
       .filter((r) => r.status === "matched")
+      .filter(isMine)
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  }, [cloudVol, volunteerRides, user?.displayName, riderName]);
+
+  /** Completed trips still needing a rider review (or recently done) */
+  const needsReview = useMemo(() => {
+    const byId = new Map<string, VolunteerRide>();
+    for (const r of cloudVol) byId.set(r.id, r);
+    for (const r of volunteerRides) byId.set(r.id, r);
+    let guestPhone = "";
+    try {
+      guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
+    return Array.from(byId.values())
+      .filter((r) => r.status === "completed" && !r.riderRating)
       .filter((r) => {
         if (phone10.length >= 10) {
           const rp = r.phone.replace(/\D/g, "").slice(-10);
           if (rp === phone10) return true;
         }
+        // also show to matched driver so they can open / remind
+        const me = (user?.displayName || riderName || "").toLowerCase();
         const n = (r.matchedDriverName || "").toLowerCase();
-        if (me && n) {
-          if (n === me) return true;
-          if (meFirst.length >= 3 && n.includes(meFirst)) return true;
-        }
+        if (me && n && (n === me || me.split(/\s+/)[0].length >= 3 && n.includes(me.split(/\s+/)[0])))
+          return true;
         return false;
       })
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+      .sort(
+        (a, b) =>
+          +new Date(b.completedAt || b.createdAt) -
+          +new Date(a.completedAt || a.createdAt),
+      )
+      .slice(0, 8);
   }, [cloudVol, volunteerRides, user?.displayName, riderName]);
 
   const activeLocal = useMemo(
@@ -286,6 +321,46 @@ function RidesPage() {
                 </div>
                 <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
                   Open ride →
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {needsReview.length > 0 && (
+        <section className="mt-5">
+          <h2 className="font-display text-lg font-semibold">
+            Rate your ride
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Trip complete — leave stars for your driver (optional short review).
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {needsReview.map((r) => (
+              <Link
+                key={`review-${r.id}`}
+                to="/rides/matched/$id"
+                params={{ id: r.id }}
+                className="block rounded-[var(--radius-lg)] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{r.fullName}</p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                      Driver: {r.matchedDriverName || "Share driver"}
+                      {r.completedAt
+                        ? ` · Done ${formatRequestedAt(r.completedAt)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <Badge variant="accent">Rate</Badge>
+                </div>
+                <p className="mt-2 text-xs font-medium text-[var(--color-accent)]">
+                  Open to rate 1–5 stars →
                 </p>
               </Link>
             ))}

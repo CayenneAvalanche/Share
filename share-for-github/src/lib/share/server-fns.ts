@@ -971,6 +971,9 @@ async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
     "trip_started_at timestamptz",
     "trip_ended_at timestamptz",
     "matched_driver_email text",
+    "rider_rating int",
+    "rider_review text",
+    "rated_at timestamptz",
   ]) {
     try {
       await sql.query(
@@ -1009,6 +1012,9 @@ function mapVolunteerRow(r: {
   trip_started_at: string | Date | null;
   trip_ended_at: string | Date | null;
   created_at: string | Date;
+  rider_rating?: number | null;
+  rider_review?: string | null;
+  rated_at?: string | Date | null;
 }): VolunteerRide {
   const by = (r.cancelled_by || "").toLowerCase();
   const cancelledBy =
@@ -1037,6 +1043,14 @@ function mapVolunteerRow(r: {
     tripStartedAt: iso(r.trip_started_at),
     tripEndedAt: iso(r.trip_ended_at),
     createdAt: iso(r.created_at) ?? new Date().toISOString(),
+    riderRating:
+      r.rider_rating != null &&
+      Number(r.rider_rating) >= 1 &&
+      Number(r.rider_rating) <= 5
+        ? Number(r.rider_rating)
+        : undefined,
+    riderReview: (r.rider_review && String(r.rider_review).trim()) || undefined,
+    ratedAt: iso(r.rated_at ?? null),
   };
 }
 
@@ -1519,6 +1533,36 @@ export const completeVolunteerRideFn = createServerFn({ method: "POST" })
       `;
     }
     return { ok: true as const, completedAt: at };
+  });
+
+/** Rider rates driver after trip is completed. */
+export const submitVolunteerReviewFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      id: string;
+      rating: number;
+      review?: string;
+      reviewerName?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+    const id = String(data.id ?? "");
+    const rating = Math.round(Number(data.rating));
+    if (!id) throw new Error("Missing ride id");
+    if (rating < 1 || rating > 5) throw new Error("Rating must be 1–5 stars");
+    const review = String(data.review ?? "").trim().slice(0, 1000);
+    const at = new Date().toISOString();
+    await sql`
+      update share_volunteer_rides set
+        rider_rating = ${rating},
+        rider_review = ${review || null},
+        rated_at = ${at}
+      where id = ${id}
+        and status = ${"completed"}
+    `;
+    return { ok: true as const, ratedAt: at, rating, review };
   });
 
 

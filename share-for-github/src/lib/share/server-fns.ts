@@ -964,6 +964,40 @@ export const lookupMyAppsFn = createServerFn({ method: "POST" })
     };
   });
 
+
+/**
+ * Push the member's current face photo to every driver/rider application
+ * row for their email so other devices pick it up on refresh/sign-in.
+ */
+export const updateMyProfileSelfieFn = createServerFn({ method: "POST" })
+  .validator((data: { email: string; selfie: string }) => data)
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    if (!email.includes("@")) throw new Error("Sign in required to save photo");
+    const selfie = String(data.selfie ?? "");
+    if (selfie && !selfie.startsWith("data:image/")) {
+      throw new Error("Invalid photo data");
+    }
+    if (selfie.length > 400_000) {
+      throw new Error("Photo too large — retake a closer selfie");
+    }
+    const sql = await getSql();
+    const at = new Date().toISOString();
+    await sql`
+      update share_driver_apps set
+        selfie = ${selfie},
+        updated_at = ${at}
+      where lower(email) = ${email}
+    `;
+    await sql`
+      update share_rider_apps set
+        selfie = ${selfie},
+        updated_at = ${at}
+      where lower(email) = ${email}
+    `;
+    return { ok: true as const };
+  });
+
 /** Founder: list sign-up accounts (Better Auth "user" table). */
 export const listAuthUsersFn = createServerFn({ method: "POST" })
   .validator((data: { pin: string }) => data)

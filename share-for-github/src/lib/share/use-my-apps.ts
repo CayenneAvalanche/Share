@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { lookupMyAppsFn } from "@/lib/share/server-fns";
-import { useShareStore } from "@/lib/share/store";
+import { useShareStore, PROFILE_SELFIE_KEY } from "@/lib/share/store";
 import type { ApplicationStatus } from "@/lib/share/data";
 
 const ACTIVE: ApplicationStatus[] = ["active", "approved"];
@@ -39,6 +39,17 @@ export function statusLabel(s?: ApplicationStatus | null): string {
   }
 }
 
+function readLocalDedicatedSelfie(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const v = localStorage.getItem(PROFILE_SELFIE_KEY);
+    if (v && v.startsWith("data:") && v.length > 40) return v;
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
 /** Keep local driver/rider apps in sync with cloud for the signed-in email. */
 export function useSyncMyApps() {
   const user = useCurrentUser();
@@ -51,10 +62,18 @@ export function useSyncMyApps() {
     lookupMyAppsFn({ data: { email } })
       .then((res) => {
         if (cancelled) return;
+        // If this device has a newer face in dedicated storage, keep it and
+        // still merge app status — syncMyApps already prefers dedicated face.
+        const localFace = readLocalDedicatedSelfie();
         syncMyApps({
           drivers: res.drivers,
           riders: res.riders,
         });
+        // If local was empty, syncMyApps pulls cloud selfie into store.
+        // If local had a face, it stays. Either way re-read store after.
+        if (localFace) {
+          useShareStore.setState({ profileSelfie: localFace });
+        }
         const activeDriver = res.drivers.find((d) => isActiveStatus(d.status));
         if (activeDriver?.fullName) {
           useShareStore.setState({ riderName: activeDriver.fullName });

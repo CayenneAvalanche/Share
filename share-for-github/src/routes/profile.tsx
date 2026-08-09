@@ -27,6 +27,7 @@ import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES, VEHICLE_TYPES } from "@/lib/share/data";
+import { updateMyProfileSelfieFn } from "@/lib/share/server-fns";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
@@ -161,9 +162,9 @@ function ProfilePage() {
                 }}
                 onContextMenu={(e) => e.preventDefault()}
               >
-                {profileSelfie || user?.profileImageUrl ? (
+                {profileSelfie ? (
                   <img
-                    src={profileSelfie || user?.profileImageUrl || ""}
+                    src={profileSelfie}
                     alt=""
                     className="size-full object-cover"
                   />
@@ -246,9 +247,29 @@ function ProfilePage() {
             <PhotoField
               id="profile-selfie"
               label="Your photo"
-              hint="One selfie for rider, driver, and trip posts. Update anytime."
+              hint="Saved on this phone and to your Share account so every device matches."
               value={profileSelfie}
-              onChange={setProfileSelfie}
+              onChange={(dataUrl) => {
+                setProfileSelfie(dataUrl);
+                const email = user?.primaryEmail;
+                if (!email) {
+                  toast.message(
+                    "Photo saved on this phone — sign in to sync it everywhere",
+                  );
+                  return;
+                }
+                void updateMyProfileSelfieFn({
+                  data: { email, selfie: dataUrl },
+                })
+                  .then(() => {
+                    toast.success("Profile photo saved on all devices");
+                  })
+                  .catch(() => {
+                    toast.message(
+                      "Saved on this phone — cloud sync pending (try again on Wi‑Fi)",
+                    );
+                  });
+              }}
               facing="user"
               kind="selfie"
             />

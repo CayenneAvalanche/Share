@@ -107,12 +107,10 @@ export function PhotoField({
                 );
                 return;
               }
+              // Parent (You tab) shows cloud-sync toast
+              return;
             }
-            toast.success(
-              photoKind === "selfie"
-                ? "Profile photo saved"
-                : "Photo attached",
-            );
+            toast.success("Photo attached");
           } catch (err) {
             const msg =
               err instanceof Error ? err.message : "Could not read photo";

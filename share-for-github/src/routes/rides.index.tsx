@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Search, MapPinned, Zap } from "lucide-react";
+import { Plus, Search, MapPinned, Zap, HeartHandshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { TripCard } from "@/components/share/trip-card";
@@ -113,6 +113,27 @@ function RidesPage() {
           </div>
         </div>
         <span className="text-2xl font-light opacity-80">→</span>
+      </Link>
+
+      {/* Volunteer / free community rides */}
+      <Link
+        to="/volunteer"
+        className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-bg-elevated)] px-5 py-4 text-[var(--color-fg)] shadow-[var(--shadow-sm)] transition-transform active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-12 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
+            <HeartHandshake className="size-6" />
+          </div>
+          <div>
+            <p className="text-lg font-semibold leading-tight">Volunteer ride</p>
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Free help for elders, vets, medical, hardship & work
+            </p>
+          </div>
+        </div>
+        <span className="text-2xl font-light text-[var(--color-fg-subtle)]">
+          →
+        </span>
       </Link>
 
       <p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">

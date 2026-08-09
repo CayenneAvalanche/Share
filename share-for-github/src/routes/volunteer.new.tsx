@@ -62,8 +62,12 @@ function NewVolunteerPage() {
       toast.error("Request not found on this phone");
       return;
     }
-    if (ride.status !== "seeking_volunteer" && ride.status !== "escalated_paid") {
-      toast.error("Can’t edit — a driver already accepted this ride");
+    if (
+      ride.status !== "seeking_volunteer" &&
+      ride.status !== "escalated_paid" &&
+      ride.status !== "matched"
+    ) {
+      toast.error("This request is already closed");
       navigate({ to: "/volunteer" });
       return;
     }
@@ -141,6 +145,12 @@ function NewVolunteerPage() {
     };
 
     if (editId) {
+      const existing = volunteerRides.find((r) => r.id === editId);
+      if (existing?.status === "matched") {
+        toast.error("Already matched — use Cancel if you still need to stop this ride");
+        setBusy(false);
+        return;
+      }
       updateVolunteerRide(editId, payload);
       try {
         await updateVolunteerRideFn({
@@ -151,12 +161,28 @@ function NewVolunteerPage() {
         toast.message("Updated on this phone — cloud sync pending");
       }
     } else {
-      requestVolunteerRide(payload);
+      const local = requestVolunteerRide(payload);
       try {
-        await createVolunteerRideFn({
+        const res = await createVolunteerRideFn({
           data: payload as unknown as Record<string, unknown>,
         });
-        toast.success("Request posted — no account needed yet");
+        // Use the cloud id so cancel/edit hit the same row drivers see
+        if (res?.id && res.id !== local.id) {
+          useShareStore.setState((s) => ({
+            volunteerRides: s.volunteerRides.map((r) =>
+              r.id === local.id ? { ...r, id: res.id } : r,
+            ),
+          }));
+        }
+        try {
+          localStorage.setItem(
+            "share-vol-guest-phone",
+            payload.phone,
+          );
+        } catch {
+          /* ignore */
+        }
+        toast.success("Request posted — no account needed");
       } catch {
         toast.message("Saved on this phone — cloud sync pending");
       }
@@ -172,13 +198,20 @@ function NewVolunteerPage() {
 
   async function onCancelRequest() {
     if (!editId) return;
-    if (!confirm("Cancel this ride request?")) return;
+    if (
+      !confirm(
+        "Cancel this ride request? Drivers will stop seeing it. It stays in Share history.",
+      )
+    )
+      return;
     cancelVolunteerRide(editId);
     try {
       await cancelVolunteerRideFn({ data: { id: editId } });
-      toast.success("Request cancelled — kept in history");
+      toast.success("Cancelled on the live board — kept in history");
     } catch {
-      toast.message("Cancelled on this phone");
+      toast.error(
+        "Could not reach the server — try Manage my request with your phone number",
+      );
     }
     navigate({ to: "/volunteer" });
   }
@@ -384,6 +417,15 @@ function NewVolunteerPage() {
             Cancel this request
           </Button>
         )}
+        <p className="text-center text-sm text-[var(--color-fg-muted)]">
+          Requested without an account?{" "}
+          <a
+            href="/volunteer/manage"
+            className="font-semibold text-[var(--color-primary)]"
+          >
+            Manage / cancel with your phone
+          </a>
+        </p>
       </form>
     </AppShell>
   );

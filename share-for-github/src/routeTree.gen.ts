@@ -41,6 +41,7 @@ import { Route as RidesRequestsRouteImport } from './routes/rides.requests'
 import { Route as ShareStuffIdRouteImport } from './routes/share-stuff.$id'
 import { Route as ShareStuffNewRouteImport } from './routes/share-stuff.new'
 import { Route as TrackCodeRouteImport } from './routes/track.$code'
+import { Route as VolunteerManageRouteImport } from './routes/volunteer.manage'
 import { Route as VolunteerNewRouteImport } from './routes/volunteer.new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as RidesRequestNewRouteImport } from './routes/rides.request.new'
@@ -206,6 +207,11 @@ const TrackCodeRoute = TrackCodeRouteImport.update({
   path: '/track/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VolunteerManageRoute = VolunteerManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
+  getParentRoute: () => VolunteerRoute,
+} as any)
 const VolunteerNewRoute = VolunteerNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
   '/track/$code': typeof TrackCodeRoute
+  '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
   '/track/$code': typeof TrackCodeRoute
+  '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
   '/track/$code': typeof TrackCodeRoute
+  '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -376,6 +385,7 @@ export interface FileRouteTypes {
     | '/share-stuff/$id'
     | '/share-stuff/new'
     | '/track/$code'
+    | '/volunteer/manage'
     | '/volunteer/new'
     | '/rides/'
     | '/api/auth/$'
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/share-stuff/$id'
     | '/share-stuff/new'
     | '/track/$code'
+    | '/volunteer/manage'
     | '/volunteer/new'
     | '/rides'
     | '/api/auth/$'
@@ -452,6 +463,7 @@ export interface FileRouteTypes {
     | '/share-stuff/$id'
     | '/share-stuff/new'
     | '/track/$code'
+    | '/volunteer/manage'
     | '/volunteer/new'
     | '/rides/'
     | '/api/auth/$'
@@ -714,6 +726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrackCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/volunteer/manage': {
+      id: '/volunteer/manage'
+      path: '/manage'
+      fullPath: '/volunteer/manage'
+      preLoaderRoute: typeof VolunteerManageRouteImport
+      parentRoute: typeof VolunteerRoute
+    }
     '/volunteer/new': {
       id: '/volunteer/new'
       path: '/new'
@@ -808,10 +827,12 @@ const ShareStuffRouteWithChildren = ShareStuffRoute._addFileChildren(
 )
 
 interface VolunteerRouteChildren {
+  VolunteerManageRoute: typeof VolunteerManageRoute
   VolunteerNewRoute: typeof VolunteerNewRoute
 }
 
 const VolunteerRouteChildren: VolunteerRouteChildren = {
+  VolunteerManageRoute: VolunteerManageRoute,
   VolunteerNewRoute: VolunteerNewRoute,
 }
 

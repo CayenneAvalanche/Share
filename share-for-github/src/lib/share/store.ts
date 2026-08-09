@@ -884,12 +884,12 @@ export const useShareStore = create<ShareState>()(
       requestVolunteerRide: (req) => {
         const ride: VolunteerRide = {
           ...req,
-          id: uid("vol"),
+          id: (req as { id?: string }).id || uid("vol"),
           status: "seeking_volunteer",
           createdAt: new Date().toISOString(),
         };
         set((state) => ({
-          volunteerRides: [ride, ...state.volunteerRides],
+          volunteerRides: [ride, ...state.volunteerRides.filter((r) => r.id !== ride.id)],
         }));
         return ride;
       },
@@ -924,7 +924,9 @@ export const useShareStore = create<ShareState>()(
         set((state) => ({
           volunteerRides: state.volunteerRides.map((r) =>
             r.id === id &&
-            (r.status === "seeking_volunteer" || r.status === "escalated_paid")
+            (r.status === "seeking_volunteer" ||
+              r.status === "escalated_paid" ||
+              r.status === "matched")
               ? { ...r, status: "cancelled" as const }
               : r,
           ),

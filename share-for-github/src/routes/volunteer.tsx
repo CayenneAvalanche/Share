@@ -24,6 +24,7 @@ import {
   claimVolunteerRideFn,
   escalateVolunteerRideFn,
   listVolunteerRidesFn,
+  cancelVolunteerRideFn,
 } from "@/lib/share/server-fns";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 
@@ -177,6 +178,13 @@ function VolunteerPage() {
         REQUEST A RIDE
       </Link>
 
+      <Link
+        to="/volunteer/manage"
+        className="mt-2 flex min-h-[48px] w-full items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-4 py-2.5 text-sm font-semibold text-[var(--color-fg)]"
+      >
+        Manage / cancel my request (phone only)
+      </Link>
+
       <a
         href={SHARE_PHONE_TEL}
         className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/40 bg-[var(--color-bg-elevated)] px-4 py-3 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
@@ -226,6 +234,11 @@ function VolunteerPage() {
                 canEdit={
                   r.status === "seeking_volunteer" ||
                   r.status === "escalated_paid"
+                }
+                canCancel={
+                  r.status === "seeking_volunteer" ||
+                  r.status === "escalated_paid" ||
+                  r.status === "matched"
                 }
               />
             ))}
@@ -359,6 +372,7 @@ function VolunteerCard({
   demo,
   canClaim,
   canEdit,
+  canCancel,
 }: {
   ride: VolunteerRide;
   onClaim?: () => void;
@@ -366,9 +380,11 @@ function VolunteerCard({
   demo?: boolean;
   canClaim?: boolean;
   canEdit?: boolean;
+  canCancel?: boolean;
 }) {
   const hrs = hoursUntilEscalate(ride);
   const free = ride.status === "seeking_volunteer";
+  const cancelLocal = useShareStore((s) => s.cancelVolunteerRide);
 
   return (
     <Card>
@@ -378,7 +394,6 @@ function VolunteerCard({
             <p className="font-semibold">{ride.fullName}</p>
             <p className="text-sm text-[var(--color-fg-muted)]">
               {ride.pickup} → {ride.dropoff}
-
             </p>
             <p className="text-xs text-[var(--color-fg-subtle)]">{ride.when}</p>
           </div>
@@ -398,7 +413,10 @@ function VolunteerCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="default">{VOLUNTEER_LABELS[ride.category]}</Badge>
+          <Badge variant="default">
+            {(VOLUNTEER_LABELS as Record<string, string>)[ride.category] ??
+              ride.category}
+          </Badge>
           {free && (
             <Badge variant="outline">
               <Timer className="mr-1 size-3" />
@@ -410,13 +428,40 @@ function VolunteerCard({
             </Badge>
           )}
         </div>
-        {canEdit && (
-          <Button size="sm" variant="secondary" asChild>
-            <a href={`/volunteer/new?edit=${encodeURIComponent(ride.id)}`}>
-              Edit request
-            </a>
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (
+            <Button size="sm" variant="secondary" asChild>
+              <a href={`/volunteer/new?edit=${encodeURIComponent(ride.id)}`}>
+                Edit request
+              </a>
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#b42318]/40 text-[#b42318]"
+              onClick={() => {
+                if (
+                  !confirm(
+                    "Cancel this request? It will leave the live board and stay in history.",
+                  )
+                )
+                  return;
+                cancelLocal(ride.id);
+                void cancelVolunteerRideFn({ data: { id: ride.id } })
+                  .then(() => toast.success("Cancelled on the live board"))
+                  .catch(() =>
+                    toast.error(
+                      "Server cancel failed — try Manage with your phone",
+                    ),
+                  );
+              }}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
         {ride.notes && (
           <p className="text-sm text-[var(--color-fg-muted)]">{ride.notes}</p>
         )}

@@ -913,12 +913,73 @@ export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
     const sql = await getSql();
+    // Guests/founders may cancel even after a driver matched (rider no-show / change of plans)
     await sql`
       update share_volunteer_rides set status = ${"cancelled"}
       where id = ${data.id}
-        and status in ('seeking_volunteer', 'escalated_paid')
+        and status in ('seeking_volunteer', 'escalated_paid', 'matched')
     `;
     return { ok: true as const };
+  });
+
+
+/** Guest manage: find open/matched requests by phone (no account). */
+export const lookupVolunteerByPhoneFn = createServerFn({ method: "POST" })
+  .validator((data: { phone: string; fullName?: string }) => data)
+  .handler(async ({ data }) => {
+    const digits = String(data.phone ?? "").replace(/\D/g, "");
+    if (digits.length < 10) return { rides: [] as VolunteerRide[] };
+    const last10 = digits.slice(-10);
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      category: string;
+      full_name: string;
+      phone: string;
+      pickup: string;
+      dropoff: string;
+      when_text: string;
+      notes: string;
+      escalate_after_hours: number;
+      paid_offer: number;
+      requester_name: string;
+      status: string;
+      matched_driver_name: string | null;
+      escalated_at: string | Date | null;
+      created_at: string | Date;
+    }>(
+      `select * from share_volunteer_rides
+       where status in ('seeking_volunteer', 'escalated_paid', 'matched')
+       order by created_at desc
+       limit 150`,
+    );
+    let rides: VolunteerRide[] = rows
+      .filter((r) => String(r.phone ?? "").replace(/\D/g, "").slice(-10) === last10)
+      .map((r) => ({
+        id: r.id,
+        category: r.category as VolunteerCategory,
+        fullName: r.full_name,
+        phone: r.phone,
+        pickup: r.pickup,
+        dropoff: r.dropoff,
+        when: r.when_text,
+        notes: r.notes,
+        escalateAfterHours: Number(r.escalate_after_hours),
+        paidOffer: Number(r.paid_offer),
+        requesterName: r.requester_name,
+        status: r.status as VolunteerRide["status"],
+        matchedDriverName: r.matched_driver_name ?? undefined,
+        escalatedAt: iso(r.escalated_at),
+        createdAt: iso(r.created_at) ?? new Date().toISOString(),
+      }));
+    const name = String(data.fullName ?? "").trim().toLowerCase();
+    if (name.length >= 2) {
+      rides = rides.filter((r) => {
+        const fn = r.fullName.toLowerCase();
+        return fn.includes(name) || name.includes(fn.split(/\s+/)[0] || "");
+      });
+    }
+    return { rides };
   });
 
 /** Founder: permanently remove a volunteer request from the database. */

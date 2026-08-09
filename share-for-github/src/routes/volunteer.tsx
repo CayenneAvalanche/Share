@@ -185,13 +185,6 @@ function VolunteerPage() {
         REQUEST A RIDE
       </Link>
 
-      <Link
-        to="/volunteer/manage"
-        className="mt-2 flex min-h-[48px] w-full items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-4 py-2.5 text-sm font-semibold text-[var(--color-fg)]"
-      >
-        Manage / cancel my request (phone only)
-      </Link>
-
       <a
         href={SHARE_PHONE_TEL}
         className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/40 bg-[var(--color-bg-elevated)] px-4 py-3 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
@@ -206,6 +199,13 @@ function VolunteerPage() {
           </span>
         </span>
       </a>
+
+      <Link
+        to="/volunteer/manage"
+        className="mt-2 flex min-h-[48px] w-full items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-4 py-2.5 text-sm font-semibold text-[var(--color-fg)]"
+      >
+        Manage / cancel my request (phone only)
+      </Link>
 
       {searchPosted && (
         <Card className="mt-4 border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8">

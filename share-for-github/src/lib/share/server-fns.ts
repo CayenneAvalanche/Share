@@ -417,7 +417,13 @@ export const listApplicationsFn = createServerFn({ method: "POST" })
       `select email, created_at from share_waitlist order by created_at desc limit 200`,
     );
     const presence = await sql.query<{ id: string }>(
-      `select id from share_driver_presence where available = true`,
+      `select id from (
+         select distinct on (coalesce(nullif(lower(trim(email)), ''), id)) id
+         from share_driver_presence
+         where available = true
+           and updated_at > now() - interval '12 minutes'
+         order by coalesce(nullif(lower(trim(email)), ''), id), updated_at desc
+       ) t`,
     );
     return {
       drivers: drivers.map(mapDriver),
@@ -500,6 +506,42 @@ export const setRiderAppStatusFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/** Count unique online drivers (dedupe by email; stale rows ignored). */
+async function countFreshDrivers(
+  sql: Awaited<ReturnType<typeof getSql>>,
+): Promise<number> {
+  // Mark stale rows offline so counts don't balloon after refresh spam
+  try {
+    await sql.query(
+      `update share_driver_presence
+       set available = false
+       where available = true
+         and updated_at < now() - interval '12 minutes'`,
+    );
+  } catch {
+    /* ignore */
+  }
+  try {
+    const rows = await sql.query<{ c: number }>(
+      `select count(*)::int as c from (
+         select distinct on (coalesce(nullif(lower(trim(email)), ''), id)) id
+         from share_driver_presence
+         where available = true
+           and updated_at > now() - interval '12 minutes'
+         order by coalesce(nullif(lower(trim(email)), ''), id), updated_at desc
+       ) t`,
+    );
+    return Number(rows[0]?.c ?? 0);
+  } catch {
+    const rows = await sql.query<{ c: number }>(
+      `select count(*)::int as c from share_driver_presence
+       where available = true
+         and updated_at > now() - interval '12 minutes'`,
+    );
+    return Number(rows[0]?.c ?? 0);
+  }
+}
+
 export const setDriverAvailableFn = createServerFn({ method: "POST" })
   .validator(
     (data: {
@@ -525,15 +567,35 @@ export const setDriverAvailableFn = createServerFn({ method: "POST" })
         throw new Error("Only approved active drivers can go available");
       }
     }
-    const id = data.presenceId || uid("pr");
+
+    // One presence row per email — reuse existing so refresh doesn't mint ghosts
+    let id = data.presenceId?.trim() || "";
+    if (email) {
+      try {
+        const existing = await sql<{ id: string }>`
+          select id from share_driver_presence
+          where lower(email) = ${email}
+          order by updated_at desc
+          limit 1
+        `;
+        if (existing[0]?.id) id = existing[0].id;
+      } catch {
+        /* email column may be missing */
+      }
+    }
+    if (!id) id = uid("pr");
+
     const now = new Date().toISOString();
+    const name = data.displayName.trim() || "Driver";
+    const city = data.city ?? "Lafayette, LA";
+
     try {
       await sql`
         insert into share_driver_presence (id, display_name, city, available, email, updated_at)
         values (
           ${id},
-          ${data.displayName.trim() || "Driver"},
-          ${data.city ?? "Lafayette, LA"},
+          ${name},
+          ${city},
           ${data.available},
           ${email},
           ${now}
@@ -545,14 +607,21 @@ export const setDriverAvailableFn = createServerFn({ method: "POST" })
           email = coalesce(excluded.email, share_driver_presence.email),
           updated_at = excluded.updated_at
       `;
+      // Drop duplicate rows for same email (old refresh ghosts)
+      if (email) {
+        await sql`
+          delete from share_driver_presence
+          where lower(email) = ${email}
+            and id <> ${id}
+        `;
+      }
     } catch {
-      // fallback if email column not migrated yet
       await sql`
         insert into share_driver_presence (id, display_name, city, available, updated_at)
         values (
           ${id},
-          ${data.displayName.trim() || "Driver"},
-          ${data.city ?? "Lafayette, LA"},
+          ${name},
+          ${city},
           ${data.available},
           ${now}
         )
@@ -563,25 +632,89 @@ export const setDriverAvailableFn = createServerFn({ method: "POST" })
           updated_at = excluded.updated_at
       `;
     }
-    // count only fresh presence (30 min)
-    const rows = await sql.query<{ c: number }>(
-      `select count(*)::int as c from share_driver_presence
-       where available = true
-         and updated_at > now() - interval '30 minutes'`,
-    );
-    return { presenceId: id, availableCount: Number(rows[0]?.c ?? 0) };
+
+    const availableCount = await countFreshDrivers(sql);
+    return {
+      presenceId: id,
+      availableCount,
+      available: data.available,
+    };
+  });
+
+/** Restore online status after page refresh (by email). */
+export const getMyDriverPresenceFn = createServerFn({ method: "POST" })
+  .validator((data: { email?: string; presenceId?: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const email = data.email?.trim().toLowerCase() || null;
+    const presenceId = data.presenceId?.trim() || null;
+    try {
+      if (email) {
+        const rows = await sql<{
+          id: string;
+          available: boolean;
+          updated_at: string | Date;
+        }>`
+          select id, available, updated_at from share_driver_presence
+          where lower(email) = ${email}
+          order by updated_at desc
+          limit 1
+        `;
+        const r = rows[0];
+        if (r) {
+          const updated =
+            r.updated_at instanceof Date
+              ? r.updated_at.toISOString()
+              : String(r.updated_at);
+          const fresh =
+            Date.now() - new Date(updated).getTime() < 12 * 60 * 1000;
+          return {
+            presenceId: r.id,
+            available: Boolean(r.available) && fresh,
+            availableCount: await countFreshDrivers(sql),
+          };
+        }
+      }
+      if (presenceId) {
+        const rows = await sql<{
+          id: string;
+          available: boolean;
+          updated_at: string | Date;
+        }>`
+          select id, available, updated_at from share_driver_presence
+          where id = ${presenceId}
+          limit 1
+        `;
+        const r = rows[0];
+        if (r) {
+          const updated =
+            r.updated_at instanceof Date
+              ? r.updated_at.toISOString()
+              : String(r.updated_at);
+          const fresh =
+            Date.now() - new Date(updated).getTime() < 12 * 60 * 1000;
+          return {
+            presenceId: r.id,
+            available: Boolean(r.available) && fresh,
+            availableCount: await countFreshDrivers(sql),
+          };
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return {
+      presenceId: presenceId || undefined,
+      available: false,
+      availableCount: await countFreshDrivers(sql),
+    };
   });
 
 export const countAvailableDriversFn = createServerFn({
   method: "GET",
 }).handler(async () => {
   const sql = await getSql();
-  const rows = await sql.query<{ c: number }>(
-    `select count(*)::int as c from share_driver_presence
-     where available = true
-       and updated_at > now() - interval '30 minutes'`,
-  );
-  return { availableCount: Number(rows[0]?.c ?? 0) };
+  return { availableCount: await countFreshDrivers(sql) };
 });
 
 /** Founder: who is online for local rides right now */
@@ -598,11 +731,12 @@ export const listOnlineDriversFn = createServerFn({ method: "POST" })
         email: string | null;
         updated_at: string | Date;
       }>(
-        `select id, display_name, city, email, updated_at
+        `select distinct on (coalesce(nullif(lower(trim(email)), ''), id))
+            id, display_name, city, email, updated_at
          from share_driver_presence
          where available = true
-           and updated_at > now() - interval '30 minutes'
-         order by updated_at desc
+           and updated_at > now() - interval '12 minutes'
+         order by coalesce(nullif(lower(trim(email)), ''), id), updated_at desc
          limit 50`,
       );
       return {
@@ -627,7 +761,7 @@ export const listOnlineDriversFn = createServerFn({ method: "POST" })
         `select id, display_name, city, updated_at
          from share_driver_presence
          where available = true
-           and updated_at > now() - interval '30 minutes'
+           and updated_at > now() - interval '12 minutes'
          order by updated_at desc
          limit 50`,
       );

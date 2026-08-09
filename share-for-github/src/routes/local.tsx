@@ -19,10 +19,34 @@ import { formatCurrency } from "@/lib/utils";
 import {
   countAvailableDriversFn,
   setDriverAvailableFn,
+  getMyDriverPresenceFn,
 } from "@/lib/share/server-fns";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SHARE_BUILD } from "@/lib/share/contact";
+
+const PRESENCE_KEY = "share-driver-presence-v1";
+
+function loadStoredPresence(): { presenceId?: string; available?: boolean } {
+  try {
+    const raw = localStorage.getItem(PRESENCE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as { presenceId?: string; available?: boolean };
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredPresence(presenceId: string, available: boolean) {
+  try {
+    localStorage.setItem(
+      PRESENCE_KEY,
+      JSON.stringify({ presenceId, available }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
 
 export const Route = createFileRoute("/local")({
   component: LocalRidePage,
@@ -47,21 +71,97 @@ function LocalRidePage() {
     favorites[0] ?? DRIVERS[0].id,
   );
   const [doneId, setDoneId] = useState<string | null>(null);
-  const [available, setAvailable] = useState(false);
+  const stored = loadStoredPresence();
+  const [available, setAvailable] = useState(Boolean(stored.available));
   const [availCount, setAvailCount] = useState(0);
-  const [presenceId, setPresenceId] = useState<string | undefined>();
+  const [presenceId, setPresenceId] = useState<string | undefined>(
+    stored.presenceId,
+  );
   const [toggling, setToggling] = useState(false);
 
+  const driverEmail = user?.primaryEmail || latestDriver?.email;
+  const driverName =
+    latestDriver?.fullName || user?.displayName || riderName || "Driver";
+  const driverCity = latestDriver?.city || "Lafayette, LA";
+
+  // Restore online status after refresh + keep count honest
   useEffect(() => {
-    function refresh() {
-      void countAvailableDriversFn()
-        .then((r) => setAvailCount(r.availableCount))
-        .catch(() => {});
+    let cancelled = false;
+    async function boot() {
+      try {
+        const me = await getMyDriverPresenceFn({
+          data: {
+            email: driverEmail,
+            presenceId,
+          },
+        });
+        if (cancelled) return;
+        if (me.presenceId) {
+          setPresenceId(me.presenceId);
+          saveStoredPresence(me.presenceId, me.available);
+        }
+        setAvailable(me.available);
+        setAvailCount(me.availableCount);
+      } catch {
+        void countAvailableDriversFn()
+          .then((r) => {
+            if (!cancelled) setAvailCount(r.availableCount);
+          })
+          .catch(() => {});
+      }
     }
-    refresh();
-    const id = setInterval(refresh, 15_000);
-    return () => clearInterval(id);
-  }, []);
+    void boot();
+    const id = setInterval(() => {
+      void countAvailableDriversFn()
+        .then((r) => {
+          if (!cancelled) setAvailCount(r.availableCount);
+        })
+        .catch(() => {});
+    }, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once email/presence ready
+  }, [driverEmail]);
+
+  // Heartbeat while online so one tab/refresh doesn't leave ghost counts
+  useEffect(() => {
+    if (!available || !driverActive) return;
+    let cancelled = false;
+    async function beat() {
+      try {
+        const res = await setDriverAvailableFn({
+          data: {
+            displayName: driverName,
+            email: driverEmail,
+            city: driverCity,
+            available: true,
+            presenceId,
+          },
+        });
+        if (cancelled) return;
+        setPresenceId(res.presenceId);
+        setAvailCount(res.availableCount);
+        saveStoredPresence(res.presenceId, true);
+      } catch {
+        /* stay optimistic */
+      }
+    }
+    void beat();
+    const id = setInterval(() => void beat(), 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [
+    available,
+    driverActive,
+    driverName,
+    driverEmail,
+    driverCity,
+    presenceId,
+  ]);
 
   const fares = useMemo(
     () => estimateLocalFares(pickup || "a", dropoff || "b"),
@@ -90,7 +190,7 @@ function LocalRidePage() {
       when,
       seats,
       notes: notes.trim(),
-      sharePrice: 0, // Free local rides during pilot (Sun/Tue community beta)
+      sharePrice: 0, // Free local rides during pilot
       uberEstimate: fares.uberEstimate,
       lyftEstimate: fares.lyftEstimate,
       requesterName: riderName || "Guest",
@@ -113,19 +213,16 @@ function LocalRidePage() {
     try {
       const res = await setDriverAvailableFn({
         data: {
-          displayName:
-            latestDriver?.fullName ||
-            user?.displayName ||
-            riderName ||
-            "Driver",
-          email: user?.primaryEmail || latestDriver?.email,
-          city: latestDriver?.city || "Lafayette, LA",
+          displayName: driverName,
+          email: driverEmail,
+          city: driverCity,
           available: next,
           presenceId,
         },
       });
       setPresenceId(res.presenceId);
       setAvailCount(res.availableCount);
+      saveStoredPresence(res.presenceId, next);
       toast.success(next ? "You're online for local rides" : "You're offline");
     } catch (e) {
       setAvailable(!next);

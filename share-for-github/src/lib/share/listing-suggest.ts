@@ -10,9 +10,12 @@ export type ListingDraft = {
   description: string;
   category: RentalCategory;
   rate: number;
-  rateUnit: "hour" | "day" | "weekend";
+  rateUnit: "hour" | "day" | "weekend" | "piece";
   salePrice: number;
   deposit: number;
+  forRent?: boolean;
+  forSale?: boolean;
+  qtyAvailable?: number;
 };
 
 export type QuickItem = {
@@ -23,6 +26,60 @@ export type QuickItem = {
 };
 
 export const QUICK_ITEMS: QuickItem[] = [
+  {
+    id: "banana-pudding",
+    label: "Banana pudding",
+    keywords: ["banana", "pudding", "dessert", "homemade"],
+    draft: {
+      title: "Homemade banana pudding",
+      description:
+        "Fresh banana pudding, $12 a piece. Local pickup. Tell me how many pieces you want. Pay at handoff (pilot).",
+      category: "food",
+      rate: 0,
+      rateUnit: "piece",
+      salePrice: 12,
+      deposit: 0,
+      forRent: false,
+      forSale: true,
+      qtyAvailable: 8,
+    },
+  },
+  {
+    id: "plate-lunch",
+    label: "Plate lunch",
+    keywords: ["plate", "lunch", "homemade", "rice", "beans"],
+    draft: {
+      title: "Homemade plate lunch",
+      description:
+        "Home-cooked plate. Price per plate. Pick up same day when ready. Pay cook in person.",
+      category: "food",
+      rate: 0,
+      rateUnit: "piece",
+      salePrice: 12,
+      deposit: 0,
+      forRent: false,
+      forSale: true,
+      qtyAvailable: 10,
+    },
+  },
+  {
+    id: "cookies",
+    label: "Cookies / sweets",
+    keywords: ["cookie", "cake", "brownie", "pie", "sweet"],
+    draft: {
+      title: "Homemade cookies (dozen)",
+      description:
+        "Fresh baked. Price is per pack/dozen as listed. Local pickup.",
+      category: "food",
+      rate: 0,
+      rateUnit: "piece",
+      salePrice: 10,
+      deposit: 0,
+      forRent: false,
+      forSale: true,
+      qtyAvailable: 6,
+    },
+  },
   {
     id: "drill",
     label: "Power drill",
@@ -99,68 +156,12 @@ export const QUICK_ITEMS: QuickItem[] = [
     keywords: ["pressure", "washer", "powerwash"],
     draft: {
       title: "Pressure washer",
-      description: "Great for driveways and siding. Demo at pickup.",
+      description: "Ready for driveways and siding. Ask about soap.",
       category: "tools",
-      rate: 30,
+      rate: 35,
       rateUnit: "day",
-      salePrice: 160,
-      deposit: 60,
-    },
-  },
-  {
-    id: "cooler",
-    label: "Cooler / ice chest",
-    keywords: ["cooler", "ice", "igloo", "yeti"],
-    draft: {
-      title: "Large ice chest",
-      description: "Party-ready. Drain plug works. Clean before return.",
-      category: "outdoors",
-      rate: 10,
-      rateUnit: "day",
-      salePrice: 40,
-      deposit: 20,
-    },
-  },
-  {
-    id: "generator",
-    label: "Generator",
-    keywords: ["generator", "honda", "predator"],
-    draft: {
-      title: "Portable generator",
-      description: "Starts easy. Fuel not included. Quiet hours please.",
-      category: "tools",
-      rate: 45,
-      rateUnit: "day",
-      salePrice: 350,
-      deposit: 100,
-    },
-  },
-  {
-    id: "tables",
-    label: "Tables / chairs",
-    keywords: ["table", "chair", "folding"],
-    draft: {
-      title: "Folding tables & chairs set",
-      description: "Event set. Count confirmed at pickup.",
-      category: "party",
-      rate: 25,
-      rateUnit: "day",
-      salePrice: 80,
-      deposit: 30,
-    },
-  },
-  {
-    id: "other",
-    label: "Something else",
-    keywords: [],
-    draft: {
-      title: "",
-      description: "Local pickup. Happy to demo it works before handoff.",
-      category: "other",
-      rate: 15,
-      rateUnit: "day",
-      salePrice: 50,
-      deposit: 25,
+      salePrice: 200,
+      deposit: 75,
     },
   },
 ];
@@ -169,18 +170,11 @@ export function draftFromQuickItem(id: string): ListingDraft | null {
   return QUICK_ITEMS.find((q) => q.id === id)?.draft ?? null;
 }
 
-/** If the user types a title, nudge sale/rent prices from catalog keywords. */
 export function suggestPricesFromTitle(title: string): Partial<ListingDraft> | null {
   const t = title.toLowerCase();
-  for (const item of QUICK_ITEMS) {
-    if (item.keywords.some((k) => t.includes(k))) {
-      return {
-        rate: item.draft.rate,
-        salePrice: item.draft.salePrice,
-        category: item.draft.category,
-        deposit: item.draft.deposit,
-        rateUnit: item.draft.rateUnit,
-      };
+  for (const q of QUICK_ITEMS) {
+    if (q.keywords.some((k) => t.includes(k))) {
+      return q.draft;
     }
   }
   return null;

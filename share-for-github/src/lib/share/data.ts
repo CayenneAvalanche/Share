@@ -209,6 +209,7 @@ export type RentalCategory =
   | "wheels"
   | "party"
   | "home"
+  | "food"
   | "other";
 
 export type RentalListing = {
@@ -217,7 +218,7 @@ export type RentalListing = {
   description: string;
   category: RentalCategory;
   rate: number;
-  rateUnit: "hour" | "day" | "weekend";
+  rateUnit: "hour" | "day" | "weekend" | "piece";
   city: string;
   ownerName: string;
   available: boolean;
@@ -228,8 +229,10 @@ export type RentalListing = {
   forRent?: boolean;
   /** Also listed for sale (Letgo-style) */
   forSale?: boolean;
-  /** Asking price if forSale */
+  /** Asking price if forSale (or price per piece for food) */
   salePrice?: number;
+  /** Homemade food / how many pieces left (optional) */
+  qtyAvailable?: number;
 };
 
 export type MarketplaceRequestKind = "rent" | "buy";
@@ -251,7 +254,7 @@ export type BorrowRequest = {
   description: string;
   category: RentalCategory;
   offer: number;
-  rateUnit: "hour" | "day" | "weekend";
+  rateUnit: "hour" | "day" | "weekend" | "piece";
   city: string;
   neededBy: string;
   requesterName: string;
@@ -418,6 +421,7 @@ export const RENTAL_CATEGORIES: { id: RentalCategory; label: string }[] = [
   { id: "wheels", label: "Wheels" },
   { id: "party", label: "Party & grill" },
   { id: "home", label: "Home" },
+  { id: "food", label: "Homemade food" },
   { id: "other", label: "Other" },
 ];
 
@@ -995,6 +999,22 @@ export const RENTAL_LISTINGS: RentalListing[] = [
     forRent: true,
     forSale: true,
     salePrice: 45,
+  },
+  {
+    id: "r_food1",
+    title: "Homemade banana pudding",
+    description:
+      "Fresh made banana pudding — $12 a piece. Local pickup / meet-up. Message for today’s batch size. Pay cook in person (pilot).",
+    category: "food",
+    rate: 0,
+    rateUnit: "piece",
+    city: "Lafayette, LA",
+    ownerName: "Neighbor baker",
+    available: true,
+    forRent: false,
+    forSale: true,
+    salePrice: 12,
+    qtyAvailable: 8,
   },
   {
     id: "r2",

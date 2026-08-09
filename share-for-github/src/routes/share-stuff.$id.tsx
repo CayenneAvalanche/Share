@@ -37,6 +37,7 @@ function ListingDetailPage() {
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
+  const [qty, setQty] = useState(1);
 
   useEffect(() => {
     listMarketplaceFn()
@@ -65,19 +66,25 @@ function ListingDetailPage() {
   }
 
   const item = listing;
-  const forRent = item.forRent !== false;
-  const forSale = Boolean(item.forSale);
+  const isFood = item.category === "food" || item.rateUnit === "piece";
+  const forRent = !isFood && item.forRent !== false;
+  const forSale = Boolean(item.forSale) || isFood;
+  const piecePrice = item.salePrice ?? item.rate ?? 0;
 
   async function submitRequest(kind: "rent" | "buy") {
     const name =
       user?.displayName ||
       (riderName && riderName !== "Guest" ? riderName : "") ||
       "Neighbor";
+    const pieces = Math.max(1, qty);
+    const lineTotal = piecePrice * pieces;
     const body =
       note.trim() ||
-      (kind === "buy"
-        ? `Interested in buying for ${formatCurrency(item.salePrice ?? 0)}.`
-        : `I'd like to rent this — preferred pickup ${pickup}.`);
+      (isFood
+        ? `Hi! I'd like ${pieces} piece${pieces > 1 ? "s" : ""} of ${item.title} (${formatCurrency(piecePrice)} each · ~${formatCurrency(lineTotal)}). Preferred pickup ${pickup}. Pay in person at handoff.`
+        : kind === "buy"
+          ? `Interested in buying for ${formatCurrency(item.salePrice ?? 0)}.`
+          : `I'd like to rent this — preferred pickup ${pickup}.`);
 
     setBusy(true);
     requestListing({
@@ -104,7 +111,7 @@ function ListingDetailPage() {
     }
 
     const tid = startThread({
-      subject: `${kind === "buy" ? "Buy" : "Rent"}: ${item.title}`,
+      subject: `${isFood ? "Food order" : kind === "buy" ? "Buy" : "Rent"}: ${item.title}`,
       withName: item.ownerName,
       relatedType: "rental",
       relatedId: item.id,
@@ -112,9 +119,11 @@ function ListingDetailPage() {
     });
 
     toast.success(
-      kind === "buy"
-        ? "Buy request sent — chat the owner next"
-        : "Rent request sent — coordinate pickup in chat",
+      isFood
+        ? "Piece request sent — chat the cook to confirm"
+        : kind === "buy"
+          ? "Buy request sent — chat the owner next"
+          : "Rent request sent — coordinate pickup in chat",
     );
     setBusy(false);
     navigate({ to: "/messages/$id", params: { id: tid } });
@@ -151,12 +160,23 @@ function ListingDetailPage() {
             <strong className="text-[var(--color-fg)]">{item.ownerName}</strong>
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
+            {isFood && (
+              <Badge variant="accent">
+                {formatCurrency(piecePrice)} / piece
+              </Badge>
+            )}
+            {isFood && item.qtyAvailable != null && (
+              <Badge variant="outline">
+                ~{item.qtyAvailable} left
+              </Badge>
+            )}
+            {isFood && <Badge variant="secondary">Homemade food</Badge>}
             {forRent && (
               <Badge variant="secondary">
                 Rent {formatCurrency(item.rate)}/{item.rateUnit}
               </Badge>
             )}
-            {forSale && item.salePrice != null && (
+            {forSale && !isFood && item.salePrice != null && (
               <Badge variant="accent">
                 Buy {formatCurrency(item.salePrice)}
               </Badge>
@@ -178,20 +198,33 @@ function ListingDetailPage() {
               {item.description}
             </p>
             <p className="text-xs text-[var(--color-fg-muted)]">
-              At pickup the owner should show you it works before money or
-              handoff.
+              {isFood
+                ? "Food is homemade neighborhood-style — not a restaurant. Confirm allergens with the cook. Pay at pickup (pilot)."
+                : "At pickup the owner should show you it works before money or handoff."}
             </p>
           </CardContent>
         </Card>
 
         {!mode ? (
           <div className="flex flex-col gap-2">
+            {isFood && (
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => setMode("buy")}
+              >
+                Request a piece
+                {piecePrice
+                  ? ` · ${formatCurrency(piecePrice)} each`
+                  : ""}
+              </Button>
+            )}
             {forRent && (
               <Button size="lg" className="w-full" onClick={() => setMode("rent")}>
                 Request to rent
               </Button>
             )}
-            {forSale && (
+            {forSale && !isFood && (
               <Button
                 size="lg"
                 variant="secondary"
@@ -218,8 +251,35 @@ function ListingDetailPage() {
           <Card>
             <CardContent className="space-y-3 p-4">
               <p className="font-semibold">
-                {mode === "buy" ? "Request to buy" : "Request to rent"}
+                {isFood
+                  ? "Request a piece"
+                  : mode === "buy"
+                    ? "Request to buy"
+                    : "Request to rent"}
               </p>
+              {isFood && (
+                <div>
+                  <Label htmlFor="qty">How many pieces?</Label>
+                  <Input
+                    id="qty"
+                    type="number"
+                    min={1}
+                    max={item.qtyAvailable ?? 20}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                  />
+                  <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                    {formatCurrency(piecePrice)} each
+                    {qty > 0
+                      ? ` · total ~${formatCurrency(piecePrice * Math.max(1, qty))}`
+                      : ""}
+                    {item.qtyAvailable != null
+                      ? ` · cook has ~${item.qtyAvailable}`
+                      : ""}
+                    . Pay cook in person at pickup.
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="pickup">
                   <Calendar className="mr-1 inline size-3.5" />
@@ -233,15 +293,17 @@ function ListingDetailPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="note">Message to owner</Label>
+                <Label htmlFor="note">Message to {isFood ? "cook" : "owner"}</Label>
                 <Textarea
                   id="note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder={
-                    mode === "buy"
-                      ? "Any questions about condition or price?"
-                      : "How long do you need it? Any questions?"
+                    isFood
+                      ? "Any allergies, spice notes, or pickup window?"
+                      : mode === "buy"
+                        ? "Any questions about condition or price?"
+                        : "How long do you need it? Any questions?"
                   }
                 />
               </div>

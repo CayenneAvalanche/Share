@@ -38,13 +38,14 @@ function NewShareStuffPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<RentalCategory>("tools");
   const [rate, setRate] = useState(15);
-  const [rateUnit, setRateUnit] = useState<"hour" | "day" | "weekend">("day");
+  const [rateUnit, setRateUnit] = useState<"hour" | "day" | "weekend" | "piece">("day");
   const [city, setCity] = useState("Lafayette, LA");
   const [deposit, setDeposit] = useState(20);
   const [photoUrl, setPhotoUrl] = useState("");
   const [forRent, setForRent] = useState(true);
   const [forSale, setForSale] = useState(false);
   const [salePrice, setSalePrice] = useState(50);
+  const [qtyAvailable, setQtyAvailable] = useState(8);
   const [neededBy, setNeededBy] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -61,6 +62,14 @@ function NewShareStuffPage() {
     setRateUnit(d.rateUnit);
     setSalePrice(d.salePrice);
     setDeposit(d.deposit);
+    if (d.forRent != null) setForRent(d.forRent);
+    if (d.forSale != null) setForSale(d.forSale);
+    if (d.qtyAvailable != null) setQtyAvailable(d.qtyAvailable);
+    if (d.category === "food") {
+      setForRent(false);
+      setForSale(true);
+      setRateUnit("piece");
+    }
     toast.message("Draft filled — edit anything before posting");
   }
 
@@ -72,6 +81,11 @@ function NewShareStuffPage() {
     if (s.category) setCategory(s.category);
     if (s.deposit != null) setDeposit(s.deposit);
     if (s.rateUnit) setRateUnit(s.rateUnit);
+    if (s.category === "food") {
+      setForRent(false);
+      setForSale(true);
+      setRateUnit(s.rateUnit || "piece");
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -99,34 +113,44 @@ function NewShareStuffPage() {
     if (mode === "list") {
       const localId = listRental({
         title: title.trim(),
-        description: description.trim() || "Available locally.",
+        description:
+          description.trim() ||
+          (category === "food"
+            ? "Homemade — request pieces below. Pay cook in person (pilot)."
+            : "Available locally."),
         category,
         rate: forRent ? rate : 0,
-        rateUnit,
+        rateUnit: category === "food" ? "piece" : rateUnit,
         city,
         ownerName,
-        deposit: deposit || undefined,
+        deposit: category === "food" ? undefined : deposit || undefined,
         photoUrl,
-        forRent,
-        forSale,
-        salePrice: forSale ? salePrice : undefined,
+        forRent: category === "food" ? false : forRent,
+        forSale: category === "food" ? true : forSale,
+        salePrice: forSale || category === "food" ? salePrice : undefined,
+        qtyAvailable: category === "food" ? qtyAvailable : undefined,
       });
       try {
         const res = await createRentalFn({
           data: {
             title: title.trim(),
-            description: description.trim() || "Available locally.",
+            description:
+              description.trim() ||
+              (category === "food"
+                ? "Homemade — request pieces below. Pay cook in person (pilot)."
+                : "Available locally."),
             category,
             rate: forRent ? rate : 0,
-            rateUnit,
+            rateUnit: category === "food" ? "piece" : rateUnit,
             city,
             ownerName,
             ownerEmail,
-            deposit: deposit || undefined,
+            deposit: category === "food" ? undefined : deposit || undefined,
             photoUrl,
-            forRent,
-            forSale,
-            salePrice: forSale ? salePrice : undefined,
+            forRent: category === "food" ? false : forRent,
+            forSale: category === "food" ? true : forSale,
+            salePrice: forSale || category === "food" ? salePrice : undefined,
+            qtyAvailable: category === "food" ? qtyAvailable : undefined,
           },
         });
         if (res?.id) replaceRentalId(localId, res.id);
@@ -308,6 +332,42 @@ function NewShareStuffPage() {
                   ))}
                 </Select>
               </div>
+            {category === "food" && mode === "list" && (
+              <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8">
+                <CardContent className="space-y-3 p-4 text-sm">
+                  <p className="font-semibold text-[var(--color-fg)]">
+                    Homemade food listing
+                  </p>
+                  <p className="text-[var(--color-fg-muted)]">
+                    Neighbors request a piece (or more). You accept in chat and
+                    settle pay at pickup — not restaurant delivery.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="piece">Price per piece $</Label>
+                      <Input
+                        id="piece"
+                        type="number"
+                        min={1}
+                        value={salePrice}
+                        onChange={(e) => setSalePrice(Number(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="qty">Pieces available</Label>
+                      <Input
+                        id="qty"
+                        type="number"
+                        min={1}
+                        value={qtyAvailable}
+                        onChange={(e) => setQtyAvailable(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
               <div>
                 <Label htmlFor="city">City</Label>
                 <Select

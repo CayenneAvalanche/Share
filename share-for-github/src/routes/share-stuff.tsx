@@ -123,7 +123,7 @@ function ShareStuffPage() {
   return (
     <AppShell
       title="Lagniappe"
-      subtitle="Rent · buy · borrow · Acadiana"
+      subtitle="Rent · buy · homemade · borrow"
       solidHeader
       action={
         <Button size="sm" asChild>
@@ -219,7 +219,16 @@ function ShareStuffPage() {
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        {forRent && (
+                        {(r.category === "food" || r.rateUnit === "piece") &&
+                          (r.salePrice != null || r.rate > 0) && (
+                          <p className="font-semibold text-[var(--color-accent)]">
+                            {formatCurrency(r.salePrice ?? r.rate)}
+                            <span className="text-xs font-normal text-[var(--color-fg-subtle)]">
+                              /piece
+                            </span>
+                          </p>
+                        )}
+                        {forRent && r.category !== "food" && r.rateUnit !== "piece" && (
                           <p className="font-semibold text-[var(--color-primary)]">
                             {formatCurrency(r.rate)}
                             <span className="text-xs font-normal text-[var(--color-fg-subtle)]">
@@ -227,7 +236,10 @@ function ShareStuffPage() {
                             </span>
                           </p>
                         )}
-                        {forSale && r.salePrice != null && (
+                        {forSale &&
+                          r.category !== "food" &&
+                          r.rateUnit !== "piece" &&
+                          r.salePrice != null && (
                           <p className="text-sm font-semibold text-[var(--color-accent)]">
                             Buy {formatCurrency(r.salePrice)}
                           </p>
@@ -238,8 +250,15 @@ function ShareStuffPage() {
                       {r.description}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {forRent && <Badge variant="secondary">Rent</Badge>}
-                      {forSale && <Badge variant="accent">For sale</Badge>}
+                      {(r.category === "food" || r.rateUnit === "piece") && (
+                        <Badge variant="accent">Homemade · request a piece</Badge>
+                      )}
+                      {forRent && r.category !== "food" && (
+                        <Badge variant="secondary">Rent</Badge>
+                      )}
+                      {forSale && r.category !== "food" && r.rateUnit !== "piece" && (
+                        <Badge variant="accent">For sale</Badge>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

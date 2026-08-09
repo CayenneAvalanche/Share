@@ -274,9 +274,16 @@ function MatchedRidePage() {
   async function onCancel() {
     if (!vol) return;
     if (!confirm("Cancel this ride? It moves to history.")) return;
-    cancelLocal(vol.id);
+    const actorName = user?.displayName || riderName || "Driver";
+    cancelLocal(vol.id, { cancelledBy: "driver", cancelledByName: actorName });
     try {
-      await cancelVolunteerRideFn({ data: { id: vol.id } });
+      await cancelVolunteerRideFn({
+        data: {
+          id: vol.id,
+          cancelledBy: "driver",
+          cancelledByName: actorName,
+        },
+      });
       toast.success("Cancelled");
     } catch {
       toast.message("Cancelled on this phone");

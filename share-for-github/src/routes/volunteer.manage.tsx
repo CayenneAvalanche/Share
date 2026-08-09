@@ -59,8 +59,14 @@ function ManageVolunteerPage() {
       return;
     }
     try {
-      await cancelVolunteerRideFn({ data: { id: r.id } });
-      cancelLocal(r.id);
+      await cancelVolunteerRideFn({
+        data: {
+          id: r.id,
+          cancelledBy: "rider",
+          cancelledByName: r.fullName || r.requesterName || "Rider",
+        },
+      });
+      cancelLocal(r.id, { cancelledBy: "rider", cancelledByName: r.fullName || r.requesterName || "Rider" });
       setRides((prev) => prev.filter((x) => x.id !== r.id));
       toast.success("Cancelled — drivers will no longer see this request");
     } catch {

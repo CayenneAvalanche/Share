@@ -518,9 +518,22 @@ function VolunteerCard({
             <p className="mt-0.5 text-xs font-medium text-[var(--color-fg-muted)]">
               Requested {formatRequestedAt(ride.createdAt)}
             </p>
-            {ride.status === "cancelled" && ride.cancelledAt && (
-              <p className="mt-0.5 text-xs font-semibold text-[#b42318]">
-                Cancelled {formatRequestedAt(ride.cancelledAt)}
+            {ride.status === "cancelled" && (
+              <p className="text-xs font-semibold text-[#b42318]">
+                Cancelled
+                {ride.cancelledAt
+                  ? ` ${formatRequestedAt(ride.cancelledAt)}`
+                  : ""}
+                {" · "}
+                {ride.cancelledBy === "admin"
+                  ? "by admin"
+                  : ride.cancelledBy === "driver"
+                    ? `by driver${ride.cancelledByName ? ` (${ride.cancelledByName})` : ""}`
+                    : ride.cancelledBy === "rider"
+                      ? `by rider${ride.cancelledByName ? ` (${ride.cancelledByName})` : ""}`
+                      : ride.cancelledByName
+                        ? `by ${ride.cancelledByName}`
+                        : "by unknown"}
               </p>
             )}
           </div>
@@ -575,8 +588,14 @@ function VolunteerCard({
                   )
                 )
                   return;
-                cancelLocal(ride.id);
-                void cancelVolunteerRideFn({ data: { id: ride.id } })
+                cancelLocal(ride.id, { cancelledBy: "rider", cancelledByName: ride.fullName || ride.requesterName || "Rider" });
+                void cancelVolunteerRideFn({
+                  data: {
+                    id: ride.id,
+                    cancelledBy: "rider",
+                    cancelledByName: ride.fullName || ride.requesterName || "Rider",
+                  },
+                })
                   .then(() => toast.success("Cancelled on the live board"))
                   .catch(() =>
                     toast.error(

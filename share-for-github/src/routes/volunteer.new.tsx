@@ -71,7 +71,8 @@ function NewVolunteerPage() {
     if (
       ride.status !== "seeking_volunteer" &&
       ride.status !== "escalated_paid" &&
-      ride.status !== "matched"
+      ride.status !== "matched" &&
+      ride.status !== "cancelled"
     ) {
       toast.error("This request is already closed");
       navigate({ to: "/volunteer" });
@@ -172,10 +173,19 @@ function NewVolunteerPage() {
       }
       updateVolunteerRide(editId, payload);
       try {
-        await updateVolunteerRideFn({
-          data: { id: editId, ...payload } as unknown as Record<string, unknown>,
-        });
-        toast.success("Request updated");
+        if (existing?.status === "cancelled") {
+          const { reopenVolunteerRideFn } = await import("@/lib/share/server-fns");
+          await reopenVolunteerRideFn({
+            data: { id: editId, ...payload } as unknown as Record<string, unknown>,
+          });
+          useShareStore.getState().restoreVolunteerRide(editId, "seeking_volunteer");
+          toast.success("Cancelled ride restored & updated — needs a driver again");
+        } else {
+          await updateVolunteerRideFn({
+            data: { id: editId, ...payload } as unknown as Record<string, unknown>,
+          });
+          toast.success("Request updated");
+        }
       } catch {
         toast.message("Updated on this phone — cloud sync pending");
       }
@@ -230,9 +240,16 @@ function NewVolunteerPage() {
       )
     )
       return;
-    cancelVolunteerRide(editId);
+    const who = fullName.trim() || riderName || "Rider";
+    cancelVolunteerRide(editId, { cancelledBy: "rider", cancelledByName: who });
     try {
-      await cancelVolunteerRideFn({ data: { id: editId } });
+      await cancelVolunteerRideFn({
+        data: {
+          id: editId,
+          cancelledBy: "rider",
+          cancelledByName: who,
+        },
+      });
       toast.success("Cancelled on the live board — kept in history");
     } catch {
       toast.error(

@@ -181,7 +181,17 @@ type ShareState = {
       Omit<VolunteerRide, "id" | "status" | "createdAt" | "matchedDriverName" | "escalatedAt">
     >,
   ) => void;
-  cancelVolunteerRide: (id: string) => void;
+  cancelVolunteerRide: (
+    id: string,
+    meta?: {
+      cancelledBy?: "rider" | "driver" | "admin" | "system";
+      cancelledByName?: string;
+    },
+  ) => void;
+  restoreVolunteerRide: (
+    id: string,
+    as?: "matched" | "seeking_volunteer",
+  ) => void;
   processVolunteerEscalations: () => number;
   forceEscalateVolunteer: (id: string) => void;
   joinWaitlist: (email: string) => void;
@@ -941,10 +951,11 @@ export const useShareStore = create<ShareState>()(
       },
 
       completeVolunteerRide: (id) => {
+        const at = new Date().toISOString();
         set((state) => ({
           volunteerRides: state.volunteerRides.map((r) =>
             r.id === id && r.status === "matched"
-              ? { ...r, status: "completed" as const }
+              ? { ...r, status: "completed" as const, completedAt: at }
               : r,
           ),
         }));
@@ -992,7 +1003,7 @@ export const useShareStore = create<ShareState>()(
         }));
       },
 
-      cancelVolunteerRide: (id) => {
+      cancelVolunteerRide: (id, meta) => {
         const at = new Date().toISOString();
         set((state) => ({
           volunteerRides: state.volunteerRides.map((r) =>
@@ -1004,10 +1015,32 @@ export const useShareStore = create<ShareState>()(
                   ...r,
                   status: "cancelled" as const,
                   cancelledAt: at,
+                  cancelledBy: meta?.cancelledBy || "system",
+                  cancelledByName:
+                    meta?.cancelledByName || meta?.cancelledBy || "system",
                 }
               : r,
           ),
         }));
+      },
+
+      restoreVolunteerRide: (id, as) => {
+        set((state) => ({
+          volunteerRides: state.volunteerRides.map((r) => {
+            if (r.id !== id || r.status !== "cancelled") return r;
+            const next =
+              as ||
+              (r.matchedDriverName ? "matched" : "seeking_volunteer");
+            return {
+              ...r,
+              status: next as VolunteerRide["status"],
+              cancelledAt: undefined,
+              cancelledBy: undefined,
+              cancelledByName: undefined,
+            };
+          }),
+        }));
+        systemNotify(set, "Cancelled ride restored");
       },
 
       processVolunteerEscalations: () => {

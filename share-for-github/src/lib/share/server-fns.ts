@@ -965,6 +965,9 @@ export const createMarketplaceRequestFn = createServerFn({ method: "POST" })
 async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
   for (const col of [
     "cancelled_at timestamptz",
+    "cancelled_by text",
+    "cancelled_by_name text",
+    "completed_at timestamptz",
     "trip_started_at timestamptz",
     "trip_ended_at timestamptz",
     "matched_driver_email text",
@@ -1000,10 +1003,18 @@ function mapVolunteerRow(r: {
   matched_driver_email?: string | null;
   escalated_at: string | Date | null;
   cancelled_at: string | Date | null;
+  cancelled_by?: string | null;
+  cancelled_by_name?: string | null;
+  completed_at?: string | Date | null;
   trip_started_at: string | Date | null;
   trip_ended_at: string | Date | null;
   created_at: string | Date;
 }): VolunteerRide {
+  const by = (r.cancelled_by || "").toLowerCase();
+  const cancelledBy =
+    by === "rider" || by === "driver" || by === "admin" || by === "system"
+      ? (by as VolunteerRide["cancelledBy"])
+      : undefined;
   return {
     id: r.id,
     category: r.category as VolunteerCategory,
@@ -1020,6 +1031,9 @@ function mapVolunteerRow(r: {
     matchedDriverName: r.matched_driver_name ?? undefined,
     escalatedAt: iso(r.escalated_at),
     cancelledAt: iso(r.cancelled_at),
+    cancelledBy,
+    cancelledByName: r.cancelled_by_name ?? undefined,
+    completedAt: iso(r.completed_at ?? null),
     tripStartedAt: iso(r.trip_started_at),
     tripEndedAt: iso(r.trip_ended_at),
     createdAt: iso(r.created_at) ?? new Date().toISOString(),
@@ -1246,20 +1260,42 @@ export const updateVolunteerRideFn = createServerFn({ method: "POST" })
   });
 
 export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
-  .validator((data: { id: string }) => data)
+  .validator(
+    (data: {
+      id: string;
+      cancelledBy?: "rider" | "driver" | "admin" | "system";
+      cancelledByName?: string;
+    }) => data,
+  )
   .handler(async ({ data }) => {
     const sql = await getSql();
     await ensureVolunteerExtras(sql);
     const at = new Date().toISOString();
-    // Guests/founders may cancel even after a driver matched
-    const rows = await sql`
-      update share_volunteer_rides set
-        status = ${"cancelled"},
-        cancelled_at = ${at}
-      where id = ${data.id}
-        and status in ('seeking_volunteer', 'escalated_paid', 'matched')
-      returning id, category, full_name, phone, pickup, dropoff, when_text, notes, paid_offer
-    `;
+    const who = data.cancelledBy || "system";
+    const whoName = (data.cancelledByName || who).trim() || who;
+    // Guests/founders/drivers may cancel even after a driver matched
+    let rows: unknown[];
+    try {
+      rows = await sql`
+        update share_volunteer_rides set
+          status = ${"cancelled"},
+          cancelled_at = ${at},
+          cancelled_by = ${who},
+          cancelled_by_name = ${whoName}
+        where id = ${data.id}
+          and status in ('seeking_volunteer', 'escalated_paid', 'matched')
+        returning id, category, full_name, phone, pickup, dropoff, when_text, notes, paid_offer
+      `;
+    } catch {
+      rows = await sql`
+        update share_volunteer_rides set
+          status = ${"cancelled"},
+          cancelled_at = ${at}
+        where id = ${data.id}
+          and status in ('seeking_volunteer', 'escalated_paid', 'matched')
+        returning id, category, full_name, phone, pickup, dropoff, when_text, notes, paid_offer
+      `;
+    }
     const row = rows[0] as
       | {
           id: string;
@@ -1287,7 +1323,66 @@ export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
         kind: "cancel",
       }).catch(() => {});
     }
-    return { ok: true as const, cancelledAt: at };
+    return {
+      ok: true as const,
+      cancelledAt: at,
+      cancelledBy: who,
+      cancelledByName: whoName,
+    };
+  });
+
+/** Founder: undo a mistaken cancel — restore open or matched. */
+export const restoreVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      pin: string;
+      id: string;
+      /** matched if they had a driver; else seeking */
+      as?: "matched" | "seeking_volunteer";
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+    const id = data.id;
+    // Peek matched driver name before restore
+    const prev = await sql<{
+      matched_driver_name: string | null;
+      status: string;
+    }>`
+      select matched_driver_name, status from share_volunteer_rides
+      where id = ${id}
+      limit 1
+    `;
+    const row = prev[0];
+    if (!row) throw new Error("Ride not found");
+    if (row.status !== "cancelled") {
+      throw new Error("Only cancelled rides can be restored");
+    }
+    const nextStatus =
+      data.as ||
+      (row.matched_driver_name ? "matched" : "seeking_volunteer");
+    try {
+      await sql`
+        update share_volunteer_rides set
+          status = ${nextStatus},
+          cancelled_at = null,
+          cancelled_by = null,
+          cancelled_by_name = null
+        where id = ${id}
+          and status = ${"cancelled"}
+      `;
+    } catch {
+      await sql`
+        update share_volunteer_rides set
+          status = ${nextStatus},
+          cancelled_at = null
+        where id = ${id}
+          and status = ${"cancelled"}
+      `;
+    }
+    return { ok: true as const, status: nextStatus };
   });
 
 
@@ -1406,12 +1501,24 @@ export const completeVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
     const sql = await getSql();
-    await sql`
-      update share_volunteer_rides set status = ${"completed"}
-      where id = ${data.id}
-        and status = 'matched'
-    `;
-    return { ok: true as const };
+    await ensureVolunteerExtras(sql);
+    const at = new Date().toISOString();
+    try {
+      await sql`
+        update share_volunteer_rides set
+          status = ${"completed"},
+          completed_at = ${at}
+        where id = ${data.id}
+          and status = ${"matched"}
+      `;
+    } catch {
+      await sql`
+        update share_volunteer_rides set status = ${"completed"}
+        where id = ${data.id}
+          and status = ${"matched"}
+      `;
+    }
+    return { ok: true as const, completedAt: at };
   });
 
 

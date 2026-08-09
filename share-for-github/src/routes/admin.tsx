@@ -32,6 +32,7 @@ import {
   listVolunteerRidesFn,
   claimVolunteerRideFn,
   cancelVolunteerRideFn,
+  restoreVolunteerRideFn,
   escalateVolunteerRideFn,
   founderDeleteVolunteerRideFn,
 } from "@/lib/share/server-fns";
@@ -107,6 +108,7 @@ function AdminPage() {
     (s) => s.processVolunteerEscalations,
   );
   const cancelVolunteerRide = useShareStore((s) => s.cancelVolunteerRide);
+  const restoreVolunteerRide = useShareStore((s) => s.restoreVolunteerRide);
   const advanceDelivery = useShareStore((s) => s.advanceDelivery);
   const setDriverAppStatus = useShareStore((s) => s.setDriverAppStatus);
   const removeDriverApp = useShareStore((s) => s.removeDriverApp);
@@ -1044,11 +1046,31 @@ function AdminPage() {
                       <p className="text-sm font-semibold text-[#b42318]">
                         Cancelled:{" "}
                         {formatRequestedAt(
-                          (r as { cancelledAt?: string }).cancelledAt ||
-                            r.createdAt,
+                          r.cancelledAt || r.createdAt,
                         )}
-                        {!(r as { cancelledAt?: string }).cancelledAt &&
-                          " (time not recorded — older request)"}
+                        {" · by "}
+                        {r.cancelledBy === "admin"
+                          ? "Admin / founder"
+                          : r.cancelledBy === "driver"
+                            ? `Driver${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                            : r.cancelledBy === "rider"
+                              ? `Rider${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                              : r.cancelledBy === "system"
+                                ? "System"
+                                : r.cancelledByName || "Unknown (before tracking)"}
+                        {!r.cancelledAt &&
+                          " · time not recorded — older request"}
+                      </p>
+                    )}
+                    {r.status === "completed" && (
+                      <p className="text-sm font-semibold text-[var(--color-primary)]">
+                        Completed:{" "}
+                        {formatRequestedAt(
+                          r.completedAt || r.tripEndedAt || r.createdAt,
+                        )}
+                        {r.matchedDriverName
+                          ? ` · driver ${r.matchedDriverName}`
+                          : ""}
                       </p>
                     )}
                     <p className="text-[10px] text-[var(--color-fg-subtle)]">
@@ -1106,9 +1128,16 @@ function AdminPage() {
                                 )
                               )
                                 return;
-                              cancelVolunteerRide(r.id);
+                              cancelVolunteerRide(r.id, {
+                                cancelledBy: "admin",
+                                cancelledByName: "Founder",
+                              });
                               void cancelVolunteerRideFn({
-                                data: { id: r.id },
+                                data: {
+                                  id: r.id,
+                                  cancelledBy: "admin",
+                                  cancelledByName: "Founder",
+                                },
                               })
                                 .then(() => {
                                   toast.success(
@@ -1126,6 +1155,65 @@ function AdminPage() {
                             Cancel (keep history)
                           </Button>
                         </>
+                      )}
+                      {r.status === "cancelled" && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (
+                                !confirm(
+                                  `Restore ${r.fullName}'s ride? ${
+                                    r.matchedDriverName
+                                      ? "Back to matched with " +
+                                        r.matchedDriverName
+                                      : "Back to open board"
+                                  }.`,
+                                )
+                              )
+                                return;
+                              const as = r.matchedDriverName
+                                ? ("matched" as const)
+                                : ("seeking_volunteer" as const);
+                              restoreVolunteerRide(r.id, as);
+                              void restoreVolunteerRideFn({
+                                data: { pin, id: r.id, as },
+                              })
+                                .then(() => {
+                                  toast.success("Ride restored");
+                                  void refreshCloud(pin);
+                                })
+                                .catch((e) =>
+                                  toast.error(
+                                    e instanceof Error
+                                      ? e.message
+                                      : "Could not restore",
+                                  ),
+                                );
+                            }}
+                          >
+                            Undo cancel / restore
+                          </Button>
+                          <Button size="sm" variant="secondary" asChild>
+                            <Link
+                              to={
+                                `/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"
+                              }
+                            >
+                              Edit details
+                            </Link>
+                          </Button>
+                        </>
+                      )}
+                      {r.status === "completed" && (
+                        <Button size="sm" variant="secondary" asChild>
+                          <Link
+                            to="/rides/matched/$id"
+                            params={{ id: r.id }}
+                          >
+                            View completed
+                          </Link>
+                        </Button>
                       )}
                       <Button
                         size="sm"
@@ -1214,7 +1302,132 @@ function AdminPage() {
       {tab === "trips" && (
         <section className="mt-3 space-y-4 pb-8">
           <div>
-            <h3 className="mb-2 text-sm font-semibold">Trip posts</h3>
+            <h3 className="mb-2 text-sm font-semibold">
+              Volunteer & free rides (completed / cancelled / matched)
+            </h3>
+            <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
+              Real community trips (Hailey, Helena, etc.) land here — not just
+              long-distance corridor posts. Cancel shows who did it.
+            </p>
+            {(() => {
+              const ops = volunteerRides
+                .filter(
+                  (r) =>
+                    r.status === "completed" ||
+                    r.status === "cancelled" ||
+                    r.status === "matched",
+                )
+                .sort(
+                  (a, b) =>
+                    +new Date(
+                      b.completedAt ||
+                        b.cancelledAt ||
+                        b.tripEndedAt ||
+                        b.createdAt,
+                    ) -
+                    +new Date(
+                      a.completedAt ||
+                        a.cancelledAt ||
+                        a.tripEndedAt ||
+                        a.createdAt,
+                    ),
+                );
+              if (ops.length === 0) {
+                return (
+                  <p className="mb-4 text-sm text-[var(--color-fg-muted)]">
+                    No completed or cancelled volunteer trips yet.
+                  </p>
+                );
+              }
+              return (
+                <div className="mb-6 space-y-3">
+                  {ops.map((r) => (
+                    <Card key={`trip-vol-${r.id}`}>
+                      <CardContent className="space-y-2 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold">
+                              {r.fullName} · {r.pickup} → {r.dropoff}
+                            </p>
+                            <p className="text-sm text-[var(--color-fg-muted)]">
+                              {r.when} · {r.phone}
+                              {r.matchedDriverName
+                                ? ` · Driver: ${r.matchedDriverName}`
+                                : ""}
+                            </p>
+                            <p className="text-xs text-[var(--color-fg-subtle)]">
+                              Requested {formatRequestedAt(r.createdAt)}
+                              {r.status === "completed" &&
+                                ` · Completed ${formatRequestedAt(r.completedAt || r.tripEndedAt || r.createdAt)}`}
+                              {r.status === "cancelled" &&
+                                ` · Cancelled ${formatRequestedAt(r.cancelledAt || r.createdAt)} by ${
+                                  r.cancelledBy === "admin"
+                                    ? "Admin"
+                                    : r.cancelledBy === "driver"
+                                      ? `Driver${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                                      : r.cancelledBy === "rider"
+                                        ? `Rider${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                                        : r.cancelledByName || "unknown"
+                                }`}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              r.status === "completed"
+                                ? "success"
+                                : r.status === "cancelled"
+                                  ? "outline"
+                                  : "secondary"
+                            }
+                          >
+                            {r.status}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="secondary" asChild>
+                            <Link
+                              to="/rides/matched/$id"
+                              params={{ id: r.id }}
+                            >
+                              Open
+                            </Link>
+                          </Button>
+                          {r.status === "cancelled" && (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const as = r.matchedDriverName
+                                  ? "matched"
+                                  : "seeking_volunteer";
+                                restoreVolunteerRide(r.id, as);
+                                void restoreVolunteerRideFn({
+                                  data: { pin, id: r.id, as },
+                                })
+                                  .then(() => {
+                                    toast.success("Restored");
+                                    void refreshCloud(pin);
+                                  })
+                                  .catch(() =>
+                                    toast.error("Restore failed"),
+                                  );
+                              }}
+                            >
+                              Undo cancel
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">
+              Corridor trip posts
+            </h3>
             <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
               Corridor / posted trips on this device (and demo seeds). Delete
               removes them from the live list on this phone.

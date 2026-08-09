@@ -925,6 +925,8 @@ export type VolunteerRideStatus =
   | "completed"
   | "cancelled";
 
+export type VolunteerCancelActor = "rider" | "driver" | "admin" | "system";
+
 export type VolunteerRide = {
   id: string;
   category: VolunteerCategory;
@@ -940,6 +942,12 @@ export type VolunteerRide = {
   escalatedAt?: string;
   /** When the request was cancelled (history) */
   cancelledAt?: string;
+  /** Who cancelled — rider, driver, admin (founder), or system */
+  cancelledBy?: VolunteerCancelActor;
+  /** Display name of who cancelled */
+  cancelledByName?: string;
+  /** When marked complete */
+  completedAt?: string;
   /** Driver tapped Begin ride — rider sees SOS/audio */
   tripStartedAt?: string;
   /** Driver tapped End ride */

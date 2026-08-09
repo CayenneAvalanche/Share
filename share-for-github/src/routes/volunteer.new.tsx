@@ -379,7 +379,7 @@ function NewVolunteerPage() {
                 <option value="veteran">Veteran</option>
                 <option value="disabled">Disabled / mobility need</option>
                 <option value="elder">Elder (75+)</option>
-                <option value="hardship">Hardship (can't pay right now)</option>
+                <option value="hardship">Hardship</option>
                 <option value="medical">Medical appointment</option>
                 <option value="work">Work / job interview</option>
               </Select>

@@ -961,7 +961,7 @@ export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {
   veteran: "Veteran",
   disabled: "Disabled / mobility need",
   elder: "Elder (75+)",
-  hardship: "Hardship (can't pay right now)",
+  hardship: "Hardship",
   medical: "Medical appointment",
   work: "Work / job interview",
 };

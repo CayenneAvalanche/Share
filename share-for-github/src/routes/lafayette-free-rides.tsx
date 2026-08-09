@@ -94,7 +94,7 @@ function LafayetteFreeRidesPage() {
                 <p className="font-semibold">Who it's for</p>
                 <p className="text-sm text-[var(--color-fg-muted)]">
                   Elders, disabled / mobility needs, veterans, medical
-                  appointments, hardship (can't pay right now), and work /
+                  appointments, hardship, and work /
                   job interviews.
                 </p>
               </div>

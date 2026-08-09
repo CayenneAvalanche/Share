@@ -17,7 +17,7 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { hoursUntilEscalate } from "@/lib/share/tracking";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRequestedAt } from "@/lib/utils";
 import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
 import { isDemoMode } from "@/lib/share/mode";
 import {
@@ -396,6 +396,9 @@ function VolunteerCard({
               {ride.pickup} → {ride.dropoff}
             </p>
             <p className="text-xs text-[var(--color-fg-subtle)]">{ride.when}</p>
+            <p className="mt-0.5 text-xs font-medium text-[var(--color-fg-muted)]">
+              Requested {formatRequestedAt(ride.createdAt)}
+            </p>
           </div>
           <div className="text-right">
             {free ? (

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { VOLUNTEER_LABELS, type VolunteerRide } from "@/lib/share/data";
+import { formatRequestedAt } from "@/lib/utils";
 import { useShareStore } from "@/lib/share/store";
 import {
   lookupVolunteerByPhoneFn,
@@ -142,6 +143,9 @@ function ManageVolunteerPage() {
                       </p>
                       <p className="text-xs text-[var(--color-fg-subtle)]">
                         {r.when} · {r.phone}
+                      </p>
+                      <p className="text-xs font-medium text-[var(--color-fg-muted)]">
+                        Requested {formatRequestedAt(r.createdAt)}
                       </p>
                     </div>
                     <Badge>{r.status.replace(/_/g, " ")}</Badge>

@@ -231,8 +231,10 @@ function NewVolunteerPage() {
         {!editId && (
           <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
             <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-              Anyone can request. Start typing a street or place name — pick a
-              suggestion or type the full address. Apt / gate code goes in notes.
+              Anyone can request — no account needed. Many folks usually take
+              the bus; use Share when the bus won't get them there (late
+              night, missed connection, medical, bags). Start typing an address
+              for suggestions, or type the full street + city.
             </CardContent>
           </Card>
         )}
@@ -394,7 +396,7 @@ function NewVolunteerPage() {
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Apt #, gate code, wheelchair, bags, hospital discharge…"
+                placeholder="Apt #, gate code, wheelchair, bags… e.g. usually rides the bus, missed last bus, dialysis, VA clinic"
               />
             </div>
           </CardContent>

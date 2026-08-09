@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { VOLUNTEER_LABELS } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRequestedAt } from "@/lib/utils";
 import {
   listApplicationsFn,
   setDriverAppStatusFn,
@@ -826,14 +826,17 @@ function AdminPage() {
                       </Badge>
                     </div>
                     <p className="text-xs text-[var(--color-fg-subtle)]">
-                      When: {r.when}
+                      When needed: {r.when}
                       {r.notes ? ` · Notes: ${r.notes}` : ""}
                       {r.matchedDriverName
                         ? ` · Matched: ${r.matchedDriverName}`
                         : ""}
                     </p>
+                    <p className="text-sm font-medium text-[var(--color-fg)]">
+                      Requested: {formatRequestedAt(r.createdAt)}
+                    </p>
                     <p className="text-[10px] text-[var(--color-fg-subtle)]">
-                      ID {r.id} · created {r.createdAt?.slice(0, 16) || "—"}
+                      ID {r.id}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {open && (
@@ -971,8 +974,9 @@ function AdminPage() {
                     History ({historyRides.length})
                   </h3>
                   <p className="mb-2 text-xs text-[var(--color-fg-muted)]">
-                    Cancelled, matched, and completed rides stay here for your
-                    records (Chloe and every free-ride request). Use Delete
+                    Cancelled, matched, and completed rides stay here with the{" "}
+                    <strong>time they were requested</strong> (for free-ride
+                    weekend logs — Chloe, bus riders, everyone). Use Delete
                     forever only if you need them gone.
                   </p>
                   <div className="space-y-3">

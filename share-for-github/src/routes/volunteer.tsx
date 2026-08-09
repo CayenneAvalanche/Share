@@ -21,6 +21,7 @@ import { hoursUntilEscalate } from "@/lib/share/tracking";
 import { formatCurrency, formatRequestedAt } from "@/lib/utils";
 import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
 import { isDemoMode } from "@/lib/share/mode";
+import { OpenInMaps } from "@/components/share/open-in-maps";
 import {
   claimVolunteerRideFn,
   escalateVolunteerRideFn,
@@ -77,7 +78,21 @@ function VolunteerPage() {
       setCloudStatus("signed_out");
       return;
     }
-    listVolunteerRidesFn()
+    // Privacy: server only returns open board for approved drivers,
+    // and matched trips only for the claiming driver (or own phone).
+    let guestPhone = "";
+    try {
+      guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    listVolunteerRidesFn({
+      data: {
+        email: user?.primaryEmail || undefined,
+        phone: guestPhone,
+        driverName: user?.displayName || riderName || undefined,
+      },
+    })
       .then((data) => {
         setCloudRides(data.rides);
         setCloudStatus("ok");
@@ -89,7 +104,8 @@ function VolunteerPage() {
     refreshCloud();
     const id = setInterval(refreshCloud, 20_000);
     return () => clearInterval(id);
-  }, [signedIn, demo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, demo, user?.primaryEmail, isDriverApproved]);
 
   useEffect(() => {
     const n = processVolunteerEscalations();
@@ -138,12 +154,32 @@ function VolunteerPage() {
           r.status === "seeking_volunteer" || r.status === "escalated_paid",
       )
     : [];
+  const myDriverKey = (
+    user?.displayName ||
+    riderName ||
+    user?.primaryEmail ||
+    ""
+  ).toLowerCase();
+  const isMyMatchedTrip = (r: VolunteerRide) => {
+    if (r.status !== "matched" && r.status !== "completed" && r.status !== "cancelled")
+      return false;
+    const n = (r.matchedDriverName || "").toLowerCase();
+    if (!n || !myDriverKey) return false;
+    if (n === myDriverKey) return true;
+    const first = myDriverKey.split(/\s+/)[0];
+    return first.length >= 3 && n.includes(first);
+  };
+  // Only MY matches — not every matched ride on the platform
   const matchedBoard = canSeeOpenBoard
-    ? volunteerRides.filter((r) => r.status === "matched")
+    ? volunteerRides.filter(
+        (r) => r.status === "matched" && isMyMatchedTrip(r),
+      )
     : [];
   const historyBoard = canSeeOpenBoard
     ? volunteerRides.filter(
-        (r) => r.status === "cancelled" || r.status === "completed",
+        (r) =>
+          (r.status === "cancelled" || r.status === "completed") &&
+          isMyMatchedTrip(r),
       )
     : [];
 
@@ -153,7 +189,11 @@ function VolunteerPage() {
     claimVolunteer(r.id, driverLabel);
     try {
       await claimVolunteerRideFn({
-        data: { id: r.id, driverName: driverLabel },
+        data: {
+          id: r.id,
+          driverName: driverLabel,
+          driverEmail: user?.primaryEmail || undefined,
+        },
       });
       toast.success(
         r.status === "seeking_volunteer"
@@ -468,6 +508,11 @@ function VolunteerCard({
             <p className="font-semibold">{ride.fullName}</p>
             <p className="text-sm text-[var(--color-fg-muted)]">
               {ride.pickup} → {ride.dropoff}
+            <div className="mt-1.5 flex flex-wrap gap-3">
+              <OpenInMaps address={ride.pickup} label="Pickup map" compact />
+              <OpenInMaps address={ride.dropoff} label="Drop-off map" compact />
+            </div>
+
             </p>
             <p className="text-xs text-[var(--color-fg-subtle)]">{ride.when}</p>
             <p className="mt-0.5 text-xs font-medium text-[var(--color-fg-muted)]">

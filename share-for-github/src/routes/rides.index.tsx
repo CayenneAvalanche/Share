@@ -13,6 +13,7 @@ import { formatRequestedAt } from "@/lib/utils";
 import { listVolunteerRidesFn } from "@/lib/share/server-fns";
 import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/rides/")({
   component: RidesPage,
@@ -25,6 +26,9 @@ function RidesPage() {
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const localRides = useShareStore((s) => s.localRides);
   const navigate = useNavigate();
+  const user = useCurrentUser();
+  const riderName = useShareStore((s) => s.riderName);
+  const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const [from, setFrom] = useState("Any");
   const [to, setTo] = useState("Any");
   const [query, setQuery] = useState("");
@@ -32,9 +36,22 @@ function RidesPage() {
 
   useEffect(() => {
     function pull() {
-      listVolunteerRidesFn()
+      let guestPhone = "";
+      try {
+        guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+      } catch {
+        /* ignore */
+      }
+      listVolunteerRidesFn({
+        data: {
+          email: user?.primaryEmail || undefined,
+          phone: guestPhone,
+          driverName: user?.displayName || riderName || undefined,
+        },
+      })
         .then((res) => {
           setCloudVol(res.rides);
+          // Only merge privacy-scoped rides into store (never the full public board)
           useShareStore.setState((s) => {
             const byId = new Map(s.volunteerRides.map((r) => [r.id, r]));
             for (const r of res.rides) byId.set(r.id, r);
@@ -46,16 +63,37 @@ function RidesPage() {
     pull();
     const t = window.setInterval(pull, 5000);
     return () => window.clearInterval(t);
-  }, []);
+  }, [user?.primaryEmail, user?.displayName, riderName]);
 
   const activeMatched = useMemo(() => {
     const byId = new Map<string, VolunteerRide>();
     for (const r of cloudVol) byId.set(r.id, r);
     for (const r of volunteerRides) byId.set(r.id, r);
+    const me = (user?.displayName || riderName || "").toLowerCase();
+    const meFirst = me.split(/\s+/)[0] || "";
+    let guestPhone = "";
+    try {
+      guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
     return Array.from(byId.values())
       .filter((r) => r.status === "matched")
+      .filter((r) => {
+        if (phone10.length >= 10) {
+          const rp = r.phone.replace(/\D/g, "").slice(-10);
+          if (rp === phone10) return true;
+        }
+        const n = (r.matchedDriverName || "").toLowerCase();
+        if (me && n) {
+          if (n === me) return true;
+          if (meFirst.length >= 3 && n.includes(meFirst)) return true;
+        }
+        return false;
+      })
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-  }, [cloudVol, volunteerRides]);
+  }, [cloudVol, volunteerRides, user?.displayName, riderName]);
 
   const activeLocal = useMemo(
     () =>

@@ -967,6 +967,7 @@ async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
     "cancelled_at timestamptz",
     "trip_started_at timestamptz",
     "trip_ended_at timestamptz",
+    "matched_driver_email text",
   ]) {
     try {
       await sql.query(
@@ -978,10 +979,104 @@ async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
   }
 }
 
-export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
-  async () => {
+function last10Digits(phone?: string | null): string {
+  return String(phone ?? "").replace(/\D/g, "").slice(-10);
+}
+
+function mapVolunteerRow(r: {
+  id: string;
+  category: string;
+  full_name: string;
+  phone: string;
+  pickup: string;
+  dropoff: string;
+  when_text: string;
+  notes: string;
+  escalate_after_hours: number;
+  paid_offer: number;
+  requester_name: string;
+  status: string;
+  matched_driver_name: string | null;
+  matched_driver_email?: string | null;
+  escalated_at: string | Date | null;
+  cancelled_at: string | Date | null;
+  trip_started_at: string | Date | null;
+  trip_ended_at: string | Date | null;
+  created_at: string | Date;
+}): VolunteerRide {
+  return {
+    id: r.id,
+    category: r.category as VolunteerCategory,
+    fullName: r.full_name,
+    phone: r.phone,
+    pickup: r.pickup,
+    dropoff: r.dropoff,
+    when: r.when_text,
+    notes: r.notes,
+    escalateAfterHours: Number(r.escalate_after_hours),
+    paidOffer: Number(r.paid_offer),
+    requesterName: r.requester_name,
+    status: r.status as VolunteerRide["status"],
+    matchedDriverName: r.matched_driver_name ?? undefined,
+    escalatedAt: iso(r.escalated_at),
+    cancelledAt: iso(r.cancelled_at),
+    tripStartedAt: iso(r.trip_started_at),
+    tripEndedAt: iso(r.trip_ended_at),
+    createdAt: iso(r.created_at) ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Privacy-scoped volunteer list.
+ * - Founder pin → full board
+ * - Approved driver → open requests + only THEIR matched/completed/cancelled
+ * - Rider (phone) → only rides with that phone
+ * - Everyone else → empty (no public peeking)
+ */
+export const listVolunteerRidesFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      email?: string;
+      phone?: string;
+      driverName?: string;
+      /** Founder inbox full board */
+      pin?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
     const sql = await getSql();
     await ensureVolunteerExtras(sql);
+
+    let founder = false;
+    if (data.pin) {
+      try {
+        checkPin(data.pin);
+        founder = true;
+      } catch {
+        founder = false;
+      }
+    }
+
+    const email = data.email?.trim().toLowerCase() || "";
+    let isDriver = false;
+    if (email) {
+      try {
+        const apps = await sql<{ status: string }>`
+          select status from share_driver_apps
+          where lower(email) = ${email}
+            and status in ('active', 'approved')
+          limit 1
+        `;
+        isDriver = apps.length > 0;
+      } catch {
+        isDriver = false;
+      }
+    }
+
+    const phone10 = last10Digits(data.phone);
+    const driverName = (data.driverName || "").trim().toLowerCase();
+    const driverFirst = driverName.split(/\s+/)[0] || "";
+
     const rows = await sql.query<{
       id: string;
       category: string;
@@ -996,37 +1091,54 @@ export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
       requester_name: string;
       status: string;
       matched_driver_name: string | null;
+      matched_driver_email: string | null;
       escalated_at: string | Date | null;
       cancelled_at: string | Date | null;
       trip_started_at: string | Date | null;
       trip_ended_at: string | Date | null;
       created_at: string | Date;
     }>(
-      `select * from share_volunteer_rides order by created_at desc limit 100`,
+      `select * from share_volunteer_rides order by created_at desc limit 150`,
     );
-    const rides: VolunteerRide[] = rows.map((r) => ({
-      id: r.id,
-      category: r.category as VolunteerCategory,
-      fullName: r.full_name,
-      phone: r.phone,
-      pickup: r.pickup,
-      dropoff: r.dropoff,
-      when: r.when_text,
-      notes: r.notes,
-      escalateAfterHours: Number(r.escalate_after_hours),
-      paidOffer: Number(r.paid_offer),
-      requesterName: r.requester_name,
-      status: r.status as VolunteerRide["status"],
-      matchedDriverName: r.matched_driver_name ?? undefined,
-      escalatedAt: iso(r.escalated_at),
-      cancelledAt: iso(r.cancelled_at),
-      tripStartedAt: iso(r.trip_started_at),
-      tripEndedAt: iso(r.trip_ended_at),
-      createdAt: iso(r.created_at) ?? new Date().toISOString(),
-    }));
-    return { rides };
-  },
-);
+
+    if (founder) {
+      return { rides: rows.map(mapVolunteerRow), scope: "founder" as const };
+    }
+
+    const rides = rows.filter((r) => {
+      const status = r.status;
+      const open =
+        status === "seeking_volunteer" || status === "escalated_paid";
+      const minePhone =
+        phone10.length >= 10 && last10Digits(r.phone) === phone10;
+
+      // Rider / booker: only own trips (by phone)
+      if (minePhone) return true;
+
+      if (!isDriver) return false;
+
+      // Drivers: open board for claiming
+      if (open) return true;
+
+      // Drivers: only trips they matched
+      const matchedEmail = (r.matched_driver_email || "").toLowerCase();
+      if (email && matchedEmail && matchedEmail === email) return true;
+
+      const matchedName = (r.matched_driver_name || "").toLowerCase();
+      if (driverName && matchedName) {
+        if (matchedName === driverName) return true;
+        if (driverFirst.length >= 3 && matchedName.includes(driverFirst)) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    return {
+      rides: rides.map(mapVolunteerRow),
+      scope: isDriver ? ("driver" as const) : ("self" as const),
+    };
+  });
 
 export const createVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: Record<string, unknown>) => data)
@@ -1081,17 +1193,32 @@ export const createVolunteerRideFn = createServerFn({ method: "POST" })
   });
 
 export const claimVolunteerRideFn = createServerFn({ method: "POST" })
-  .validator((data: { id: string; driverName: string }) => data)
+  .validator(
+    (data: { id: string; driverName: string; driverEmail?: string }) => data,
+  )
   .handler(async ({ data }) => {
     const sql = await getSql();
+    await ensureVolunteerExtras(sql);
     const name = data.driverName.trim() || "Share driver";
-    await sql`
-      update share_volunteer_rides set
-        status = ${"matched"},
-        matched_driver_name = ${name}
-      where id = ${data.id}
-        and status in ('seeking_volunteer', 'escalated_paid')
-    `;
+    const email = data.driverEmail?.trim().toLowerCase() || null;
+    try {
+      await sql`
+        update share_volunteer_rides set
+          status = ${"matched"},
+          matched_driver_name = ${name},
+          matched_driver_email = ${email}
+        where id = ${data.id}
+          and status in ('seeking_volunteer', 'escalated_paid')
+      `;
+    } catch {
+      await sql`
+        update share_volunteer_rides set
+          status = ${"matched"},
+          matched_driver_name = ${name}
+        where id = ${data.id}
+          and status in ('seeking_volunteer', 'escalated_paid')
+      `;
+    }
     return { ok: true as const };
   });
 

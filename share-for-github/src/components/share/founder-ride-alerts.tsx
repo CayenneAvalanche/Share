@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { listVolunteerRidesFn } from "@/lib/share/server-fns";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useShareStore } from "@/lib/share/store";
 
 const SEEN_KEY = "share-vol-alert-seen-v1";
 
@@ -54,6 +56,9 @@ function beep() {
  */
 export function FounderRideAlerts({ enabled = true }: { enabled?: boolean }) {
   const primed = useRef(false);
+  const user = useCurrentUser();
+  const isDriverApproved = useShareStore((s) => s.isDriverApproved);
+  const riderName = useShareStore((s) => s.riderName);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -71,7 +76,20 @@ export function FounderRideAlerts({ enabled = true }: { enabled?: boolean }) {
 
     async function tick() {
       try {
-        const res = await listVolunteerRidesFn();
+        // Founder alerts: use stored pin if present so full open board is visible
+        let pin: string | undefined;
+        try {
+          pin = sessionStorage.getItem("share-admin-pin") || undefined;
+        } catch {
+          pin = undefined;
+        }
+        const res = await listVolunteerRidesFn({
+          data: {
+            pin,
+            email: user?.primaryEmail || undefined,
+            driverName: user?.displayName || riderName || "Share driver",
+          },
+        });
         if (cancelled) return;
         const open = res.rides.filter(
           (r) =>

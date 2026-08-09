@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { AddressField } from "@/components/share/address-field";
 import { SosPanel } from "@/components/share/sos-panel";
+import { OpenInMaps } from "@/components/share/open-in-maps";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { formatRequestedAt } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   listVolunteerRidesFn,
   reopenVolunteerRideFn,
@@ -49,6 +51,8 @@ function formatElapsed(totalSec: number) {
 function MatchedRidePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const user = useCurrentUser();
+  const riderName = useShareStore((s) => s.riderName);
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const reopen = useShareStore((s) => s.reopenVolunteerForReaccept);
   const complete = useShareStore((s) => s.completeVolunteerRide);
@@ -78,7 +82,19 @@ function MatchedRidePage() {
 
   useEffect(() => {
     let cancelled = false;
-    listVolunteerRidesFn()
+    listVolunteerRidesFn({
+      data: {
+        email: user?.primaryEmail || undefined,
+        phone: (() => {
+          try {
+            return localStorage.getItem("share-vol-guest-phone") || "";
+          } catch {
+            return "";
+          }
+        })(),
+        driverName: user?.displayName || riderName || undefined,
+      },
+    })
       .then((res) => {
         if (cancelled) return;
         const hit = res.rides.find((r) => r.id === id);
@@ -132,7 +148,19 @@ function MatchedRidePage() {
     let cancelled = false;
     async function poll() {
       try {
-        const res = await listVolunteerRidesFn();
+        const res = await listVolunteerRidesFn({
+      data: {
+        email: user?.primaryEmail || undefined,
+        phone: (() => {
+          try {
+            return localStorage.getItem("share-vol-guest-phone") || "";
+          } catch {
+            return "";
+          }
+        })(),
+        driverName: user?.displayName || riderName || undefined,
+      },
+    });
         if (cancelled) return;
         const hit = res.rides.find((r) => r.id === id);
         if (!hit) return;
@@ -351,10 +379,22 @@ function MatchedRidePage() {
               <>
                 <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm">
                   <p className="font-semibold">{vol.pickup}</p>
-                  <p className="my-1 text-center text-[var(--color-fg-subtle)]">
+                  <OpenInMaps
+                    address={vol.pickup}
+                    label="Open pickup in Maps"
+                    className="mt-1"
+                    compact
+                  />
+                  <p className="my-2 text-center text-[var(--color-fg-subtle)]">
                     ↓
                   </p>
                   <p className="font-semibold">{vol.dropoff}</p>
+                  <OpenInMaps
+                    address={vol.dropoff}
+                    label="Open drop-off in Maps"
+                    className="mt-1"
+                    compact
+                  />
                 </div>
                 <p className="text-sm">
                   <span className="text-[var(--color-fg-muted)]">When: </span>

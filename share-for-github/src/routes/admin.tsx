@@ -168,7 +168,7 @@ function AdminPage() {
       setCloudWaitlist(res.waitlistEmails);
       let volCount = 0;
       try {
-        const vols = await listVolunteerRidesFn();
+        const vols = await listVolunteerRidesFn({ data: { pin } });
         setCloudVolunteers(vols.rides);
         useShareStore.setState({ volunteerRides: vols.rides });
         volCount = vols.rides.length;
@@ -228,6 +228,11 @@ function AdminPage() {
                       try {
                         await verifyFounderPinFn({ data: { pin } });
                         setUnlocked(true);
+                        try {
+                          sessionStorage.setItem("share-admin-pin", pin);
+                        } catch {
+                          /* ignore */
+                        }
                         toast.success("Inbox unlocked");
                         void refreshCloud(pin);
                       } catch {
@@ -245,6 +250,11 @@ function AdminPage() {
                   try {
                     await verifyFounderPinFn({ data: { pin } });
                     setUnlocked(true);
+                    try {
+                      sessionStorage.setItem("share-admin-pin", pin);
+                    } catch {
+                      /* ignore */
+                    }
                     toast.success("Inbox unlocked");
                     void refreshCloud(pin);
                   } catch {

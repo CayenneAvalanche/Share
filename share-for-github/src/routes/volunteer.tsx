@@ -127,10 +127,10 @@ function VolunteerPage() {
     (r) =>
       r.status === "seeking_volunteer" || r.status === "escalated_paid",
   );
-  const myMatched = myLocal.filter(
-    (r) => r.status === "matched" || r.status === "completed",
+  const myMatched = myLocal.filter((r) => r.status === "matched");
+  const myCancelled = myLocal.filter(
+    (r) => r.status === "cancelled" || r.status === "completed",
   );
-  const myCancelled = myLocal.filter((r) => r.status === "cancelled");
 
   const open = canSeeOpenBoard
     ? volunteerRides.filter(
@@ -138,9 +138,12 @@ function VolunteerPage() {
           r.status === "seeking_volunteer" || r.status === "escalated_paid",
       )
     : [];
-  const rest = canSeeOpenBoard
+  const matchedBoard = canSeeOpenBoard
+    ? volunteerRides.filter((r) => r.status === "matched")
+    : [];
+  const historyBoard = canSeeOpenBoard
     ? volunteerRides.filter(
-        (r) => r.status === "matched" || r.status === "completed",
+        (r) => r.status === "cancelled" || r.status === "completed",
       )
     : [];
 
@@ -226,61 +229,6 @@ function VolunteerPage() {
         Free volunteer first. If no driver in time, becomes a paid request.
       </p>
 
-      {/* Your requests — edit allowed until a driver accepts */}
-      {(myOpen.length > 0 || myMatched.length > 0 || myCancelled.length > 0) && (
-        <section className="mt-6">
-          <h2 className="font-display text-lg font-semibold">Your requests</h2>
-          <div className="mt-3 flex flex-col gap-3">
-            {[...myOpen, ...myMatched].map((r) => (
-              <VolunteerCard
-                key={r.id}
-                ride={r}
-                canEdit={
-                  r.status === "seeking_volunteer" ||
-                  r.status === "escalated_paid"
-                }
-                canCancel={
-                  r.status === "seeking_volunteer" ||
-                  r.status === "escalated_paid" ||
-                  r.status === "matched"
-                }
-              />
-            ))}
-          </div>
-          {myCancelled.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-sm font-semibold text-[var(--color-fg-muted)]">
-                Cancelled (kept for your records)
-              </h3>
-              <div className="mt-2 flex flex-col gap-2">
-                {myCancelled.map((r) => (
-                  <VolunteerCard key={r.id} ride={r} />
-                ))}
-              </div>
-            </div>
-          )}
-          {myMatched.some((r) => r.status === "matched") && (
-            <Card className="mt-3 border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
-              <CardContent className="space-y-2 p-4 text-sm">
-                <p className="font-semibold">Driver accepted — finish setup</p>
-                <p className="text-[var(--color-fg-muted)]">
-                  Create your Share account and add a recent selfie so your
-                  driver can confirm it's you.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" asChild>
-                    <Link to="/login">Create account</Link>
-                  </Button>
-                  <Button size="sm" variant="secondary" asChild>
-                    <Link to="/apply/rider">Add selfie (rider app)</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-      )}
-
       {!signedIn && !demo && (
         <Card className="mt-6 border-[var(--color-border)]">
           <CardContent className="space-y-3 p-4 text-sm text-[var(--color-fg-muted)]">
@@ -327,6 +275,9 @@ function VolunteerPage() {
                 </span>
               )}
             </h2>
+            <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+              Newest open rides first — claim one to match.
+            </p>
             <div className="mt-3 flex flex-col gap-3">
               {open.length === 0 ? (
                 <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
@@ -353,18 +304,137 @@ function VolunteerPage() {
             </div>
           </section>
 
-          {rest.length > 0 && (
-            <section className="mt-8 pb-6">
-              <h2 className="font-display text-lg font-semibold">Matched</h2>
-              <div className="mt-3 flex flex-col gap-3">
-                {rest.map((r) => (
+          <section className="mt-8">
+            <h2 className="font-display text-lg font-semibold">
+              Matched requests
+            </h2>
+            <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+              Accepted rides — open under Rides for Begin / End / SOS.
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              {matchedBoard.length === 0 ? (
+                <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-6 text-center text-sm text-[var(--color-fg-muted)]">
+                  No matched rides right now.
+                </p>
+              ) : (
+                matchedBoard.map((r) => (
+                  <a
+                    key={r.id}
+                    href={`/rides/matched/${encodeURIComponent(r.id)}`}
+                    className="block rounded-[var(--radius-lg)] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
+                  >
+                    <VolunteerCard ride={r} demo={demo} />
+                    <p className="mt-1 px-1 text-xs font-medium text-[var(--color-primary)]">
+                      Open trip controls →
+                    </p>
+                  </a>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="mt-8 pb-8">
+            <h2 className="font-display text-lg font-semibold">
+              Cancelled / completed
+            </h2>
+            <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+              History for your free-ride log.
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              {historyBoard.length === 0 ? (
+                <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-6 text-center text-sm text-[var(--color-fg-muted)]">
+                  No history yet.
+                </p>
+              ) : (
+                historyBoard.map((r) => (
                   <VolunteerCard key={r.id} ride={r} demo={demo} />
-                ))}
-              </div>
-            </section>
-          )}
+                ))
+              )}
+            </div>
+          </section>
         </>
       )}
+
+      {/* Your requests — edit allowed until a driver accepts */}
+      {(myOpen.length > 0 || myMatched.length > 0 || myCancelled.length > 0) && (
+        <section className="mt-6">
+          <h2 className="font-display text-lg font-semibold">Your requests</h2>
+          {myOpen.length > 0 && (
+            <div className="mt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                Open
+              </h3>
+              <div className="mt-2 flex flex-col gap-3">
+                {myOpen.map((r) => (
+                  <VolunteerCard
+                    key={r.id}
+                    ride={r}
+                    canEdit={
+                      r.status === "seeking_volunteer" ||
+                      r.status === "escalated_paid"
+                    }
+                    canCancel
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {myMatched.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                Matched
+              </h3>
+              <div className="mt-2 flex flex-col gap-3">
+                {myMatched.map((r) => (
+                  <VolunteerCard
+                    key={r.id}
+                    ride={r}
+                    canCancel={r.status === "matched"}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {myCancelled.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                Cancelled / completed
+              </h3>
+              <div className="mt-2 flex flex-col gap-2">
+                {myCancelled.map((r) => (
+                  <VolunteerCard key={r.id} ride={r} />
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Rider without driver approval — nudge account after match */}
+          {!isDriverApproved &&
+            myMatched.some((r) => r.status === "matched") && (
+              <Card className="mt-3 border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
+                <CardContent className="space-y-2 p-4 text-sm">
+                  <p className="font-semibold">Driver accepted — finish setup</p>
+                  <p className="text-[var(--color-fg-muted)]">
+                    Create your Share account and add a recent selfie so your
+                    driver can confirm it's you.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" asChild>
+                      <Link to="/login">Create account</Link>
+                    </Button>
+                    <Button size="sm" variant="secondary" asChild>
+                      <Link to="/apply/rider">Add selfie (rider app)</Link>
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link to="/rides">Open in Rides</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+        </section>
+      )}
+
+
     </AppShell>
   );
 }

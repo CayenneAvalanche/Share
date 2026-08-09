@@ -235,11 +235,38 @@ type ShareState = {
   resetDemo: () => void;
 };
 
-export const SHARE_PERSIST_KEY = "share-app-v13";
+export const SHARE_PERSIST_KEY = "share-app-v14";
+/** Face photo lives in its own key so main-state prune/quota cannot kill it. */
+export const PROFILE_SELFIE_KEY = "share-profile-selfie-v1";
+
 /** Separate localStorage so demo sample data never pollutes beta. */
 function persistStorageName() {
-  if (typeof window === "undefined") return "share-app-v13-beta";
-  return isDemoMode() ? "share-app-v13-demo" : "share-app-v13-beta";
+  if (typeof window === "undefined") return "share-app-v14-beta";
+  return isDemoMode() ? "share-app-v14-demo" : "share-app-v14-beta";
+}
+
+function readDedicatedSelfie(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const v = localStorage.getItem(PROFILE_SELFIE_KEY);
+    if (v && v.startsWith("data:") && v.length > 40) return v;
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+function writeDedicatedSelfie(dataUrl: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!dataUrl) {
+      localStorage.removeItem(PROFILE_SELFIE_KEY);
+      return;
+    }
+    localStorage.setItem(PROFILE_SELFIE_KEY, dataUrl);
+  } catch {
+    console.warn("[share] dedicated selfie write failed (quota)");
+  }
 }
 
 const DEMO =
@@ -383,35 +410,48 @@ function createSafeStorage(): {
       }
     },
     setItem: (name, value) => {
+      const tryWrite = (v: string) => {
+        localStorage.setItem(name, v);
+      };
       try {
-        localStorage.setItem(name, value);
+        tryWrite(value);
         return;
       } catch {
-        /* fall through */
+        /* fall through — multi-stage prune */
       }
-      // Drop the heaviest keys and retry a compact write
+
+      // Rescue face into dedicated key before we strip anything
       try {
         const parsed = JSON.parse(value) as { state?: Record<string, unknown> };
-        const s = parsed.state;
-        if (s && typeof s === "object") {
-          // wipe bulky photo fields
-          if (typeof s.profileSelfie === "string" && s.profileSelfie.length > 100_000) {
-            s.profileSelfie = "";
-          }
+        const face =
+          typeof parsed.state?.profileSelfie === "string"
+            ? (parsed.state.profileSelfie as string)
+            : "";
+        if (face.length > 40) writeDedicatedSelfie(face);
+      } catch {
+        /* ignore */
+      }
+
+      const stripStage = (stage: 1 | 2 | 3) => {
+        try {
+          const parsed = JSON.parse(value) as { state?: Record<string, unknown> };
+          const s = parsed.state;
+          if (!s || typeof s !== "object") return null;
+
+          // Stage 1: strip trip/vehicle/docs/messages — KEEP profileSelfie
           if (Array.isArray(s.myVehicles)) {
-            s.myVehicles = (s.myVehicles as { photoUrl?: string }[]).map((v) => ({
-              ...v,
-              photoUrl: undefined,
-            }));
+            s.myVehicles = (s.myVehicles as { photoUrl?: string }[]).map(
+              (v) => ({ ...v, photoUrl: undefined }),
+            );
           }
           if (Array.isArray(s.trips)) {
-            s.trips = (s.trips as { vehiclePhoto?: string; driverSelfie?: string }[]).map(
-              (tr) => ({
-                ...tr,
-                vehiclePhoto: undefined,
-                driverSelfie: undefined,
-              }),
-            );
+            s.trips = (
+              s.trips as { vehiclePhoto?: string; driverSelfie?: string }[]
+            ).map((tr) => ({
+              ...tr,
+              vehiclePhoto: undefined,
+              driverSelfie: undefined,
+            }));
           }
           if (Array.isArray(s.rentals)) {
             s.rentals = (s.rentals as { photoUrl?: string }[]).map((r) => ({
@@ -420,32 +460,75 @@ function createSafeStorage(): {
             }));
           }
           if (Array.isArray(s.driverApps)) {
-            s.driverApps = (s.driverApps as object[]).map((a) => ({
-              ...a,
-              licenseFront: undefined,
-              licenseBack: undefined,
-              insuranceCard: undefined,
-              selfie: undefined,
-              vehiclePhoto: undefined,
-            }));
+            s.driverApps = (s.driverApps as Record<string, unknown>[]).map(
+              (a) => ({
+                ...a,
+                licenseFront: undefined,
+                licenseBack: undefined,
+                insuranceCard: undefined,
+                // keep selfie until stage 2
+                selfie: stage >= 2 ? undefined : a.selfie,
+                vehiclePhoto: undefined,
+              }),
+            );
           }
-          if (Array.isArray(s.messages) && s.messages.length > 40) {
-            s.messages = (s.messages as unknown[]).slice(0, 40);
+          if (Array.isArray(s.riderApps)) {
+            s.riderApps = (s.riderApps as Record<string, unknown>[]).map(
+              (a) => ({
+                ...a,
+                selfie: stage >= 2 ? undefined : a.selfie,
+              }),
+            );
           }
-          const compact = JSON.stringify(parsed);
-          localStorage.setItem(name, compact);
-          return;
+          if (Array.isArray(s.messages)) {
+            s.messages =
+              stage >= 2
+                ? []
+                : (s.messages as unknown[]).slice(0, 20);
+          }
+          if (stage >= 2) {
+            // Drop marketplace bulk
+            s.trips = [];
+            s.deliveries = [];
+            s.rideRequests = [];
+            s.volunteerRides = (s.volunteerRides as unknown[])?.slice?.(0, 5) ?? [];
+          }
+          if (stage >= 3) {
+            // Last resort: still keep face if present; if huge, rely on dedicated key
+            if (
+              typeof s.profileSelfie === "string" &&
+              (s.profileSelfie as string).length > 80_000
+            ) {
+              writeDedicatedSelfie(s.profileSelfie as string);
+              s.profileSelfie = "";
+            }
+          }
+          return JSON.stringify(parsed);
+        } catch {
+          return null;
         }
-      } catch {
-        /* ignore */
+      };
+
+      for (const stage of [1, 2, 3] as const) {
+        const compact = stripStage(stage);
+        if (!compact) continue;
+        try {
+          tryWrite(compact);
+          console.warn(`[share] localStorage pruned stage ${stage}`);
+          return;
+        } catch {
+          /* next stage */
+        }
       }
+
       try {
-        // last resort: clear this app key so next actions can save again
         localStorage.removeItem(name);
       } catch {
         /* ignore */
       }
-      console.warn("[share] localStorage full — pruned photos to free space");
+      console.warn(
+        "[share] localStorage full — main state cleared; face kept in dedicated key if saved",
+      );
     },
     removeItem: (name) => {
       try {
@@ -606,7 +689,13 @@ export const useShareStore = create<ShareState>()(
         set((state) => ({
           driverApps: [full, ...state.driverApps],
           isDriverApproved: false,
-          profileSelfie: full.selfie || state.profileSelfie || "",
+          profileSelfie: (() => {
+            const next = full.selfie || state.profileSelfie || "";
+            if (full.selfie && full.selfie.length > 40) {
+              writeDedicatedSelfie(full.selfie);
+            }
+            return next;
+          })(),
         }));
         if (full.vehicle?.trim()) {
           get().addVehicle({
@@ -634,7 +723,13 @@ export const useShareStore = create<ShareState>()(
         };
         set((state) => ({
           riderApps: [full, ...state.riderApps],
-          profileSelfie: full.selfie || state.profileSelfie || "",
+          profileSelfie: (() => {
+            const next = full.selfie || state.profileSelfie || "";
+            if (full.selfie && full.selfie.length > 40) {
+              writeDedicatedSelfie(full.selfie);
+            }
+            return next;
+          })(),
         }));
         return full;
       },
@@ -880,13 +975,17 @@ export const useShareStore = create<ShareState>()(
       setRiderName: (name) => set({ riderName: name }),
       setProfileSelfie: (dataUrl) => {
         const next = dataUrl || "";
-        set({ profileSelfie: next });
-        // nudge persist; if full, safe storage prunes
-        try {
-          // no-op read to surface quota in some browsers is unnecessary
-        } catch {
-          /* ignore */
-        }
+        writeDedicatedSelfie(next);
+        set((state) => ({
+          profileSelfie: next,
+          // Keep app rows aligned so cloud sync cannot resurrect an old face
+          driverApps: state.driverApps.map((a) =>
+            next ? { ...a, selfie: next } : a,
+          ),
+          riderApps: state.riderApps.map((a) =>
+            next ? { ...a, selfie: next } : a,
+          ),
+        }));
       },
 
       addVehicle: (v) => {
@@ -1059,7 +1158,6 @@ export const useShareStore = create<ShareState>()(
             const byId = new Map<string, T>();
             for (const a of local) byId.set(a.id, a);
             for (const a of remote) byId.set(a.id, { ...byId.get(a.id), ...a });
-            // remote-first order for "latest"
             const remoteIds = new Set(remote.map((r) => r.id));
             const rest = local.filter((a) => !remoteIds.has(a.id));
             return [...remote, ...rest];
@@ -1074,34 +1172,47 @@ export const useShareStore = create<ShareState>()(
             riderApps.some(
               (a) => a.status === "active" || a.status === "approved",
             ) || state.isRiderApproved;
-          const selfieFromApps =
-            driverApps.find((a) => a.selfie)?.selfie ||
-            riderApps.find((a) => a.selfie)?.selfie ||
-            state.profileSelfie ||
+
+          // Source of truth: dedicated key → current profile → apps (never overwrite a real face)
+          const dedicated = readDedicatedSelfie();
+          const currentFace =
+            state.profileSelfie && state.profileSelfie.length > 40
+              ? state.profileSelfie
+              : "";
+          const fromApps =
+            driverApps.find((a) => a.selfie && a.selfie.length > 40)?.selfie ||
+            riderApps.find((a) => a.selfie && a.selfie.length > 40)?.selfie ||
             "";
+          const profileSelfie =
+            dedicated || currentFace || fromApps || "";
+
+          if (profileSelfie && profileSelfie !== dedicated) {
+            writeDedicatedSelfie(profileSelfie);
+          }
+
           let myVehicles = state.myVehicles;
           if (myVehicles.length === 0) {
-            const fromApps: SavedVehicle[] = [];
+            const fromAppVehicles: SavedVehicle[] = [];
             for (const d of driverApps) {
               if (!d.vehicle?.trim()) continue;
-              fromApps.push({
+              fromAppVehicles.push({
                 id: uid("veh"),
                 label: d.vehicle.trim(),
                 vehicleType: d.vehicleType || "Other",
                 licensePlate: d.licensePlate || undefined,
                 photoUrl: d.vehiclePhoto || undefined,
-                isDefault: fromApps.length === 0,
+                isDefault: fromAppVehicles.length === 0,
                 createdAt: d.createdAt || new Date().toISOString(),
               });
             }
-            if (fromApps.length) myVehicles = fromApps;
+            if (fromAppVehicles.length) myVehicles = fromAppVehicles;
           }
           return {
             driverApps,
             riderApps,
             isDriverApproved,
             isRiderApproved,
-            profileSelfie: selfieFromApps,
+            profileSelfie,
             myVehicles,
           };
         });
@@ -1469,6 +1580,9 @@ export const useShareStore = create<ShareState>()(
             "share-app-v12-beta",
             "share-app-v13-demo",
             "share-app-v13-beta",
+            "share-app-v14-demo",
+            "share-app-v14-beta",
+            "share-profile-selfie-v1",
             "share-force-mode",
             "share-demo-notice-v1",
           ].forEach((k) => localStorage.removeItem(k));
@@ -1526,7 +1640,7 @@ export const useShareStore = create<ShareState>()(
         isDriverApproved: s.isDriverApproved,
         isRiderApproved: s.isRiderApproved,
         profileSelfie:
-          (s.profileSelfie ?? "").length > 140_000
+          (s.profileSelfie ?? "").length > 250_000
             ? ""
             : (s.profileSelfie ?? ""),
         myVehicles: (s.myVehicles ?? []).map(slimVehicle),
@@ -1539,6 +1653,31 @@ export const useShareStore = create<ShareState>()(
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShareState>;
         const demo = isDemoMode();
+
+        // Pull face from older storage keys if dedicated key is empty (v13 → v14)
+        if (typeof window !== "undefined" && !readDedicatedSelfie()) {
+          try {
+            for (const key of [
+              "share-app-v13-beta",
+              "share-app-v13-demo",
+              "share-app-v14-beta",
+              "share-app-v14-demo",
+            ]) {
+              const raw = localStorage.getItem(key);
+              if (!raw) continue;
+              const parsed = JSON.parse(raw) as {
+                state?: { profileSelfie?: string };
+              };
+              const face = parsed?.state?.profileSelfie;
+              if (typeof face === "string" && face.length > 40) {
+                writeDedicatedSelfie(face);
+                break;
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
 
         // BETA: never re-inject sample marketplace — only user-created rows
         if (!demo) {
@@ -1585,7 +1724,18 @@ export const useShareStore = create<ShareState>()(
             ),
             isDriverApproved: p.isDriverApproved ?? false,
             isRiderApproved: p.isRiderApproved ?? false,
-            profileSelfie: p.profileSelfie ?? "",
+            profileSelfie: (() => {
+              const dedicated = readDedicatedSelfie();
+              const fromPersist =
+                typeof p.profileSelfie === "string" ? p.profileSelfie : "";
+              // Dedicated key always wins (most recent explicit retake)
+              if (dedicated.length > 40) return dedicated;
+              if (fromPersist.length > 40) {
+                writeDedicatedSelfie(fromPersist);
+                return fromPersist;
+              }
+              return current.profileSelfie || "";
+            })(),
             myVehicles: p.myVehicles ?? [],
             riderName: p.riderName ?? current.riderName,
           };
@@ -1678,6 +1828,17 @@ export const useShareStore = create<ShareState>()(
               : DEFAULT_SAVED_PLACES,
           payments: p.payments ?? [],
           notifications: p.notifications ?? current.notifications,
+          profileSelfie: (() => {
+            const dedicated = readDedicatedSelfie();
+            const fromPersist =
+              typeof p.profileSelfie === "string" ? p.profileSelfie : "";
+            if (dedicated.length > 40) return dedicated;
+            if (fromPersist.length > 40) {
+              writeDedicatedSelfie(fromPersist);
+              return fromPersist;
+            }
+            return current.profileSelfie || "";
+          })(),
         };
       },
     },

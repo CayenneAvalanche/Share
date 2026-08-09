@@ -7,7 +7,7 @@ const PRESETS: Record<
   { maxEdge: number; quality: number; maxBytes: number }
 > = {
   // Face on You / apps — must stay tiny (many devices ~5MB total localStorage)
-  selfie: { maxEdge: 480, quality: 0.62, maxBytes: 90_000 },
+  selfie: { maxEdge: 400, quality: 0.55, maxBytes: 70_000 },
   vehicle: { maxEdge: 900, quality: 0.68, maxBytes: 220_000 },
   item: { maxEdge: 900, quality: 0.68, maxBytes: 220_000 },
   document: { maxEdge: 1100, quality: 0.7, maxBytes: 320_000 },

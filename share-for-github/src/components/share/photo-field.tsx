@@ -97,7 +97,22 @@ export function PhotoField({
           try {
             const dataUrl = await fileToCompressedDataUrl(file, photoKind);
             onChange(dataUrl);
-            toast.success("Photo attached");
+            // For profile selfies, verify a durable write path exists
+            if (photoKind === "selfie" && typeof window !== "undefined") {
+              try {
+                localStorage.setItem("share-profile-selfie-v1", dataUrl);
+              } catch {
+                toast.error(
+                  "Phone storage is full — photo may not stick after refresh. Delete old trip photos and try again.",
+                );
+                return;
+              }
+            }
+            toast.success(
+              photoKind === "selfie"
+                ? "Profile photo saved"
+                : "Photo attached",
+            );
           } catch (err) {
             const msg =
               err instanceof Error ? err.message : "Could not read photo";

@@ -329,7 +329,8 @@ function VolunteerCard({
           <div>
             <p className="font-semibold">{ride.fullName}</p>
             <p className="text-sm text-[var(--color-fg-muted)]">
-              {ride.pickup.split(",")[0]} → {ride.dropoff.split(",")[0]}
+              {ride.pickup} → {ride.dropoff}
+
             </p>
             <p className="text-xs text-[var(--color-fg-subtle)]">{ride.when}</p>
           </div>

@@ -44,8 +44,8 @@ function NewVolunteerPage() {
   const [category, setCategory] = useState<VolunteerCategory>("elder");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pickup, setPickup] = useState<string>(LOCAL_SPOTS[7] ?? LOCAL_SPOTS[0]);
-  const [dropoff, setDropoff] = useState<string>(LOCAL_SPOTS[4] ?? LOCAL_SPOTS[1]);
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
   const [asap, setAsap] = useState(true);
   const [rideDate, setRideDate] = useState(defaultDate);
   const [rideTime, setRideTime] = useState("10:00");
@@ -80,11 +80,17 @@ function NewVolunteerPage() {
       setAsap(true);
     } else {
       setAsap(false);
-      // leave date/time as defaults; when text is free-form
     }
   }, [volunteerRides, navigate]);
 
   const minDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const quickPlaces = useMemo(() => {
+    return [
+      ...LOCAL_SPOTS.slice(0, 8),
+      ...savedPlaces.map((p) => p.address || p.label).filter(Boolean),
+    ].filter((v, i, a) => a.indexOf(v) === i);
+  }, [savedPlaces]);
 
   function formatWhen(): string {
     if (asap) return "ASAP";
@@ -108,8 +114,18 @@ function NewVolunteerPage() {
       toast.error("Name and phone required");
       return;
     }
-    if (pickup === dropoff) {
-      toast.error("Pick two different places");
+    const pu = pickup.trim();
+    const doff = dropoff.trim();
+    if (pu.length < 5) {
+      toast.error("Enter a full pickup address (street + city)");
+      return;
+    }
+    if (doff.length < 5) {
+      toast.error("Enter a full drop-off address (street + city)");
+      return;
+    }
+    if (pu.toLowerCase() === doff.toLowerCase()) {
+      toast.error("Pickup and drop-off need to be different places");
       return;
     }
     if (!asap && (!rideDate || !rideTime)) {
@@ -122,8 +138,8 @@ function NewVolunteerPage() {
       category,
       fullName: fullName.trim(),
       phone: phone.trim(),
-      pickup,
-      dropoff,
+      pickup: pu,
+      dropoff: doff,
       when,
       notes: notes.trim(),
       escalateAfterHours,
@@ -174,11 +190,6 @@ function NewVolunteerPage() {
     navigate({ to: "/volunteer" });
   }
 
-  const placeOptions = [
-    ...LOCAL_SPOTS,
-    ...savedPlaces.map((p) => p.address),
-  ].filter((v, i, a) => a.indexOf(v) === i);
-
   return (
     <AppShell
       title={editId ? "Edit ride request" : "Request a ride"}
@@ -194,8 +205,9 @@ function NewVolunteerPage() {
         {!editId && (
           <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
             <CardContent className="p-4 text-sm text-[var(--color-fg-muted)]">
-              Anyone can request. When a driver accepts, you'll create an
-              account and add a selfie so they can recognize you at pickup.
+              Anyone can request. Enter full street addresses so a driver can
+              find you. When a driver accepts, you'll create an account and add
+              a selfie so they can recognize you at pickup.
             </CardContent>
           </Card>
         )}
@@ -232,6 +244,7 @@ function NewVolunteerPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="First and last"
+                  autoComplete="name"
                 />
               </div>
               <div>
@@ -243,36 +256,69 @@ function NewVolunteerPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(337) 555-0100"
+                  autoComplete="tel"
                 />
               </div>
             </div>
+
             <div>
-              <Label htmlFor="pickup">Pickup</Label>
-              <Select
+              <Label htmlFor="pickup">Pickup address</Label>
+              <Textarea
                 id="pickup"
+                required
+                rows={2}
                 value={pickup}
                 onChange={(e) => setPickup(e.target.value)}
-              >
-                {placeOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
+                placeholder="Street number & name, city (e.g. 123 Main St, Lafayette LA)"
+                autoComplete="street-address"
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Full address — apartment or gate code can go in notes.
+              </p>
+              {quickPlaces.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {quickPlaces.slice(0, 6).map((s) => (
+                    <button
+                      key={`pu-${s}`}
+                      type="button"
+                      onClick={() => setPickup(s)}
+                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-fg-muted)] active:bg-[var(--color-primary)]/10"
+                    >
+                      {s.length > 28 ? `${s.slice(0, 26)}…` : s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
             <div>
-              <Label htmlFor="dropoff">Drop-off</Label>
-              <Select
+              <Label htmlFor="dropoff">Drop-off address</Label>
+              <Textarea
                 id="dropoff"
+                required
+                rows={2}
                 value={dropoff}
                 onChange={(e) => setDropoff(e.target.value)}
-              >
-                {placeOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
+                placeholder="Street or place name + city (e.g. Our Lady of Lourdes, Lafayette)"
+                autoComplete="street-address"
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Hospital, clinic, work, or home — be as specific as you can.
+              </p>
+              {quickPlaces.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {quickPlaces.slice(0, 6).map((s) => (
+                    <button
+                      key={`do-${s}`}
+                      type="button"
+                      onClick={() => setDropoff(s)}
+                      className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-fg-muted)] active:bg-[var(--color-primary)]/10"
+                    >
+                      {s.length > 28 ? `${s.slice(0, 26)}…` : s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3">
@@ -363,7 +409,7 @@ function NewVolunteerPage() {
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Mobility aids, bags, hospital discharge…"
+                placeholder="Apt #, gate code, wheelchair, bags, hospital discharge…"
               />
             </div>
           </CardContent>

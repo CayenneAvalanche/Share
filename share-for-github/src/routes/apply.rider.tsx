@@ -163,13 +163,14 @@ function RiderApplyPage() {
             <PhotoField
               id="rider-selfie"
               label="Recent selfie (one photo for rider & driver)"
-              hint="Clear face photo — helps drivers confirm it’s you at pickup."
+              hint="Take a live selfie first — then you can replace from your library if needed."
               value={selfie}
               onChange={(v) => {
                 setSelfie(v);
                 if (v) setProfileSelfie(v);
               }}
               facing="user"
+              captureFirst
               required
             />
             <div>

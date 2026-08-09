@@ -17,7 +17,6 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
-import { fileToCompressedDataUrl } from "@/lib/share/image";
 import { PhotoField } from "@/components/share/photo-field";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 
@@ -66,26 +65,25 @@ function DriverApplyPage() {
   useEffect(() => {
     if (profileSelfie && !selfie) setSelfie(profileSelfie);
   }, [profileSelfie, selfie]);
-  const [uploading, setUploading] = useState<string | null>(null);
   /** never = not listed · active · inactive (used to drive but not now) */
   const [platformStatus, setPlatformStatus] = useState<
-    Record<string, "never" | "active" | "inactive">
-  >({
-    uber: "never",
-    lyft: "never",
-    spark: "never",
-    uber_eats: "never",
-    flex: "never",
-    door_dash: "never",
-    other: "never",
+    Record<GigPlatform, "never" | "active" | "inactive">
+  >(() => {
+    const init = {} as Record<GigPlatform, "never" | "active" | "inactive">;
+    for (const p of PLATFORMS) init[p] = "never";
+    return init;
   });
   const [platformMeta, setPlatformMeta] = useState<
     Record<string, { years: string; trips: string; rating: string }>
-  >({
-    uber: { years: "2", trips: "500", rating: "4.95" },
-    lyft: { years: "1", trips: "200", rating: "4.9" },
-    spark: { years: "1", trips: "100", rating: "4.9" },
+  >(() => {
+    const init: Record<string, { years: string; trips: string; rating: string }> =
+      {};
+    for (const p of PLATFORMS) {
+      init[p] = { years: "", trips: "", rating: "" };
+    }
+    return init;
   });
+  const [vehicleExtras, setVehicleExtras] = useState<string[]>([]);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -139,6 +137,9 @@ function DriverApplyPage() {
         rest.notes,
         hasDashcam ? "Dashcam: yes" : "Dashcam: no",
         "Docs: license front/back + insurance card attached",
+        vehicleExtras.length
+          ? `Extra vehicle photos: ${vehicleExtras.length}`
+          : "",
       ]
         .filter(Boolean)
         .join(" | "),
@@ -347,39 +348,63 @@ function DriverApplyPage() {
                   className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3"
                 >
                   <p className="text-sm font-medium">{GIG_PLATFORM_LABELS[p]}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div
+                    className="mt-2 grid grid-cols-3 gap-2"
+                    role="radiogroup"
+                    aria-label={`${GIG_PLATFORM_LABELS[p]} status`}
+                  >
                     {(
                       [
                         ["never", "Never"],
                         ["active", "Active"],
                         ["inactive", "Not active"],
                       ] as const
-                    ).map(([val, label]) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() =>
-                          setPlatformStatus((m) => ({ ...m, [p]: val }))
-                        }
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          st === val
-                            ? val === "active"
-                              ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]"
-                              : val === "inactive"
-                                ? "bg-[var(--color-fg-muted)] text-[var(--color-bg)]"
-                                : "bg-[var(--color-bg-subtle)] text-[var(--color-fg)] ring-1 ring-[var(--color-border)]"
-                            : "bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    ).map(([val, label]) => {
+                      const selected = st === val;
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPlatformStatus((m) => ({ ...m, [p]: val }));
+                            // Ensure meta row exists when they list a platform
+                            if (val !== "never") {
+                              setPlatformMeta((m) => ({
+                                ...m,
+                                [p]: m[p] ?? {
+                                  years: "",
+                                  trips: "",
+                                  rating: "",
+                                },
+                              }));
+                            }
+                          }}
+                          className={`min-h-11 rounded-[var(--radius-md)] px-2 py-2 text-xs font-bold touch-manipulation transition-colors ${
+                            selected
+                              ? val === "active"
+                                ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)] shadow-sm"
+                                : val === "inactive"
+                                  ? "bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm"
+                                  : "bg-[var(--color-bg-subtle)] text-[var(--color-fg)] ring-2 ring-[var(--color-primary)]"
+                              : "bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)] ring-1 ring-[var(--color-border)]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                   {listed && (
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-3 grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-xs">Years</Label>
                         <Input
+                          inputMode="decimal"
+                          placeholder="2"
                           value={platformMeta[p]?.years ?? ""}
                           onChange={(e) =>
                             setPlatformMeta((m) => ({
@@ -396,6 +421,8 @@ function DriverApplyPage() {
                       <div>
                         <Label className="text-xs">~Trips</Label>
                         <Input
+                          inputMode="numeric"
+                          placeholder="500"
                           value={platformMeta[p]?.trips ?? ""}
                           onChange={(e) =>
                             setPlatformMeta((m) => ({
@@ -412,6 +439,7 @@ function DriverApplyPage() {
                       <div>
                         <Label className="text-xs">Rating</Label>
                         <Input
+                          inputMode="decimal"
                           placeholder="4.95"
                           value={platformMeta[p]?.rating ?? ""}
                           onChange={(e) =>
@@ -464,10 +492,15 @@ function DriverApplyPage() {
             <PhotoField
               id="driver-car-photo"
               label="Photo of your car"
-              hint="Saved to your profile — used when you post trips."
+              hint="Take a live photo first — then upload more angles from your library."
               value={vehiclePhoto}
               onChange={setVehiclePhoto}
+              extras={vehicleExtras}
+              onExtrasChange={setVehicleExtras}
+              maxExtras={6}
               facing="environment"
+              kind="vehicle"
+              captureFirst
               required
             />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -530,6 +563,7 @@ function DriverApplyPage() {
             <PhotoField
               id="driver-selfie"
               label="Recent selfie (one photo for rider & driver)"
+              captureFirst
               hint="Clear face photo — riders match this to you at pickup."
               value={selfie}
               onChange={(v) => {
@@ -544,54 +578,40 @@ function DriverApplyPage() {
                 <p className="text-sm font-semibold">Required ID documents</p>
                 <p className="text-xs text-[var(--color-fg-muted)]">
                   Clear photos of your driver license (front and back) and insurance
-                  card. Only Share HQ sees these during review.
+                  card. Camera or photo library — only Share HQ sees these during
+                  review.
                 </p>
               </div>
-              {(
-                [
-                  ["licenseFront", "License — front", licenseFront, setLicenseFront],
-                  ["licenseBack", "License — back", licenseBack, setLicenseBack],
-                  ["insuranceCard", "Insurance card", insuranceCard, setInsuranceCard],
-                ] as const
-              ).map(([key, label, value, setter]) => (
-                <div key={key}>
-                  <Label htmlFor={key}>{label} *</Label>
-                  <Input
-                    id={key}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    disabled={!!uploading}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setUploading(key);
-                      try {
-                        const dataUrl = await fileToCompressedDataUrl(file, "document");
-                        setter(dataUrl);
-                        toast.success(`${label} attached`);
-                      } catch (err) {
-                        toast.error(
-                          err instanceof Error ? err.message : "Could not read photo",
-                        );
-                      } finally {
-                        setUploading(null);
-                      }
-                    }}
-                  />
-                  {value ? (
-                    <img
-                      src={value}
-                      alt={label}
-                      className="mt-2 max-h-36 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] object-contain bg-white"
-                    />
-                  ) : (
-                    <p className="mt-1 text-[11px] text-[var(--color-fg-subtle)]">
-                      {uploading === key ? "Compressing…" : "No photo yet"}
-                    </p>
-                  )}
-                </div>
-              ))}
+              <PhotoField
+                id="license-front"
+                label="License — front"
+                value={licenseFront}
+                onChange={setLicenseFront}
+                facing="environment"
+                kind="document"
+                captureFirst={false}
+                required
+              />
+              <PhotoField
+                id="license-back"
+                label="License — back"
+                value={licenseBack}
+                onChange={setLicenseBack}
+                facing="environment"
+                kind="document"
+                captureFirst={false}
+                required
+              />
+              <PhotoField
+                id="insurance-card"
+                label="Insurance card"
+                value={insuranceCard}
+                onChange={setInsuranceCard}
+                facing="environment"
+                kind="document"
+                captureFirst={false}
+                required
+              />
               <div>
                 <Label htmlFor="docs">Optional note</Label>
                 <Input

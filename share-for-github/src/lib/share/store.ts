@@ -965,13 +965,18 @@ export const useShareStore = create<ShareState>()(
       },
 
       cancelVolunteerRide: (id) => {
+        const at = new Date().toISOString();
         set((state) => ({
           volunteerRides: state.volunteerRides.map((r) =>
             r.id === id &&
             (r.status === "seeking_volunteer" ||
               r.status === "escalated_paid" ||
               r.status === "matched")
-              ? { ...r, status: "cancelled" as const }
+              ? {
+                  ...r,
+                  status: "cancelled" as const,
+                  cancelledAt: at,
+                }
               : r,
           ),
         }));

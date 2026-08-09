@@ -12,6 +12,7 @@ import { ShareMark, ShareWordmark } from "./logo";
 import { Button } from "@/components/ui/button";
 import { useShareStore } from "@/lib/share/store";
 import { SHARE_BUILD } from "@/lib/share/contact";
+import { FounderRideAlerts } from "./founder-ride-alerts";
 
 type NavItem = {
   to: string;
@@ -111,6 +112,7 @@ export function AppShell({
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--color-bg)]">
+      <FounderRideAlerts />
       {(title || solidHeader) && (
         <header
           className={cn(

@@ -835,6 +835,17 @@ function AdminPage() {
                     <p className="text-sm font-medium text-[var(--color-fg)]">
                       Requested: {formatRequestedAt(r.createdAt)}
                     </p>
+                    {r.status === "cancelled" && (
+                      <p className="text-sm font-semibold text-[#b42318]">
+                        Cancelled:{" "}
+                        {formatRequestedAt(
+                          (r as { cancelledAt?: string }).cancelledAt ||
+                            r.createdAt,
+                        )}
+                        {!(r as { cancelledAt?: string }).cancelledAt &&
+                          " (time not recorded — older request)"}
+                      </p>
+                    )}
                     <p className="text-[10px] text-[var(--color-fg-subtle)]">
                       ID {r.id}
                     </p>

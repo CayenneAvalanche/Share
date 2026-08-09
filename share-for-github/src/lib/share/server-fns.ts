@@ -160,15 +160,21 @@ async function notifyFounderVolunteerRequest(payload: {
   when: string;
   notes: string;
   paidOffer: number;
+  kind?: "new" | "cancel";
 }) {
   const emailTo =
     process.env.FOUNDER_NOTIFY_EMAIL?.trim() || FOUNDER_NOTIFY_EMAIL_DEFAULT;
-  const phoneTo =
-    process.env.FOUNDER_NOTIFY_PHONE?.trim() || FOUNDER_NOTIFY_PHONE_DEFAULT;
+  const phones = [
+    process.env.FOUNDER_NOTIFY_PHONE?.trim() || FOUNDER_NOTIFY_PHONE_DEFAULT,
+    process.env.FOUNDER_NOTIFY_PHONE_2?.trim() || "",
+  ].filter(Boolean);
 
-  const subject = `Share volunteer ride: ${payload.fullName} (${payload.category})`;
+  const isCancel = payload.kind === "cancel";
+  const subject = isCancel
+    ? `Share CANCELLED: ${payload.fullName}`
+    : `🚨 Share ride NOW: ${payload.fullName} (${payload.category})`;
   const textBody = [
-    `New volunteer ride request`,
+    isCancel ? `Volunteer ride CANCELLED` : `NEW volunteer ride — act now`,
     `ID: ${payload.id}`,
     `Category: ${payload.category}`,
     `Rider: ${payload.fullName}`,
@@ -178,23 +184,22 @@ async function notifyFounderVolunteerRequest(payload: {
     `When: ${payload.when}`,
     `Paid offer if needed: $${payload.paidOffer}`,
     payload.notes ? `Notes: ${payload.notes}` : "",
-    `https://share.myendeavors.me/volunteer`,
+    `Open: https://share.myendeavors.me/admin`,
+    `Board: https://share.myendeavors.me/volunteer`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const smsBody =
-    `Share: new volunteer ride — ${payload.fullName} (${payload.category}) ` +
-    `${payload.pickup} → ${payload.dropoff} @ ${payload.when}. ` +
-    `Call ${payload.phone}`;
+  const smsBody = isCancel
+    ? `Share CANCELLED: ${payload.fullName} · ${payload.pickup} → ${payload.dropoff}. Call ${payload.phone} if needed.`
+    : `🚨 SHARE RIDE NOW: ${payload.fullName} (${payload.category}) ${payload.pickup} → ${payload.dropoff} @ ${payload.when}. CALL ${payload.phone} — open founder inbox.`;
 
   // --- Email via Resend ---
   const resendKey = process.env.RESEND_API_KEY?.trim();
   if (resendKey) {
     try {
       const from =
-        process.env.RESEND_FROM?.trim() ||
-        "Share <onboarding@resend.dev>";
+        process.env.RESEND_FROM?.trim() || "Share <onboarding@resend.dev>";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -218,36 +223,82 @@ async function notifyFounderVolunteerRequest(payload: {
     console.warn("[notify] RESEND_API_KEY not set — skipping email");
   }
 
-  // --- SMS via Twilio ---
+  // --- SMS via Twilio (all founder phones) ---
   const twilioSid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const twilioToken = process.env.TWILIO_AUTH_TOKEN?.trim();
   const twilioFrom = process.env.TWILIO_FROM_NUMBER?.trim();
-  if (twilioSid && twilioToken && twilioFrom && phoneTo) {
-    try {
-      const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
-      const res = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${auth}`,
-            "Content-Type": "application/x-www-form-urlencoded",
+  if (twilioSid && twilioToken && twilioFrom && phones.length) {
+    const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
+    for (const phoneTo of phones) {
+      try {
+        const res = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${auth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              To: phoneTo,
+              From: twilioFrom,
+              Body: smsBody.slice(0, 320),
+            }),
           },
-          body: new URLSearchParams({
-            To: phoneTo,
-            From: twilioFrom,
-            Body: smsBody.slice(0, 320),
-          }),
-        },
-      );
-      if (!res.ok) {
-        console.error("[notify] Twilio failed", res.status, await res.text());
+        );
+        if (!res.ok) {
+          console.error(
+            "[notify] Twilio SMS failed",
+            phoneTo,
+            res.status,
+            await res.text(),
+          );
+        }
+      } catch (e) {
+        console.error("[notify] Twilio SMS error", phoneTo, e);
       }
-    } catch (e) {
-      console.error("[notify] Twilio error", e);
+    }
+
+    // Voice ring for NEW rides only (harder to miss at 6am)
+    if (!isCancel) {
+      const say = encodeURIComponent(
+        "New Share ride request. Check your text messages and open the founder inbox now.",
+      );
+      const twiml = `<Response><Say voice="alice">${say.replace(/%20/g, " ")}</Say><Pause length="1"/><Say voice="alice">New Share ride request. Check your phone.</Say></Response>`;
+      // Use Twilio Twiml URL-less: Body as Twiml param
+      for (const phoneTo of phones) {
+        try {
+          const res = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Calls.json`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Basic ${auth}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: new URLSearchParams({
+                To: phoneTo,
+                From: twilioFrom,
+                Twiml:
+                  '<Response><Say voice="alice">New Share ride request. Check your texts and founder inbox now.</Say><Pause length="1"/><Say voice="alice">Again: new Share ride waiting.</Say></Response>',
+              }),
+            },
+          );
+          if (!res.ok) {
+            console.error(
+              "[notify] Twilio Call failed",
+              phoneTo,
+              res.status,
+              await res.text(),
+            );
+          }
+        } catch (e) {
+          console.error("[notify] Twilio Call error", phoneTo, e);
+        }
+      }
     }
   } else {
-    console.warn("[notify] Twilio env incomplete — skipping SMS");
+    console.warn("[notify] Twilio env incomplete — skipping SMS/call");
   }
 }
 
@@ -776,9 +827,21 @@ export const createMarketplaceRequestFn = createServerFn({ method: "POST" })
     return { id };
   });
 
+
+async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
+  try {
+    await sql.query(
+      `alter table share_volunteer_rides add column if not exists cancelled_at timestamptz`,
+    );
+  } catch (e) {
+    console.warn("[schema] cancelled_at", e);
+  }
+}
+
 export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
   async () => {
     const sql = await getSql();
+    await ensureVolunteerExtras(sql);
     const rows = await sql.query<{
       id: string;
       category: string;
@@ -794,6 +857,7 @@ export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
       status: string;
       matched_driver_name: string | null;
       escalated_at: string | Date | null;
+      cancelled_at: string | Date | null;
       created_at: string | Date;
     }>(
       `select * from share_volunteer_rides order by created_at desc limit 100`,
@@ -813,6 +877,7 @@ export const listVolunteerRidesFn = createServerFn({ method: "GET" }).handler(
       status: r.status as VolunteerRide["status"],
       matchedDriverName: r.matched_driver_name ?? undefined,
       escalatedAt: iso(r.escalated_at),
+      cancelledAt: iso(r.cancelled_at),
       createdAt: iso(r.created_at) ?? new Date().toISOString(),
     }));
     return { rides };
@@ -913,13 +978,45 @@ export const cancelVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
     const sql = await getSql();
-    // Guests/founders may cancel even after a driver matched (rider no-show / change of plans)
-    await sql`
-      update share_volunteer_rides set status = ${"cancelled"}
+    await ensureVolunteerExtras(sql);
+    const at = new Date().toISOString();
+    // Guests/founders may cancel even after a driver matched
+    const rows = await sql`
+      update share_volunteer_rides set
+        status = ${"cancelled"},
+        cancelled_at = ${at}
       where id = ${data.id}
         and status in ('seeking_volunteer', 'escalated_paid', 'matched')
+      returning id, category, full_name, phone, pickup, dropoff, when_text, notes, paid_offer
     `;
-    return { ok: true as const };
+    const row = rows[0] as
+      | {
+          id: string;
+          category: string;
+          full_name: string;
+          phone: string;
+          pickup: string;
+          dropoff: string;
+          when_text: string;
+          notes: string;
+          paid_offer: number;
+        }
+      | undefined;
+    if (row) {
+      void notifyFounderVolunteerRequest({
+        id: row.id,
+        category: row.category,
+        fullName: row.full_name,
+        phone: row.phone,
+        pickup: row.pickup,
+        dropoff: row.dropoff,
+        when: row.when_text,
+        notes: row.notes || "",
+        paidOffer: Number(row.paid_offer),
+        kind: "cancel",
+      }).catch(() => {});
+    }
+    return { ok: true as const, cancelledAt: at };
   });
 
 
@@ -970,6 +1067,7 @@ export const lookupVolunteerByPhoneFn = createServerFn({ method: "POST" })
         status: r.status as VolunteerRide["status"],
         matchedDriverName: r.matched_driver_name ?? undefined,
         escalatedAt: iso(r.escalated_at),
+        cancelledAt: iso((r as { cancelled_at?: string | Date | null }).cancelled_at),
         createdAt: iso(r.created_at) ?? new Date().toISOString(),
       }));
     const name = String(data.fullName ?? "").trim().toLowerCase();

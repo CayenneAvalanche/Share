@@ -403,6 +403,11 @@ function VolunteerCard({
             <p className="mt-0.5 text-xs font-medium text-[var(--color-fg-muted)]">
               Requested {formatRequestedAt(ride.createdAt)}
             </p>
+            {ride.status === "cancelled" && ride.cancelledAt && (
+              <p className="mt-0.5 text-xs font-semibold text-[#b42318]">
+                Cancelled {formatRequestedAt(ride.cancelledAt)}
+              </p>
+            )}
           </div>
           <div className="text-right">
             {free ? (

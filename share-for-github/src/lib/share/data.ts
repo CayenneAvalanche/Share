@@ -926,6 +926,8 @@ export type VolunteerRide = {
   status: VolunteerRideStatus;
   createdAt: string;
   escalatedAt?: string;
+  /** When the request was cancelled (history) */
+  cancelledAt?: string;
   paidOffer: number;
   matchedDriverName?: string;
   requesterName: string;

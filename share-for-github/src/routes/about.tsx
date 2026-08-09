@@ -37,7 +37,7 @@ function AboutPage() {
             Share your adventures.
           </p>
           <p className="mt-3 max-w-sm text-sm text-[var(--color-fg-inverse)]/75">
-            Trusted rides, deliveries, local seats, and neighborhood gear — after
+            Trusted sharing — rides, deliveries, local seats, and neighborhood gear — after
             a real interview. Rooted in Lafayette.
           </p>
         </div>

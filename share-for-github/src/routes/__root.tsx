@@ -12,12 +12,12 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       {
-        title: "Share — Trusted Rides and Deliveries",
+        title: "Share — Trusted Sharing",
       },
       {
         name: "description",
         content:
-          "Share a ride or Share a delivery. Trusted rides and deliveries rooted in Lafayette, Louisiana.",
+          "Trusted Sharing — rides, deliveries, cars, food, and neighborhood gear. Rooted in Lafayette, Louisiana.",
       },
       { name: "theme-color", content: "#1f6b45" },
     ],

@@ -48,13 +48,14 @@ function LandingPage() {
             </div>
           </div>
           <h1 className="max-w-2xl font-display text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-            Share your life.
-            <br />
-            Share your adventures.
+            Trusted Sharing
           </h1>
+          <p className="mt-3 max-w-xl font-display text-xl font-medium leading-snug text-[var(--color-fg-inverse)]/90 sm:text-2xl">
+            Share your life. Share your adventures.
+          </p>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-[var(--color-fg-inverse)]/75 sm:text-lg">
-            Trusted rides and deliveries — local seats, corridor trips, packages
-            on trips already going, and neighborhood gear. Rooted in Lafayette.
+            Rides, deliveries, cars, homemade food, and neighborhood gear — one
+            trusted place to share. Rooted in Lafayette, growing with you.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button size="lg" variant="inverse" asChild>

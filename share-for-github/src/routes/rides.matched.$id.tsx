@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Phone, Pencil, CheckCircle2, RotateCcw } from "lucide-react";
+import {
+  Phone,
+  Pencil,
+  CheckCircle2,
+  RotateCcw,
+  Play,
+  Square,
+  Timer,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { AddressField } from "@/components/share/address-field";
+import { SosPanel } from "@/components/share/sos-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +34,16 @@ export const Route = createFileRoute("/rides/matched/$id")({
   component: MatchedRidePage,
 });
 
+function formatElapsed(totalSec: number) {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function MatchedRidePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -38,6 +57,13 @@ function MatchedRidePage() {
   const [cloudRide, setCloudRide] = useState<VolunteerRide | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** idle → in_progress (timer) → ended (can mark complete) */
+  const [tripPhase, setTripPhase] = useState<"idle" | "in_progress" | "ended">(
+    "idle",
+  );
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [endedDuration, setEndedDuration] = useState<string | null>(null);
 
   // Prefer store, then cloud
   const vol =
@@ -77,6 +103,38 @@ function MatchedRidePage() {
   const [notes, setNotes] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
+
+  // Restore in-progress trip after refresh
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(`share-trip-run-${id}`);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        phase: "idle" | "in_progress" | "ended";
+        startedAt?: number;
+        endedDuration?: string;
+      };
+      if (parsed.phase === "in_progress" && parsed.startedAt) {
+        setTripPhase("in_progress");
+        setStartedAt(parsed.startedAt);
+      } else if (parsed.phase === "ended") {
+        setTripPhase("ended");
+        setEndedDuration(parsed.endedDuration ?? null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [id]);
+
+  // Live timer while ride is in progress
+  useEffect(() => {
+    if (tripPhase !== "in_progress" || !startedAt) return;
+    const tick = () =>
+      setElapsedSec(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [tripPhase, startedAt]);
 
   useEffect(() => {
     if (!vol) return;
@@ -142,6 +200,11 @@ function MatchedRidePage() {
   async function onComplete() {
     if (!vol) return;
     if (!confirm("Mark this ride complete?")) return;
+    try {
+      sessionStorage.removeItem(`share-trip-run-${id}`);
+    } catch {
+      /* ignore */
+    }
     complete(vol.id);
     try {
       await completeVolunteerRideFn({ data: { id: vol.id } });
@@ -359,8 +422,8 @@ function MatchedRidePage() {
         </Card>
 
         {!editing && (
-          <div className="flex flex-col gap-2">
-            {telHref && (
+          <div className="flex flex-col gap-3">
+            {telHref && tripPhase === "idle" && (
               <Button size="lg" asChild>
                 <a href={telHref}>
                   <Phone className="size-4" />
@@ -368,35 +431,172 @@ function MatchedRidePage() {
                 </a>
               </Button>
             )}
-            {(vol.status === "matched" ||
-              vol.status === "seeking_volunteer" ||
-              vol.status === "escalated_paid") && (
-              <Button
-                size="lg"
-                variant="secondary"
-                onClick={() => setEditing(true)}
-              >
-                <Pencil className="size-4" />
-                Edit ride
-              </Button>
-            )}
+
             {vol.status === "matched" && (
-              <Button size="lg" variant="outline" onClick={() => void onComplete()}>
-                <CheckCircle2 className="size-4" />
-                Mark complete
-              </Button>
+              <Card className="border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5">
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Trip control</p>
+                    {tripPhase === "in_progress" && (
+                      <Badge variant="success" className="gap-1 font-mono">
+                        <Timer className="size-3" />
+                        {formatElapsed(elapsedSec)}
+                      </Badge>
+                    )}
+                    {tripPhase === "ended" && endedDuration && (
+                      <Badge variant="outline" className="font-mono">
+                        Drove {endedDuration}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {tripPhase === "idle" && (
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={() => {
+                        const at = Date.now();
+                        setTripPhase("in_progress");
+                        setStartedAt(at);
+                        setElapsedSec(0);
+                        setEndedDuration(null);
+                        try {
+                          sessionStorage.setItem(
+                            `share-trip-run-${id}`,
+                            JSON.stringify({
+                              phase: "in_progress",
+                              startedAt: at,
+                            }),
+                          );
+                        } catch {
+                          /* ignore */
+                        }
+                        toast.success("Ride started — timer running");
+                      }}
+                    >
+                      <Play className="size-4" />
+                      Begin ride
+                    </Button>
+                  )}
+
+                  {tripPhase === "in_progress" && (
+                    <>
+                      <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-elevated)] px-4 py-3 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                          Elapsed
+                        </p>
+                        <p className="font-mono text-3xl font-semibold tabular-nums text-[var(--color-primary)]">
+                          {formatElapsed(elapsedSec)}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                          {vol.pickup.split(",")[0]} →{" "}
+                          {vol.dropoff.split(",")[0]}
+                        </p>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        variant="secondary"
+                        onClick={() => {
+                          const dur = formatElapsed(elapsedSec);
+                          setTripPhase("ended");
+                          setEndedDuration(dur);
+                          try {
+                            sessionStorage.setItem(
+                              `share-trip-run-${id}`,
+                              JSON.stringify({
+                                phase: "ended",
+                                endedDuration: dur,
+                              }),
+                            );
+                          } catch {
+                            /* ignore */
+                          }
+                          toast.success(`Ride ended · ${dur}`);
+                        }}
+                      >
+                        <Square className="size-4" />
+                        End ride
+                      </Button>
+                      <SosPanel
+                        compact
+                        tripLabel={`${vol.fullName} · ${vol.pickup} → ${vol.dropoff}`}
+                      />
+                    </>
+                  )}
+
+                  {tripPhase === "ended" && (
+                    <>
+                      <p className="text-sm text-[var(--color-fg-muted)]">
+                        Trip finished
+                        {endedDuration ? ` in ${endedDuration}` : ""}. Mark
+                        complete to close it out, or begin again if needed.
+                      </p>
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        onClick={() => void onComplete()}
+                      >
+                        <CheckCircle2 className="size-4" />
+                        Mark complete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => {
+                          const at = Date.now();
+                          setTripPhase("in_progress");
+                          setStartedAt(at);
+                          setElapsedSec(0);
+                          setEndedDuration(null);
+                        }}
+                      >
+                        Begin again
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             )}
-            {(vol.status === "matched" ||
-              vol.status === "seeking_volunteer" ||
-              vol.status === "escalated_paid") && (
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-[#b42318]/40 text-[#b42318]"
-                onClick={() => void onCancel()}
-              >
-                Cancel ride
-              </Button>
+
+            {tripPhase === "idle" && (
+              <>
+                {(vol.status === "matched" ||
+                  vol.status === "seeking_volunteer" ||
+                  vol.status === "escalated_paid") && (
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="size-4" />
+                    Edit ride
+                  </Button>
+                )}
+                {vol.status === "matched" && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => void onComplete()}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    Mark complete
+                  </Button>
+                )}
+                {(vol.status === "matched" ||
+                  vol.status === "seeking_volunteer" ||
+                  vol.status === "escalated_paid") && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-[#b42318]/40 text-[#b42318]"
+                    onClick={() => void onCancel()}
+                  >
+                    Cancel ride
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )}

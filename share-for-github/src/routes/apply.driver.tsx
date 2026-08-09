@@ -289,6 +289,10 @@ function DriverApplyPage() {
                   </option>
                 ))}
               </Select>
+              <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
+                Includes Lafayette and Las Vegas pilot markets — pick the city
+                you drive from most.
+              </p>
             </div>
             <div>
               <Label htmlFor="hometown">Hometown / where you’re from</Label>

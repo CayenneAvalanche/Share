@@ -393,6 +393,7 @@ export type LocalRideRequest = {
 
 export const HUB_CITIES = [
   "Lafayette, LA",
+  "Las Vegas, NV",
   "Houston, TX",
   "New Orleans, LA",
   "Shreveport, LA",
@@ -413,6 +414,13 @@ export const LOCAL_SPOTS = [
   "Our Lady of Lourdes Hospital",
   "Costco, Lafayette",
   "Target, Ambassador Caffery",
+  // Las Vegas pilot
+  "Harry Reid International Airport (LAS)",
+  "The Strip / Las Vegas Blvd",
+  "Downtown Las Vegas (Fremont)",
+  "UNLV campus",
+  "Summerlin, Las Vegas",
+  "Henderson, NV",
 ] as const;
 
 export const RENTAL_CATEGORIES: { id: RentalCategory; label: string }[] = [

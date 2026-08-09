@@ -215,7 +215,7 @@ function MatchedRidePage() {
       });
       toast.success("Saved — ride is open again until a driver re-accepts");
       setEditing(false);
-      navigate({ to: "/rides" });
+      navigate({ to: "/rides", replace: true });
     } catch {
       toast.message("Saved on this phone — cloud sync pending");
       setEditing(false);
@@ -233,13 +233,14 @@ function MatchedRidePage() {
       /* ignore */
     }
     complete(vol.id);
+    // Go to Rides tab immediately so the driver isn't stuck on the trip screen
+    navigate({ to: "/rides", replace: true });
+    toast.success("Ride completed — back on Rides");
     try {
       await completeVolunteerRideFn({ data: { id: vol.id } });
-      toast.success("Ride completed");
     } catch {
-      toast.message("Marked complete on this phone");
+      toast.message("Marked complete on this phone — cloud sync pending");
     }
-    navigate({ to: "/rides" });
   }
 
   async function onCancel() {
@@ -252,7 +253,7 @@ function MatchedRidePage() {
     } catch {
       toast.message("Cancelled on this phone");
     }
-    navigate({ to: "/rides" });
+    navigate({ to: "/rides", replace: true });
   }
 
   // Local ride detail (matched / broadcasting)
@@ -277,7 +278,7 @@ function MatchedRidePage() {
                 onClick={() => {
                   setLocalRideStatus(local.id, "cancelled", "Cancelled after match");
                   toast.success("Local ride cancelled");
-                  navigate({ to: "/rides" });
+                  navigate({ to: "/rides", replace: true });
                 }}
               >
                 Cancel local ride

@@ -53,6 +53,12 @@ function NewVolunteerPage() {
   const [escalateAfterHours, setEscalateAfterHours] = useState(2);
   const [paidOffer, setPaidOffer] = useState(12);
   const [busy, setBusy] = useState(false);
+  const [forSomeoneElse, setForSomeoneElse] = useState(false);
+  const [bookerName, setBookerName] = useState("");
+  const [sharePrompt, setSharePrompt] = useState<{
+    riderName: string;
+    phone: string;
+  } | null>(null);
 
   useEffect(() => {
     const id = readEditId();
@@ -131,6 +137,18 @@ function NewVolunteerPage() {
     }
     setBusy(true);
     const when = formatWhen();
+    const booker =
+      forSomeoneElse && bookerName.trim()
+        ? bookerName.trim()
+        : forSomeoneElse
+          ? riderName || "Caregiver"
+          : "";
+    const noteBits = [notes.trim()];
+    if (forSomeoneElse) {
+      noteBits.push(
+        `Booked by ${booker || "someone else"} for rider ${fullName.trim()} (rider should install Share for their own selfie).`,
+      );
+    }
     const payload = {
       category,
       fullName: fullName.trim(),
@@ -138,10 +156,11 @@ function NewVolunteerPage() {
       pickup: pu,
       dropoff: doff,
       when,
-      notes: notes.trim(),
+      notes: noteBits.filter(Boolean).join(" · "),
       escalateAfterHours,
       paidOffer,
-      requesterName: riderName || fullName.trim() || "Community",
+      requesterName:
+        booker || riderName || fullName.trim() || "Community",
     };
 
     if (editId) {
@@ -193,6 +212,13 @@ function NewVolunteerPage() {
       }
     }
     setBusy(false);
+    if (!editId && forSomeoneElse) {
+      setSharePrompt({
+        riderName: fullName.trim(),
+        phone: phone.trim(),
+      });
+      return;
+    }
     navigate({ to: "/volunteer" });
   }
 
@@ -214,6 +240,89 @@ function NewVolunteerPage() {
       );
     }
     navigate({ to: "/volunteer" });
+  }
+
+  async function shareWithRider() {
+    const url =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/apply/rider`
+        : "https://share.myendeavors.me/apply/rider";
+    const text = `I booked you a free Share ride. Please open this link and set up your own profile with a selfie so your driver can recognize you: ${url}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Share — set up your rider profile",
+          text,
+          url,
+        });
+        toast.success("Share sheet opened");
+        return;
+      }
+    } catch {
+      /* user cancelled or unavailable */
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Invite copied — paste into Texts / Messages");
+    } catch {
+      toast.message(url);
+    }
+  }
+
+  if (sharePrompt) {
+    const smsBody = encodeURIComponent(
+      `I booked you a free Share ride. Please open this and set up your own profile with a selfie so the driver can recognize you: ${typeof window !== "undefined" ? window.location.origin : "https://share.myendeavors.me"}/apply/rider`,
+    );
+    const digits = sharePrompt.phone.replace(/\D/g, "").slice(-10);
+    const smsHref =
+      digits.length === 10 ? `sms:+1${digits}?&body=${smsBody}` : undefined;
+
+    return (
+      <AppShell
+        title="Share the app"
+        subtitle="So the rider has their own selfie"
+        backTo="/volunteer"
+        solidHeader
+      >
+        <div className="space-y-4 py-4 pb-10">
+          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+            <CardContent className="space-y-3 p-5">
+              <p className="font-display text-xl font-semibold text-[var(--color-fg)]">
+                Request posted for {sharePrompt.riderName}
+              </p>
+              <p className="text-sm text-[var(--color-fg-muted)]">
+                Because you booked for someone else, please send them Share.
+                Each person who rides should have their{" "}
+                <strong className="text-[var(--color-fg)]">
+                  own account and selfie
+                </strong>{" "}
+                so drivers can match the face at pickup — safer for everyone.
+              </p>
+            </CardContent>
+          </Card>
+          <Button size="xl" className="w-full" onClick={() => void shareWithRider()}>
+            Share app with {sharePrompt.riderName.split(" ")[0] || "rider"}
+          </Button>
+          {smsHref && (
+            <Button size="lg" variant="secondary" className="w-full" asChild>
+              <a href={smsHref}>Text them the link</a>
+            </Button>
+          )}
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full"
+            onClick={() => navigate({ to: "/volunteer" })}
+          >
+            Done — back to Volunteer
+          </Button>
+          <p className="text-center text-xs text-[var(--color-fg-subtle)]">
+            Caregivers can still book — we just want the actual rider on the
+            platform when they can.
+          </p>
+        </div>
+      </AppShell>
+    );
   }
 
   return (
@@ -286,6 +395,44 @@ function NewVolunteerPage() {
                   autoComplete="tel"
                 />
               </div>
+            </div>
+
+
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3 space-y-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4 accent-[var(--color-primary)]"
+                  checked={forSomeoneElse}
+                  onChange={(e) => setForSomeoneElse(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-[var(--color-fg)]">
+                    Booking for someone else
+                  </span>
+                  <span className="mt-0.5 block text-xs text-[var(--color-fg-muted)]">
+                    Caregiver, family, or staff arranging the ride. The person
+                    who rides should still get the app for their own selfie /
+                    profile.
+                  </span>
+                </span>
+              </label>
+              {forSomeoneElse && (
+                <div>
+                  <Label htmlFor="booker">Your name (person booking)</Label>
+                  <Input
+                    id="booker"
+                    value={bookerName}
+                    onChange={(e) => setBookerName(e.target.value)}
+                    placeholder="Your name"
+                  />
+                  <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                    Rider name above = who gets in the car. After you post,
+                    we'll ask you to text them Share so they can set up
+                    their own profile.
+                  </p>
+                </div>
+              )}
             </div>
 
             <AddressField

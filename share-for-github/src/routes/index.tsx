@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -10,40 +9,19 @@ import {
   Video,
   Building2,
   CheckCircle2,
+  Phone,
 } from "lucide-react";
-import { toast } from "sonner";
 import { MarketingShell } from "@/components/share/shell";
 import { ShareMark } from "@/components/share/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useShareStore } from "@/lib/share/store";
-import { joinWaitlistFn } from "@/lib/share/server-fns";
+import { SHARE_PHONE_DISPLAY, SHARE_PHONE_TEL } from "@/lib/share/contact";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
 });
 
 function LandingPage() {
-  const joinWaitlist = useShareStore((s) => s.joinWaitlist);
-  const [email, setEmail] = useState("");
-
-  async function onWaitlist(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.includes("@")) {
-      toast.error("Enter a valid email");
-      return;
-    }
-    joinWaitlist(email);
-    try {
-      await joinWaitlistFn({ data: { email, source: "landing" } });
-      toast.success("You're on the early access list");
-    } catch {
-      toast.success("Saved locally — we'll sync when online");
-    }
-    setEmail("");
-  }
-
   return (
     <MarketingShell>
       <section className="relative overflow-hidden bg-[var(--color-bg-inverse)] text-[var(--color-fg-inverse)]">
@@ -54,6 +32,10 @@ function LandingPage() {
           }}
         />
         <div className="relative mx-auto max-w-5xl px-4 pb-16 pt-14 sm:pb-20 sm:pt-20">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[var(--color-fg-inverse)]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[var(--color-fg-inverse)]/90">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            Public beta · open now
+          </div>
           <div className="mb-8 inline-flex items-center gap-4 rounded-2xl bg-[#2a6b45] px-5 py-4 shadow-[var(--shadow-md)] sm:px-6 sm:py-5">
             <ShareMark inverted className="size-14 sm:size-16" />
             <div className="text-left">
@@ -71,8 +53,8 @@ function LandingPage() {
             Share your adventures.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-[var(--color-fg-inverse)]/75 sm:text-lg">
-            Long-distance rides, local seats, packages on trips already going,
-            and neighborhood gear — with real screening. Rooted in Lafayette.
+            Trusted rides and deliveries — local seats, corridor trips, packages
+            on trips already going, and neighborhood gear. Rooted in Lafayette.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button size="lg" variant="inverse" asChild>
@@ -86,7 +68,7 @@ function LandingPage() {
               className="border border-[var(--color-fg-inverse)]/30 bg-transparent text-[var(--color-fg-inverse)] hover:bg-[var(--color-fg-inverse)]/10"
               asChild
             >
-              <Link to="/apply">Apply</Link>
+              <Link to="/apply">Apply to ride or drive</Link>
             </Button>
           </div>
         </div>
@@ -188,29 +170,41 @@ function LandingPage() {
 
       <section className="mx-auto max-w-5xl px-4 py-14">
         <Card className="overflow-hidden border-0 bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
-          <CardContent className="grid gap-6 p-6 sm:grid-cols-[1.2fr_1fr] sm:p-8">
+          <CardContent className="grid gap-6 p-6 sm:grid-cols-[1.2fr_1fr] sm:items-center sm:p-8">
             <div>
-              <h2 className="font-display text-2xl font-semibold sm:text-3xl">
-                Get early access
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary-fg)]/75">
+                Live beta
+              </p>
+              <h2 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">
+                Ready when you are
               </h2>
               <p className="mt-2 text-sm text-[var(--color-primary-fg)]/85">
-                Leave your email for updates, or apply now if you're ready
-                to drive or ride.
+                Open the app to request a ride, apply as a driver or rider, or
+                post a trip. Need help? Call us.
               </p>
             </div>
-            <form onSubmit={onWaitlist} className="flex flex-col gap-2">
-              <Input
-                type="email"
-                required
-                placeholder="you@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="border-0 bg-white text-[var(--color-fg)]"
-              />
-              <Button type="submit" variant="inverse">
-                Join waitlist
+            <div className="flex flex-col gap-2">
+              <Button size="lg" variant="inverse" asChild>
+                <Link to="/app">
+                  Open the app
+                  <ArrowRight className="size-4" />
+                </Link>
               </Button>
-            </form>
+              <Button
+                size="lg"
+                className="border border-[var(--color-primary-fg)]/35 bg-transparent text-[var(--color-primary-fg)] hover:bg-[var(--color-primary-fg)]/10"
+                asChild
+              >
+                <Link to="/volunteer/new">Request a volunteer ride</Link>
+              </Button>
+              <a
+                href={SHARE_PHONE_TEL}
+                className="flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] text-sm font-semibold text-[var(--color-primary-fg)]/90 underline-offset-2 hover:underline"
+              >
+                <Phone className="size-4" />
+                {SHARE_PHONE_DISPLAY}
+              </a>
+            </div>
           </CardContent>
         </Card>
       </section>

@@ -377,9 +377,23 @@ function MatchedRidePage() {
     } catch {
       /* ignore */
     }
-    const already = threads.some(
-      (th) => th.relatedId === id && th.relatedType === opts.relatedType,
-    );
+    const phone10 = String(opts.withPhone || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+    // Same rider (phone) already has a chat → don't spam a second intro
+    const already = threads.some((th) => {
+      if (phone10.length >= 10) {
+        if (th.id === `th_rider_${phone10}`) return true;
+        if (
+          (th.participantPhones || []).some(
+            (p) => p.replace(/\D/g, "").slice(-10) === phone10,
+          )
+        ) {
+          return true;
+        }
+      }
+      return th.relatedId === id && th.relatedType === opts.relatedType;
+    });
     const threadId = startThread({
       subject: opts.subject,
       withName: opts.withName,

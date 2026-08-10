@@ -2520,7 +2520,13 @@ function threadIdFor(
   relatedType: string | undefined,
   relatedId: string | undefined,
   fallback?: string,
+  /** Prefer one thread per rider phone across all their trips */
+  riderPhone?: string,
 ): string {
+  const p = last10Digits(riderPhone);
+  if (p.length >= 10) {
+    return `th_rider_${p}`;
+  }
   if (relatedType && relatedId) {
     return `th_${relatedType}_${relatedId}`.replace(/[^a-zA-Z0-9_-]/g, "_");
   }
@@ -2796,6 +2802,230 @@ export const listChatFn = createServerFn({ method: "POST" })
       }
     }
 
+    // Collapse multiple trip chats for the same rider phone → one thread
+    try {
+      // Map volunteer relatedId → rider phone
+      const ridePhoneById = new Map<string, string>();
+      try {
+        const allRides = await sql`
+          select id, phone, full_name from share_volunteer_rides
+          order by created_at desc limit 300
+        `;
+        for (const rr of allRides as {
+          id: string;
+          phone: string;
+          full_name: string;
+        }[]) {
+          const p = last10Digits(rr.phone);
+          if (p.length >= 10) ridePhoneById.set(String(rr.id), p);
+        }
+      } catch {
+        /* ignore */
+      }
+
+      type Bucket = {
+        phone: string;
+        threadIds: string[];
+        bestName: string;
+        bestSubject: string;
+        emails: Set<string>;
+        phones: Set<string>;
+        parts: Set<string>;
+        updatedAt: string;
+        unread: number;
+      };
+      const buckets = new Map<string, Bucket>();
+
+      function ensureBucket(phone: string): Bucket {
+        let b = buckets.get(phone);
+        if (!b) {
+          b = {
+            phone,
+            threadIds: [],
+            bestName: "",
+            bestSubject: "",
+            emails: new Set(),
+            phones: new Set([phone]),
+            parts: new Set(),
+            updatedAt: "",
+            unread: 0,
+          };
+          buckets.set(phone, b);
+        }
+        return b;
+      }
+
+      for (const th of threads) {
+        const phones = (th.participantPhones || [])
+          .map((x) => last10Digits(x))
+          .filter((x) => x.length >= 10);
+        // Infer from volunteer ride
+        if (th.relatedType === "volunteer" && th.relatedId) {
+          const rp = ridePhoneById.get(th.relatedId);
+          if (rp) phones.push(rp);
+        }
+        // Infer from existing th_rider_ id
+        const m = th.id.match(/^th_rider_(\d{10})$/);
+        if (m) phones.push(m[1]!);
+
+        const uniquePhones = [...new Set(phones)];
+        // One counterparty phone: use it. Multiple: prefer non-matching my phone later
+        for (const p of uniquePhones) {
+          // Only bucket if this phone appears as a ride phone or th_rider or
+          // is the sole phone on the thread (likely the rider)
+          const isRidePhone = [...ridePhoneById.values()].includes(p);
+          const isCanonical = th.id === `th_rider_${p}`;
+          const sole = uniquePhones.length === 1;
+          if (!isRidePhone && !isCanonical && !sole) continue;
+
+          const b = ensureBucket(p);
+          if (!b.threadIds.includes(th.id)) b.threadIds.push(th.id);
+          for (const e of th.participantEmails || []) {
+            if (e.includes("@")) b.emails.add(e.toLowerCase());
+          }
+          for (const ph of th.participantPhones || []) {
+            const x = last10Digits(ph);
+            if (x.length >= 10) b.phones.add(x);
+          }
+          for (const part of th.participants) {
+            if (part && part !== "You") b.parts.add(part);
+          }
+          if (
+            !b.updatedAt ||
+            +new Date(th.updatedAt) > +new Date(b.updatedAt)
+          ) {
+            b.updatedAt = th.updatedAt;
+            b.bestSubject = th.subject;
+          }
+          b.unread += th.unread || 0;
+          // Prefer longer display names
+          for (const part of th.participants) {
+            if (
+              part &&
+              part !== "You" &&
+              part !== "Share Ops" &&
+              part.length > b.bestName.length
+            ) {
+              b.bestName = part;
+            }
+          }
+        }
+      }
+
+      const dropThreadIds = new Set<string>();
+      const remapMsg = new Map<string, string>(); // oldThreadId → canonical
+
+      for (const b of buckets.values()) {
+        if (b.threadIds.length < 2 && !b.threadIds.some((id) => id.startsWith("th_volunteer_") || id.startsWith("th_local_"))) {
+          // Still upgrade single trip thread → rider thread if we have phone
+          if (
+            b.threadIds.length === 1 &&
+            b.threadIds[0] !== `th_rider_${b.phone}` &&
+            (b.threadIds[0]!.startsWith("th_volunteer_") ||
+              b.threadIds[0]!.startsWith("th_local_"))
+          ) {
+            // merge 1 trip → rider
+          } else if (b.threadIds.length < 2) {
+            continue;
+          }
+        }
+
+        const canonical = `th_rider_${b.phone}`;
+        const name =
+          b.bestName ||
+          b.bestSubject.replace(/^Ride\s*·\s*/i, "").trim() ||
+          "Rider";
+        const subject = `Chat · ${name}`;
+        const parts = ["You", name];
+        const emails = [...b.emails];
+        const phones = [...b.phones];
+        const now = b.updatedAt || new Date().toISOString();
+
+        // Ensure canonical thread row
+        await sql`
+          insert into share_chat_threads (
+            id, subject, participants_json, participant_emails_json,
+            participant_phones_json, related_type, related_id, updated_at, created_at
+          ) values (
+            ${canonical},
+            ${subject},
+            ${JSON.stringify(parts)},
+            ${JSON.stringify(emails)},
+            ${JSON.stringify(phones)},
+            ${"support"},
+            ${b.phone},
+            ${now},
+            ${now}
+          )
+          on conflict (id) do update set
+            subject = excluded.subject,
+            participants_json = excluded.participants_json,
+            participant_emails_json = excluded.participant_emails_json,
+            participant_phones_json = excluded.participant_phones_json,
+            updated_at = greatest(share_chat_threads.updated_at, excluded.updated_at)
+        `;
+
+        for (const oldId of b.threadIds) {
+          if (oldId === canonical) continue;
+          // Move messages
+          await sql`
+            update share_chat_messages
+            set thread_id = ${canonical}
+            where thread_id = ${oldId}
+          `;
+          remapMsg.set(oldId, canonical);
+          dropThreadIds.add(oldId);
+          // Remove empty old thread
+          try {
+            await sql`delete from share_chat_threads where id = ${oldId}`;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      if (dropThreadIds.size || remapMsg.size) {
+        // Rebuild response threads/messages for merged set
+        const thById = new Map(threads.map((th) => [th.id, th]));
+        for (const oldId of dropThreadIds) thById.delete(oldId);
+
+        // Reload canonical threads we created
+        for (const b of buckets.values()) {
+          const canonical = `th_rider_${b.phone}`;
+          if (![...remapMsg.values()].includes(canonical) && !dropThreadIds.size)
+            continue;
+          const name =
+            b.bestName ||
+            b.bestSubject.replace(/^Ride\s*·\s*/i, "").trim() ||
+            "Rider";
+          thById.set(canonical, {
+            id: canonical,
+            subject: `Chat · ${name}`,
+            participants: ["You", name],
+            participantEmails: [...b.emails],
+            participantPhones: [...b.phones],
+            relatedType: "support",
+            relatedId: b.phone,
+            updatedAt: b.updatedAt || new Date().toISOString(),
+            unread: b.unread,
+          });
+        }
+
+        const nextMessages = messages.map((m) => {
+          const nt = remapMsg.get(m.threadId);
+          return nt ? { ...m, threadId: nt } : m;
+        });
+        // Dedupe messages by id after remap
+        const mById = new Map(nextMessages.map((m) => [m.id, m]));
+        threads.length = 0;
+        threads.push(...thById.values());
+        messages.length = 0;
+        messages.push(...mById.values());
+      }
+    } catch (e) {
+      console.error("[listChat] rider-thread merge failed", e);
+    }
+
     return { threads, messages, readerKey: key, founder };
   });
 
@@ -2806,11 +3036,27 @@ export const upsertChatThreadFn = createServerFn({ method: "POST" })
     await ensureChatTables(sql);
     const relatedType = String(data.relatedType || "support");
     const relatedId = data.relatedId ? String(data.relatedId) : undefined;
-    const id = threadIdFor(
-      relatedType,
-      relatedId,
-      data.id ? String(data.id) : undefined,
-    );
+    const phonesEarly = (
+      Array.isArray(data.participantPhones)
+        ? data.participantPhones.map(String)
+        : []
+    )
+      .map((p) => last10Digits(p))
+      .filter((p) => p.length >= 10);
+    // Prefer client id when already rider-scoped; else phone; else trip id
+    const clientId = data.id ? String(data.id) : "";
+    const id =
+      clientId.startsWith("th_rider_")
+        ? clientId
+        : threadIdFor(
+            relatedType,
+            relatedId,
+            clientId || undefined,
+            phonesEarly[phonesEarly.length - 1] ||
+              (relatedType === "support" && relatedId && relatedId.length === 10
+                ? relatedId
+                : undefined),
+          );
     const subject = String(data.subject || "Chat").trim() || "Chat";
     const participants = Array.isArray(data.participants)
       ? data.participants.map(String)

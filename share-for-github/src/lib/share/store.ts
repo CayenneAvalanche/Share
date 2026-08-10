@@ -1550,9 +1550,76 @@ export const useShareStore = create<ShareState>()(
             );
           }
 
+          // Collapse chats that share the same rider phone into th_rider_PHONE
+          // Only use phones that look like the counterparty (avoid merging on driver's phone)
+          const phoneBuckets = new Map<string, string[]>();
+          for (const th of nextThreads) {
+            const phones = (th.participantPhones || [])
+              .map((x) => String(x).replace(/\D/g, "").slice(-10))
+              .filter((x) => x.length >= 10);
+            const rm = th.id.match(/^th_rider_(\d{10})$/);
+            if (rm) {
+              // Canonical rider threads only bucket on their own phone
+              const arr = phoneBuckets.get(rm[1]!) || [];
+              arr.push(th.id);
+              phoneBuckets.set(rm[1]!, arr);
+              continue;
+            }
+            // Trip-scoped threads: if only one phone, use it; if two, prefer last (rider)
+            if (
+              th.id.startsWith("th_volunteer_") ||
+              th.id.startsWith("th_local_")
+            ) {
+              const riderPh =
+                phones.length >= 1 ? phones[phones.length - 1]! : "";
+              if (riderPh.length >= 10) {
+                const arr = phoneBuckets.get(riderPh) || [];
+                arr.push(th.id);
+                phoneBuckets.set(riderPh, arr);
+              }
+            }
+          }
+          let nextMessages = Array.from(keep.values());
+          for (const [ph, ids] of phoneBuckets) {
+            const unique = [...new Set(ids)];
+            if (unique.length < 2) continue;
+            const canonical = `th_rider_${ph}`;
+            const sources = unique
+              .map((i) => tById.get(i))
+              .filter(Boolean) as typeof nextThreads;
+            if (!sources.length) continue;
+            const bestName =
+              sources
+                .flatMap((s) => s.participants)
+                .filter((p) => p !== "You" && p !== "Share Ops")
+                .sort((a, b) => b.length - a.length)[0] || "Rider";
+            const latest = [...sources].sort(
+              (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt),
+            )[0]!;
+            for (const oldId of unique) {
+              if (oldId === canonical) continue;
+              tById.delete(oldId);
+              nextMessages = nextMessages.map((m) =>
+                m.threadId === oldId ? { ...m, threadId: canonical } : m,
+              );
+            }
+            tById.set(canonical, {
+              ...latest,
+              id: canonical,
+              subject: `Chat · ${bestName}`,
+              participants: ["You", bestName],
+              participantPhones: [
+                ...new Set([...(latest.participantPhones || []), ph]),
+              ],
+              relatedType: "support",
+              relatedId: ph,
+            });
+          }
+          nextThreads = Array.from(tById.values());
+
           return {
             threads: nextThreads,
-            messages: Array.from(keep.values()),
+            messages: nextMessages,
           };
         });
       },
@@ -1568,109 +1635,172 @@ export const useShareStore = create<ShareState>()(
         myEmail,
         myPhone,
       }) => {
-        // Deterministic cloud id so every device shares one thread per trip
+        const riderPhone = String(withPhone || "")
+          .replace(/\D/g, "")
+          .slice(-10);
+        // One chat per rider phone (go + return = same conversation)
         const id =
-          relatedId
-            ? `th_${relatedType}_${relatedId}`.replace(
-                /[^a-zA-Z0-9_-]/g,
-                "_",
-              )
-            : uid("th");
+          riderPhone.length >= 10
+            ? `th_rider_${riderPhone}`
+            : relatedId
+              ? `th_${relatedType}_${relatedId}`.replace(
+                  /[^a-zA-Z0-9_-]/g,
+                  "_",
+                )
+              : uid("th");
 
-        // Reuse existing (local or deterministic)
-        if (relatedId) {
-          const existing = get().threads.find(
-            (t) =>
-              t.id === id ||
-              (t.relatedId === relatedId && t.relatedType === relatedType),
-          );
-          if (existing) {
-            // Prefer deterministic id going forward
-            if (existing.id !== id) {
-              set((state) => ({
-                threads: state.threads.map((t) =>
-                  t.id === existing.id ? { ...t, id } : t,
-                ),
-                messages: state.messages.map((m) =>
-                  m.threadId === existing.id ? { ...m, threadId: id } : m,
-                ),
-              }));
+        const displaySubject =
+          riderPhone.length >= 10
+            ? `Chat · ${withName || "Rider"}`
+            : subject;
+
+        const existing = get().threads.find((t) => {
+          if (t.id === id) return true;
+          if (riderPhone.length >= 10) {
+            if (t.id === `th_rider_${riderPhone}`) return true;
+            if (
+              (t.participantPhones || []).some(
+                (p) => p.replace(/\D/g, "").slice(-10) === riderPhone,
+              )
+            ) {
+              return true;
             }
-            // Upgrade display name if we now have a fuller rider name
+            if (t.relatedType === "support" && t.relatedId === riderPhone) {
+              return true;
+            }
+          }
+          if (
+            relatedId &&
+            t.relatedId === relatedId &&
+            t.relatedType === relatedType
+          ) {
+            return true;
+          }
+          return false;
+        });
+
+        if (existing) {
+          const useId = riderPhone.length >= 10 ? id : existing.id;
+          if (existing.id !== useId) {
+            set((state) => ({
+              threads: [
+                ...state.threads.filter(
+                  (t) => t.id !== existing.id && t.id !== useId,
+                ),
+                {
+                  ...existing,
+                  id: useId,
+                  subject: displaySubject,
+                  relatedType:
+                    riderPhone.length >= 10
+                      ? ("support" as const)
+                      : existing.relatedType,
+                  relatedId:
+                    riderPhone.length >= 10
+                      ? riderPhone
+                      : existing.relatedId,
+                  participantPhones: [
+                    ...new Set(
+                      [
+                        ...(existing.participantPhones || []),
+                        riderPhone,
+                        String(myPhone || "")
+                          .replace(/\D/g, "")
+                          .slice(-10),
+                      ].filter((p) => p.length >= 10),
+                    ),
+                  ],
+                  participants: [
+                    "You",
+                    withName ||
+                      existing.participants.find(
+                        (p) => p !== "You" && p !== "Share Ops",
+                      ) ||
+                      "Rider",
+                  ],
+                },
+              ],
+              messages: state.messages.map((m) =>
+                m.threadId === existing.id ? { ...m, threadId: useId } : m,
+              ),
+            }));
+          } else {
             set((state) => ({
               threads: state.threads.map((t) => {
-                if (t.id !== id && t.id !== existing.id) return t;
+                if (t.id !== useId) return t;
                 const other = t.participants.find(
                   (p) => p !== "You" && p !== "Share Ops",
                 );
-                const shouldUpgrade =
-                  withName &&
-                  withName.length > (other?.length || 0) &&
-                  (!other ||
-                    withName.toLowerCase().startsWith(
-                      other.split(/\s+/)[0]?.toLowerCase() || "",
-                    ));
-                if (!shouldUpgrade) {
-                  return {
-                    ...t,
-                    id,
-                    subject: subject || t.subject,
-                  };
-                }
+                const label =
+                  withName && withName.length >= (other?.length || 0)
+                    ? withName
+                    : other || withName || "Rider";
                 return {
                   ...t,
-                  id,
-                  subject: subject || t.subject,
-                  participants: t.participants.map((p) =>
-                    p === other ? withName : p,
-                  ),
+                  subject: displaySubject || t.subject,
+                  participants: ["You", label],
+                  participantPhones: [
+                    ...new Set([
+                      ...(t.participantPhones || []),
+                      ...(riderPhone ? [riderPhone] : []),
+                    ]),
+                  ],
                 };
               }),
             }));
-            if (firstMessage?.trim()) {
-              get().sendMessage(
-                id,
-                firstMessage,
-                get().riderName || "You",
-                myEmail,
-              );
-            }
-            // still upsert cloud membership
-            void import("@/lib/share/server-fns")
-              .then(({ upsertChatThreadFn }) =>
-                upsertChatThreadFn({
-                  data: {
-                    id,
-                    subject,
-                    relatedType,
-                    relatedId,
-                    participants: ["You", withName],
-                    participantEmails: [myEmail, withEmail].filter(Boolean),
-                    participantPhones: [myPhone, withPhone].filter(Boolean),
-                    fromName: get().riderName || "You",
-                    fromEmail: myEmail,
-                  },
-                }),
-              )
-              .catch(() => {});
-            return id;
           }
+          const hasText = get().messages.some(
+            (m) =>
+              m.threadId === useId &&
+              m.kind !== "system" &&
+              m.body.trim().length > 0,
+          );
+          if (firstMessage?.trim() && !hasText) {
+            get().sendMessage(
+              useId,
+              firstMessage,
+              get().riderName || "You",
+              myEmail,
+            );
+          }
+          void import("@/lib/share/server-fns")
+            .then(({ upsertChatThreadFn }) =>
+              upsertChatThreadFn({
+                data: {
+                  id: useId,
+                  subject: displaySubject,
+                  relatedType:
+                    riderPhone.length >= 10 ? "support" : relatedType,
+                  relatedId:
+                    riderPhone.length >= 10 ? riderPhone : relatedId,
+                  participants: ["You", withName],
+                  participantEmails: [myEmail, withEmail].filter(Boolean),
+                  participantPhones: [myPhone, withPhone].filter(Boolean),
+                  fromName: get().riderName || "You",
+                  fromEmail: myEmail,
+                },
+              }),
+            )
+            .catch(() => {});
+          return useId;
         }
+
         const now = new Date().toISOString();
         const emails = [myEmail, withEmail]
           .filter(Boolean)
           .map((e) => String(e).toLowerCase());
         const phones = [myPhone, withPhone]
           .filter(Boolean)
-          .map((p) => String(p).replace(/\D/g, "").slice(-10));
+          .map((p) => String(p).replace(/\D/g, "").slice(-10))
+          .filter((p) => p.length >= 10);
         const thread: ChatThread = {
           id,
-          subject,
+          subject: displaySubject,
           participants: ["You", withName],
           participantEmails: emails,
           participantPhones: phones,
-          relatedType,
-          relatedId,
+          relatedType: riderPhone.length >= 10 ? "support" : relatedType,
+          relatedId: riderPhone.length >= 10 ? riderPhone : relatedId,
           updatedAt: now,
           unread: 0,
         };
@@ -1707,9 +1837,9 @@ export const useShareStore = create<ShareState>()(
             upsertChatThreadFn({
               data: {
                 id,
-                subject,
-                relatedType,
-                relatedId,
+                subject: displaySubject,
+                relatedType: thread.relatedType,
+                relatedId: thread.relatedId,
                 participants: thread.participants,
                 participantEmails: emails,
                 participantPhones: phones,

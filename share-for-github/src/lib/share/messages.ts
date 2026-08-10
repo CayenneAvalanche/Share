@@ -74,10 +74,12 @@ export function enrichThreadsWithRiderNames(
     }
 
     let subject = th.subject;
-    if (/^Ride\s*·/i.test(subject)) {
-      subject = `Ride · ${legal}`;
+    if (/^Ride\s*·/i.test(subject) || /^Chat\s*·/i.test(subject)) {
+      subject = `Chat · ${legal}`;
     } else if (ride?.fullName && subject.includes(ride.fullName) && ride.fullName !== legal) {
       subject = subject.split(ride.fullName).join(legal);
+    } else if (th.id.startsWith("th_rider_")) {
+      subject = `Chat · ${legal}`;
     }
 
     return { ...th, subject, participants: parts };

@@ -38,11 +38,18 @@ function MessagesPage() {
         /* ignore */
       }
       try {
+        let pin = "";
+        try {
+          pin = sessionStorage.getItem("share-admin-pin") || "";
+        } catch {
+          /* ignore */
+        }
         const res = await listChatFn({
           data: {
             email: user?.primaryEmail || undefined,
             phone: phone || undefined,
             name: user?.displayName || riderName || undefined,
+            pin: pin || undefined,
           },
         });
         if (cancelled) return;

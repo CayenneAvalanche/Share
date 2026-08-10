@@ -9,12 +9,7 @@ import { messagesForThread } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import {
-  listChatFn,
-  markChatReadFn,
-  sendChatMessageFn,
-} from "@/lib/share/server-fns";
-
+import { listChatFn, markChatReadFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/messages/$id")({
   component: ThreadPage,
@@ -30,7 +25,9 @@ function ThreadPage() {
   const riderName = useShareStore((s) => s.riderName);
   const user = useCurrentUser();
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastSendRef = useRef<{ body: string; at: number } | null>(null);
 
   const thread = threads.find((t) => t.id === id);
   const msgs = messagesForThread(messages, id);
@@ -62,11 +59,18 @@ function ThreadPage() {
         /* ignore */
       }
       try {
+        let pin = "";
+        try {
+          pin = sessionStorage.getItem("share-admin-pin") || "";
+        } catch {
+          /* ignore */
+        }
         const res = await listChatFn({
           data: {
             email: user?.primaryEmail || undefined,
             phone: phone || undefined,
             name: user?.displayName || riderName || undefined,
+            pin: pin || undefined,
           },
         });
         if (cancelled) return;
@@ -91,7 +95,8 @@ function ThreadPage() {
     return (
       <AppShell title="Chat" backTo="/messages" solidHeader>
         <p className="py-12 text-center text-[var(--color-fg-muted)]">
-          Thread not found.
+          Thread not found — pull to refresh Chat, or open the trip and tap
+          Message again.
         </p>
         <Button asChild className="mx-auto block w-fit">
           <Link to="/messages">Back</Link>
@@ -100,29 +105,33 @@ function ThreadPage() {
     );
   }
 
-  async function onSend(e: React.FormEvent) {
+  function onSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || sending) return;
     const body = text.trim();
+    // Guard double-tap / double submit
+    const now = Date.now();
+    if (
+      lastSendRef.current &&
+      lastSendRef.current.body === body &&
+      now - lastSendRef.current.at < 2500
+    ) {
+      return;
+    }
+    lastSendRef.current = { body, at: now };
     const fromName = user?.displayName || riderName || "You";
     const fromEmail = user?.primaryEmail || undefined;
     setText("");
+    setSending(true);
+    // Single path: local store + one cloud write (with stable messageId)
     sendMessage(id, body, fromName, fromEmail);
-    try {
-      await sendChatMessageFn({
-        data: {
-          threadId: id,
-          body,
-          fromName,
-          fromEmail,
-        },
+    void markChatReadFn({
+      data: { threadId: id, email: fromEmail },
+    })
+      .catch(() => {})
+      .finally(() => {
+        window.setTimeout(() => setSending(false), 400);
       });
-      void markChatReadFn({
-        data: { threadId: id, email: fromEmail },
-      });
-    } catch {
-      /* local already has it; cloud retry on next send */
-    }
   }
 
   return (
@@ -203,8 +212,14 @@ function ThreadPage() {
             placeholder="Message…"
             className="flex-1"
             autoComplete="off"
+            disabled={sending}
           />
-          <Button type="submit" size="icon" aria-label="Send">
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Send"
+            disabled={sending || !text.trim()}
+          >
             <Send className="size-4" />
           </Button>
         </form>

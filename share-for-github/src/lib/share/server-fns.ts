@@ -2529,7 +2529,13 @@ function threadIdFor(
 
 export const listChatFn = createServerFn({ method: "POST" })
   .validator(
-    (data: { email?: string; phone?: string; name?: string }) => data,
+    (data: {
+      email?: string;
+      phone?: string;
+      name?: string;
+      /** Founder PIN → all threads (ops inbox) */
+      pin?: string;
+    }) => data,
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
@@ -2539,13 +2545,49 @@ export const listChatFn = createServerFn({ method: "POST" })
     const name = (data.name || "").trim().toLowerCase();
     const key = readerKey(email, data.phone);
 
+    let founder = false;
+    if (data.pin) {
+      try {
+        checkPin(data.pin);
+        founder = true;
+      } catch {
+        founder = false;
+      }
+    }
+    // Also treat known founder notify email as ops (sees all chats)
+    const founderEmail = (
+      process.env.FOUNDER_NOTIFY_EMAIL?.trim() ||
+      FOUNDER_NOTIFY_EMAIL_DEFAULT
+    ).toLowerCase();
+    if (email && founderEmail && email === founderEmail) founder = true;
+
     const rows = await sql`
       select * from share_chat_threads
       order by updated_at desc
       limit 200
     `;
 
+    // Threads where this person has ever sent a message (covers partial participant lists)
+    let authoredThreadIds = new Set<string>();
+    if (email) {
+      try {
+        const authored = await sql`
+          select distinct thread_id from share_chat_messages
+          where lower(from_email) = ${email}
+          limit 200
+        `;
+        authoredThreadIds = new Set(
+          (authored as { thread_id: string }[]).map((r) => String(r.thread_id)),
+        );
+      } catch {
+        authoredThreadIds = new Set();
+      }
+    }
+
     const mine = (rows as Record<string, unknown>[]).filter((r) => {
+      if (founder) return true;
+      const id = String(r.id);
+      if (authoredThreadIds.has(id)) return true;
       const emails = parseJsonArr(r.participant_emails_json).map((x) =>
         x.toLowerCase(),
       );
@@ -2557,16 +2599,27 @@ export const listChatFn = createServerFn({ method: "POST" })
       );
       if (email && emails.includes(email)) return true;
       if (phone.length >= 10 && phones.some((p) => p === phone)) return true;
-      // name match as soft fallback (pilot)
-      if (name.length >= 3 && parts.some((p) => p.includes(name) || name.includes(p))) {
-        return true;
+      // name match as soft fallback (pilot) — full name or first name ≥3
+      if (name.length >= 3) {
+        const first = name.split(/\s+/)[0] || "";
+        if (
+          parts.some(
+            (p) =>
+              p.includes(name) ||
+              name.includes(p) ||
+              (first.length >= 3 && (p.includes(first) || first.includes(p))),
+          )
+        ) {
+          return true;
+        }
       }
-      // founder / ops: if no identity, show nothing (not all chats)
       return false;
     });
 
     const threads: ChatThread[] = [];
     const messages: ChatMessage[] = [];
+    // Content-level dedupe for accidental double inserts (same body+from within 8s)
+    const seenContent = new Set<string>();
 
     for (const r of mine) {
       const id = String(r.id);
@@ -2589,7 +2642,18 @@ export const listChatFn = createServerFn({ method: "POST" })
       let unread = 0;
       for (const m of msgs as Record<string, unknown>[]) {
         const fromEmail = String(m.from_email || "").toLowerCase();
-        const at = +new Date(m.at as string | Date);
+        const fromName = String(m.from_name || "Share");
+        const body = String(m.body || "");
+        const atIso = iso(m.at as string | Date) ?? new Date().toISOString();
+        const at = +new Date(atIso);
+        // Bucket time to ~8s to collapse double-sends
+        const bucket = Math.floor(at / 8000);
+        const contentKey = `${id}|${fromEmail || fromName}|${body}|${bucket}`;
+        if (body && seenContent.has(contentKey)) {
+          continue; // skip duplicate bubble
+        }
+        if (body) seenContent.add(contentKey);
+
         const mineMsg =
           (email && fromEmail && fromEmail === email) ||
           String(m.kind) === "system";
@@ -2597,10 +2661,10 @@ export const listChatFn = createServerFn({ method: "POST" })
         messages.push({
           id: String(m.id),
           threadId: id,
-          from: String(m.from_name || "Share"),
+          from: fromName,
           fromEmail: m.from_email ? String(m.from_email) : undefined,
-          body: String(m.body || ""),
-          at: iso(m.at as string | Date) ?? new Date().toISOString(),
+          body,
+          at: atIso,
           kind: (String(m.kind || "text") as ChatMessage["kind"]) || "text",
         });
       }
@@ -2621,7 +2685,7 @@ export const listChatFn = createServerFn({ method: "POST" })
       });
     }
 
-    return { threads, messages, readerKey: key };
+    return { threads, messages, readerKey: key, founder };
   });
 
 export const upsertChatThreadFn = createServerFn({ method: "POST" })
@@ -2777,6 +2841,43 @@ export const sendChatMessageFn = createServerFn({ method: "POST" })
           ${at}
         )
       `;
+    } else if (fromEmail) {
+      // Ensure sender stays on the participant list so all devices see the thread
+      try {
+        const cur = await sql`
+          select participant_emails_json from share_chat_threads
+          where id = ${threadId} limit 1
+        `;
+        const emails = parseJsonArr(
+          (cur[0] as { participant_emails_json?: unknown } | undefined)
+            ?.participant_emails_json,
+        ).map((e) => e.toLowerCase());
+        if (!emails.includes(fromEmail)) {
+          emails.push(fromEmail);
+          await sql`
+            update share_chat_threads
+            set participant_emails_json = ${JSON.stringify(emails)}
+            where id = ${threadId}
+          `;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // Dedupe: same messageId OR identical body from same sender within 10s
+    if (!data.messageId) {
+      const recent = await sql`
+        select id from share_chat_messages
+        where thread_id = ${threadId}
+          and body = ${body}
+          and coalesce(from_email, '') = ${fromEmail || ""}
+          and at > now() - interval '10 seconds'
+        limit 1
+      `;
+      if (recent.length) {
+        return { id: String(recent[0].id), at, ok: true as const, deduped: true };
+      }
     }
 
     await sql`

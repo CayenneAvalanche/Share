@@ -1485,26 +1485,21 @@ export const useShareStore = create<ShareState>()(
               : "";
             const localDup = key ? byRelated.get(key) : undefined;
             if (localDup && localDup !== th.id) {
-              // drop local duplicate thread id later
               tById.delete(localDup);
             }
             const prev = tById.get(th.id);
             tById.set(th.id, {
               ...prev,
               ...th,
-              // keep higher unread from cloud (source of truth for multi-device)
               unread: th.unread,
             });
             if (key) byRelated.set(key, th.id);
           }
 
           const mById = new Map(state.messages.map((x) => [x.id, x]));
-          // Remap messages that pointed at local dup thread ids
           const idRemap = new Map<string, string>();
           for (const th of threads) {
             if (th.relatedId) {
-              const key = `${th.relatedType}:${th.relatedId}`;
-              // any local thread with same related
               for (const local of state.threads) {
                 if (
                   local.relatedId === th.relatedId &&
@@ -1524,7 +1519,28 @@ export const useShareStore = create<ShareState>()(
             mById.set(m.id, m);
           }
 
-          // Drop seed demo threads once cloud has real ones
+          // Collapse accidental double-sends (same body + from + thread within 8s)
+          const ordered = Array.from(mById.values()).sort(
+            (a, b) => +new Date(a.at) - +new Date(b.at),
+          );
+          const keep = new Map<string, (typeof ordered)[0]>();
+          const contentSeen = new Map<string, string>(); // contentKey → kept id
+          for (const m of ordered) {
+            if (m.kind === "system") {
+              keep.set(m.id, m);
+              continue;
+            }
+            const bucket = Math.floor(+new Date(m.at) / 8000);
+            const ck = `${m.threadId}|${(m.fromEmail || m.from).toLowerCase()}|${m.body}|${bucket}`;
+            const existingId = contentSeen.get(ck);
+            if (existingId) {
+              // Prefer cloud-stable id if both exist; drop this dup
+              continue;
+            }
+            contentSeen.set(ck, m.id);
+            keep.set(m.id, m);
+          }
+
           let nextThreads = Array.from(tById.values());
           if (threads.length > 0) {
             nextThreads = nextThreads.filter(
@@ -1534,7 +1550,7 @@ export const useShareStore = create<ShareState>()(
 
           return {
             threads: nextThreads,
-            messages: Array.from(mById.values()),
+            messages: Array.from(keep.values()),
           };
         });
       },

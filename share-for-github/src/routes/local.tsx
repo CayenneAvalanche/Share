@@ -334,6 +334,34 @@ function LocalRidePage() {
             </Card>
           )}
           <div className="mt-6 flex w-full flex-col gap-2">
+            {ride && ride.status === "broadcasting" && (
+              <Button
+                variant="outline"
+                className="border-[#b42318]/40 text-[#b42318]"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      "Cancel this local ride? Drivers will stop seeing it.",
+                    )
+                  )
+                    return;
+                  useShareStore
+                    .getState()
+                    .setLocalRideStatus(
+                      ride.id,
+                      "cancelled",
+                      "Cancelled by rider",
+                    );
+                  toast.success("Request cancelled");
+                  setDoneId(null);
+                }}
+              >
+                Cancel request
+              </Button>
+            )}
+            <Button variant="secondary" asChild>
+              <Link to="/rides/requests">View in Requests</Link>
+            </Button>
             <Button onClick={() => setDoneId(null)}>Request another</Button>
             <Button variant="outline" asChild>
               <Link to="/profile">Your profile</Link>

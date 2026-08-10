@@ -316,31 +316,66 @@ function RidesPage() {
             );
             })}
             {activeLocal.map((r) => (
-              <Link
+              <div
                 key={r.id}
-                to="/rides/matched/$id"
-                params={{ id: r.id }}
-                className="block rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-4"
+                className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-4"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold">Local · {r.requesterName}</p>
-                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
-                      {r.pickup} → {r.dropoff}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-[var(--color-primary)]">
-                      Offer{" "}
-                      {r.sharePrice > 0
-                        ? formatCurrency(r.sharePrice)
-                        : "FREE / $0"}
-                    </p>
+                <Link
+                  to="/rides/matched/$id"
+                  params={{ id: r.id }}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold">Local · {r.requesterName}</p>
+                      <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                        {r.pickup} → {r.dropoff}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-[var(--color-primary)]">
+                        Offer{" "}
+                        {r.sharePrice > 0
+                          ? formatCurrency(r.sharePrice)
+                          : "FREE / $0"}
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      {r.status === "broadcasting"
+                        ? "Broadcasting"
+                        : r.status}
+                    </Badge>
                   </div>
-                  <Badge variant="outline">{r.status}</Badge>
+                </Link>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link to="/rides/matched/$id" params={{ id: r.id }}>
+                      Open
+                    </Link>
+                  </Button>
+                  {r.status === "broadcasting" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-[#b42318]/40 text-[#b42318]"
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            "Cancel this local ride request?",
+                          )
+                        )
+                          return;
+                        setLocalRideStatus(
+                          r.id,
+                          "cancelled",
+                          "Cancelled by rider",
+                        );
+                        toast.success("Local ride cancelled");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
-                <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
-                  Open ride →
-                </p>
-              </Link>
+              </div>
             ))}
           </div>
         </section>

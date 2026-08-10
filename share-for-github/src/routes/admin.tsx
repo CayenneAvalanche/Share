@@ -923,33 +923,140 @@ function AdminPage() {
           </Card>
 
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-            Ride requests
+            Local ride requests
           </p>
           {localRides.length === 0 && (
             <p className="text-sm text-[var(--color-fg-muted)]">
               No local broadcasts yet.
             </p>
           )}
-          {localRides.map((r) => (
+          {localRides
+            .slice()
+            .sort(
+              (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+            )
+            .map((r) => (
             <Card key={r.id}>
               <CardContent className="space-y-2 p-4">
-                <p className="font-semibold">
-                  {r.pickup} → {r.dropoff}
-                </p>
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  {r.sharePrice === 0
-                    ? "FREE Share"
-                    : `${formatCurrency(r.sharePrice)} Share`}{" "}
-                  · Uber ~{formatCurrency(r.uberEstimate)}
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    setLocalRideStatus(r.id, "matched", "Assigned")
-                  }
-                >
-                  Match driver
-                </Button>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                    <p className="text-sm text-[var(--color-fg-muted)]">
+                      {r.requesterName} · {r.when} ·{" "}
+                      {formatRequestedAt(r.createdAt)}
+                    </p>
+                    <p className="text-sm text-[var(--color-fg-muted)]">
+                      {r.sharePrice === 0
+                        ? "Offer FREE / $0"
+                        : `Offer ${formatCurrency(r.sharePrice)}`}{" "}
+                      · Uber ~{formatCurrency(r.uberEstimate)} · Lyft ~
+                      {formatCurrency(r.lyftEstimate)}
+                    </p>
+                    {r.adminNote && (
+                      <p className="text-xs text-[var(--color-fg-subtle)]">
+                        Note: {r.adminNote}
+                      </p>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      r.status === "matched"
+                        ? "success"
+                        : r.status === "cancelled"
+                          ? "outline"
+                          : "secondary"
+                    }
+                  >
+                    {r.status}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {r.status === "broadcasting" && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setLocalRideStatus(r.id, "matched", "Assigned by founder");
+                          toast.success("Matched");
+                        }}
+                      >
+                        Match driver
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Cancel local ride for ${r.requesterName}?`,
+                            )
+                          )
+                            return;
+                          setLocalRideStatus(
+                            r.id,
+                            "cancelled",
+                            "Cancelled by admin",
+                          );
+                          toast.success("Local ride cancelled");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                  {r.status === "matched" && (
+                    <>
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link
+                          to="/rides/matched/$id"
+                          params={{ id: r.id }}
+                        >
+                          Open
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Cancel matched local ride for ${r.requesterName}?`,
+                            )
+                          )
+                            return;
+                          setLocalRideStatus(
+                            r.id,
+                            "cancelled",
+                            "Cancelled by admin after match",
+                          );
+                          toast.success("Local ride cancelled");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                  {r.status === "cancelled" && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setLocalRideStatus(
+                          r.id,
+                          "broadcasting",
+                          "Restored by admin",
+                        );
+                        toast.success("Restored to broadcasting");
+                      }}
+                    >
+                      Restore broadcast
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

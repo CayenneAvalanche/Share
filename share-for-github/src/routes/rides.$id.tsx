@@ -9,6 +9,8 @@ import {
   Package,
   Clock,
   MapPin,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -18,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { DashcamBadge } from "@/components/share/dashcam-badge";
 import { DriverStory } from "@/components/share/driver-story";
+import { PlatformGigsFromText } from "@/components/share/platform-gigs";
+import { parsePlatformsText } from "@/lib/share/parse-platforms";
 import {
   getDriver,
   SCHEDULE_LABELS,
@@ -59,6 +63,7 @@ function RideDetailPage() {
   const [driverPreference, setDriverPreference] =
     useState<DriverPreference>("any");
   const [done, setDone] = useState(false);
+  const [showDriverMore, setShowDriverMore] = useState(false);
 
   const trip = trips.find((t) => t.id === id);
 
@@ -400,7 +405,7 @@ function RideDetailPage() {
 
         {driver && <DriverStory driver={driver} />}
 
-        {isMemberTrip && !driver && (
+                {isMemberTrip && !driver && (
           <Card>
             <CardContent className="space-y-3 p-5">
               <div>
@@ -435,20 +440,35 @@ function RideDetailPage() {
                   </p>
                 )}
               </div>
-              {appDriver?.platformsText && (
-                <div>
-                  <p className="text-sm font-semibold">Other platforms</p>
-                  <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
-                    Self-reported on application
-                  </p>
-                  <p className="mt-2 text-sm text-[var(--color-fg)]">
-                    {appDriver.platformsText}
-                  </p>
+              {parsePlatformsText(appDriver?.platformsText).length > 0 && (
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-between"
+                    onClick={() => setShowDriverMore((v) => !v)}
+                  >
+                    <span>
+                      {showDriverMore
+                        ? "Hide platform history"
+                        : "Learn more about this driver"}
+                    </span>
+                    {showDriverMore ? (
+                      <ChevronUp className="size-4" />
+                    ) : (
+                      <ChevronDown className="size-4" />
+                    )}
+                  </Button>
+                  {showDriverMore && (
+                    <PlatformGigsFromText text={appDriver?.platformsText} />
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
         )}
+
 
         <Card>
           <CardContent className="space-y-4 p-5">

@@ -308,6 +308,111 @@ async function notifyFounderVolunteerRequest(payload: {
   }
 }
 
+
+async function notifyFounderApplication(payload: {
+  kind: "rider" | "driver";
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  city?: string;
+  extra?: string;
+}) {
+  const emailTo =
+    process.env.FOUNDER_NOTIFY_EMAIL?.trim() || FOUNDER_NOTIFY_EMAIL_DEFAULT;
+  const phones = [
+    process.env.FOUNDER_NOTIFY_PHONE?.trim() || FOUNDER_NOTIFY_PHONE_DEFAULT,
+    process.env.FOUNDER_NOTIFY_PHONE_2?.trim() || "",
+  ].filter(Boolean);
+
+  const label = payload.kind === "rider" ? "RIDER" : "DRIVER";
+  const subject = `📝 Share ${label} application: ${payload.fullName}`;
+  const textBody = [
+    `NEW ${label} APPLICATION`,
+    `ID: ${payload.id}`,
+    `Name: ${payload.fullName}`,
+    `Email: ${payload.email}`,
+    `Phone: ${payload.phone}`,
+    payload.city ? `City: ${payload.city}` : "",
+    payload.extra ? payload.extra : "",
+    `Open founder inbox: https://share.myendeavors.me/admin`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const smsBody =
+    `Share ${label} app: ${payload.fullName} · ${payload.phone} · ${payload.email}. Review in founder inbox.`.slice(
+      0,
+      320,
+    );
+
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey) {
+    try {
+      const from =
+        process.env.RESEND_FROM?.trim() || "Share <onboarding@resend.dev>";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [emailTo],
+          subject,
+          text: textBody,
+        }),
+      });
+      if (!res.ok) {
+        console.error("[notify-app] Resend failed", res.status, await res.text());
+      }
+    } catch (e) {
+      console.error("[notify-app] Resend error", e);
+    }
+  } else {
+    console.warn("[notify-app] RESEND_API_KEY not set — skipping email");
+  }
+
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const twilioFrom = process.env.TWILIO_FROM_NUMBER?.trim();
+  if (twilioSid && twilioToken && twilioFrom && phones.length) {
+    const auth = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
+    for (const phoneTo of phones) {
+      try {
+        const res = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${auth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              To: phoneTo,
+              From: twilioFrom,
+              Body: smsBody,
+            }),
+          },
+        );
+        if (!res.ok) {
+          console.error(
+            "[notify-app] Twilio SMS failed",
+            phoneTo,
+            res.status,
+            await res.text(),
+          );
+        }
+      } catch (e) {
+        console.error("[notify-app] Twilio SMS error", phoneTo, e);
+      }
+    }
+  } else {
+    console.warn("[notify-app] Twilio env incomplete — skipping SMS");
+  }
+}
+
 export const submitDriverAppFn = createServerFn({ method: "POST" })
   .validator((data: Record<string, unknown>) => data)
   .handler(async ({ data }) => {
@@ -354,6 +459,15 @@ export const submitDriverAppFn = createServerFn({ method: "POST" })
         ${createdAt}
       )
     `;
+    void notifyFounderApplication({
+      kind: "driver",
+      id,
+      fullName: String(data.fullName ?? "").trim(),
+      email: String(data.email ?? "").trim().toLowerCase(),
+      phone: String(data.phone ?? "").trim(),
+      city: String(data.city ?? ""),
+      extra: data.vehicle ? `Vehicle: ${String(data.vehicle)}` : undefined,
+    }).catch(() => {});
     return { id, status: "pending_interview" as const, createdAt };
   });
 
@@ -384,6 +498,17 @@ export const submitRiderAppFn = createServerFn({ method: "POST" })
         ${createdAt}
       )
     `;
+    void notifyFounderApplication({
+      kind: "rider",
+      id,
+      fullName: String(data.fullName ?? "").trim(),
+      email: String(data.email ?? "").trim().toLowerCase(),
+      phone: String(data.phone ?? "").trim(),
+      city: String(data.city ?? ""),
+      extra: data.typicalRoutes
+        ? `Routes: ${String(data.typicalRoutes)}`
+        : undefined,
+    }).catch(() => {});
     return { id, status: "pending_interview" as const, createdAt };
   });
 
@@ -1175,7 +1300,10 @@ function mapCarRow(r: Record<string, unknown>): CarShareListing {
   };
 }
 
-/** Attach approved rider selfie to volunteer rides (by phone last-10). */
+/**
+ * Attach rider application profile to volunteer rides (by phone last-10).
+ * When rider is approved/active: show full legal/app name + selfie on the trip.
+ */
 async function attachRiderFaces(
   sql: Awaited<ReturnType<typeof getSql>>,
   rides: VolunteerRide[],
@@ -1189,8 +1317,7 @@ async function attachRiderFaces(
       full_name: string;
     }>(
       `select phone, selfie, status, full_name from share_rider_apps
-       where selfie is not null and length(selfie) > 20
-       order by created_at desc limit 300`,
+       order by created_at desc limit 400`,
     );
     const byPhone = new Map<
       string,
@@ -1203,7 +1330,7 @@ async function attachRiderFaces(
       byPhone.set(p, {
         selfie: String(row.selfie || ""),
         status: row.status as ApplicationStatus,
-        name: row.full_name,
+        name: String(row.full_name || "").trim(),
       });
     }
     return rides.map((ride) => {
@@ -1213,10 +1340,19 @@ async function attachRiderFaces(
       }
       const approved =
         hit.status === "active" || hit.status === "approved";
+      // Once active: prefer full name from rider application (not abbreviated trip name)
+      const fullFromApp =
+        approved && hit.name.length >= 2 ? hit.name : undefined;
       return {
         ...ride,
-        riderSelfie: approved ? hit.selfie : undefined,
+        fullName: fullFromApp || ride.fullName,
+        requesterName: fullFromApp || ride.requesterName,
+        riderSelfie:
+          approved && hit.selfie && hit.selfie.length > 20
+            ? hit.selfie
+            : undefined,
         riderAppStatus: hit.status,
+        riderLegalName: fullFromApp || undefined,
       };
     });
   } catch {

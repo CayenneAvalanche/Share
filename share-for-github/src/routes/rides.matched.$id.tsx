@@ -450,8 +450,15 @@ function MatchedRidePage() {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-display text-xl font-semibold">
-                  {vol.fullName}
+                  {vol.riderLegalName || vol.fullName}
                 </p>
+                {vol.riderLegalName &&
+                  vol.fullName &&
+                  vol.riderLegalName !== vol.fullName && (
+                    <p className="text-xs text-[var(--color-fg-subtle)]">
+                      Request was entered as “{vol.fullName}”
+                    </p>
+                  )}
                 <p className="text-sm text-[var(--color-fg-muted)]">
                   {vol.phone}
                 </p>
@@ -489,10 +496,11 @@ function MatchedRidePage() {
                   {vol.riderSelfie ? (
                     <>
                       <p className="font-semibold text-[var(--color-fg)]">
-                        Approved rider
+                        Active rider · {vol.riderLegalName || vol.fullName}
                       </p>
                       <p className="text-xs text-[var(--color-fg-muted)]">
-                        Profile selfie on file — match faces at pickup.
+                        Full name + selfie from their rider application — match
+                        faces at pickup.
                       </p>
                     </>
                   ) : vol.riderAppStatus &&

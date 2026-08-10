@@ -967,6 +967,8 @@ export type VolunteerRide = {
   riderSelfie?: string;
   /** Rider application status if we found one by phone */
   riderAppStatus?: ApplicationStatus | "none";
+  /** Full name from approved rider application */
+  riderLegalName?: string;
 };
 
 export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {

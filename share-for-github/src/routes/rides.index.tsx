@@ -20,11 +20,50 @@ export const Route = createFileRoute("/rides/")({
   component: RidesPage,
 });
 
+/** Prefer full name from approved/active rider apps (by phone). */
+function enrichVolunteerWithRiderApp(
+  rides: VolunteerRide[],
+  riderApps: { phone?: string; fullName?: string; status?: string; selfie?: string }[],
+): VolunteerRide[] {
+  const byPhone = new Map<
+    string,
+    { name: string; status: string; selfie?: string }
+  >();
+  for (const a of riderApps) {
+    const p = String(a.phone || "").replace(/\D/g, "").slice(-10);
+    if (p.length < 10 || !a.fullName) continue;
+    if (byPhone.has(p)) continue;
+    byPhone.set(p, {
+      name: a.fullName.trim(),
+      status: String(a.status || ""),
+      selfie: a.selfie,
+    });
+  }
+  return rides.map((r) => {
+    const p = String(r.phone || "").replace(/\D/g, "").slice(-10);
+    const hit = byPhone.get(p);
+    if (!hit) return r;
+    const approved = hit.status === "active" || hit.status === "approved";
+    if (!approved) {
+      return { ...r, riderAppStatus: hit.status as VolunteerRide["riderAppStatus"] };
+    }
+    return {
+      ...r,
+      fullName: hit.name || r.fullName,
+      requesterName: hit.name || r.requesterName,
+      riderLegalName: hit.name,
+      riderSelfie: hit.selfie && hit.selfie.length > 20 ? hit.selfie : r.riderSelfie,
+      riderAppStatus: hit.status as VolunteerRide["riderAppStatus"],
+    };
+  });
+}
+
 function RidesPage() {
   const trips = useShareStore((s) => s.trips);
   const postTrip = useShareStore((s) => s.postTrip);
   const applyAsDriver = useShareStore((s) => s.applyAsDriver);
   const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const riderApps = useShareStore((s) => s.riderApps);
   const localRides = useShareStore((s) => s.localRides);
   const navigate = useNavigate();
   const user = useCurrentUser();
@@ -108,8 +147,10 @@ function RidesPage() {
 
   const activeMatched = useMemo(() => {
     const byId = new Map<string, VolunteerRide>();
-    for (const r of cloudVol) byId.set(r.id, r);
-    for (const r of volunteerRides) byId.set(r.id, r);
+    for (const r of enrichVolunteerWithRiderApp(cloudVol, riderApps))
+      byId.set(r.id, r);
+    for (const r of enrichVolunteerWithRiderApp(volunteerRides, riderApps))
+      byId.set(r.id, r);
     const me = (user?.displayName || riderName || "").toLowerCase();
     const meFirst = me.split(/\s+/)[0] || "";
     let guestPhone = "";
@@ -135,7 +176,7 @@ function RidesPage() {
       .filter((r) => r.status === "matched")
       .filter(isMine)
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-  }, [cloudVol, volunteerRides, user?.displayName, riderName]);
+  }, [cloudVol, volunteerRides, riderApps, user?.displayName, riderName]);
 
   /** Completed trips still needing a rider review (or recently done) */
   const needsReview = useMemo(() => {
@@ -335,7 +376,9 @@ function RidesPage() {
                           className="size-8 shrink-0 rounded-full object-cover"
                         />
                       ) : null}
-                      <p className="font-semibold">{r.fullName}</p>
+                      <p className="font-semibold">
+                        {r.riderLegalName || r.fullName}
+                      </p>
                     </div>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
@@ -519,7 +562,9 @@ function RidesPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold">{r.fullName}</p>
+                    <p className="font-semibold">
+                      {r.riderLegalName || r.fullName}
+                    </p>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
                     </p>

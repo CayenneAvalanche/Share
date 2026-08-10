@@ -29,6 +29,7 @@ import { formatRequestedAt, formatInCarTripSummary, formatDurationSeconds, tripI
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   listVolunteerRidesFn,
+  getVolunteerRideFn,
   reopenVolunteerRideFn,
   completeVolunteerRideFn,
   submitVolunteerReviewFn,
@@ -91,17 +92,53 @@ function MatchedRidePage() {
 
   useEffect(() => {
     let cancelled = false;
+    function guestPhone() {
+      try {
+        return localStorage.getItem("share-vol-guest-phone") || "";
+      } catch {
+        return "";
+      }
+    }
+    function founderPin() {
+      try {
+        return sessionStorage.getItem("share-admin-pin") || "";
+      } catch {
+        return "";
+      }
+    }
+    const pin = founderPin();
+    // Direct fetch by id (founder pin unlocks any completed ride)
+    getVolunteerRideFn({
+      data: {
+        id,
+        pin: pin || undefined,
+        email: user?.primaryEmail || undefined,
+        phone: guestPhone(),
+        driverName: user?.displayName || riderName || undefined,
+      },
+    })
+      .then((res) => {
+        if (cancelled || !res.ride) return;
+        setCloudRide(res.ride);
+        useShareStore.setState((s) => {
+          const exists = s.volunteerRides.some((r) => r.id === res.ride!.id);
+          return {
+            volunteerRides: exists
+              ? s.volunteerRides.map((r) =>
+                  r.id === res.ride!.id ? res.ride! : r,
+                )
+              : [res.ride!, ...s.volunteerRides],
+          };
+        });
+      })
+      .catch(() => {});
+    // Fallback list (scoped) for older deploys
     listVolunteerRidesFn({
       data: {
         email: user?.primaryEmail || undefined,
-        phone: (() => {
-          try {
-            return localStorage.getItem("share-vol-guest-phone") || "";
-          } catch {
-            return "";
-          }
-        })(),
+        phone: guestPhone(),
         driverName: user?.displayName || riderName || undefined,
+        pin: pin || undefined,
       },
     })
       .then((res) => {
@@ -109,7 +146,6 @@ function MatchedRidePage() {
         const hit = res.rides.find((r) => r.id === id);
         if (hit) {
           setCloudRide(hit);
-          // merge into store so list stays warm
           useShareStore.setState((s) => {
             const exists = s.volunteerRides.some((r) => r.id === hit.id);
             return {
@@ -124,7 +160,7 @@ function MatchedRidePage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, user?.primaryEmail, user?.displayName, riderName]);
 
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
@@ -157,26 +193,35 @@ function MatchedRidePage() {
     let cancelled = false;
     async function poll() {
       try {
-        const res = await listVolunteerRidesFn({
-      data: {
-        email: user?.primaryEmail || undefined,
-        phone: (() => {
-          try {
-            return localStorage.getItem("share-vol-guest-phone") || "";
-          } catch {
-            return "";
-          }
-        })(),
-        driverName: user?.displayName || riderName || undefined,
-      },
-    });
-        if (cancelled) return;
-        const hit = res.rides.find((r) => r.id === id);
-        if (!hit) return;
+        let pin = "";
+        try {
+          pin = sessionStorage.getItem("share-admin-pin") || "";
+        } catch {
+          /* ignore */
+        }
+        const res = await getVolunteerRideFn({
+          data: {
+            id,
+            pin: pin || undefined,
+            email: user?.primaryEmail || undefined,
+            phone: (() => {
+              try {
+                return localStorage.getItem("share-vol-guest-phone") || "";
+              } catch {
+                return "";
+              }
+            })(),
+            driverName: user?.displayName || riderName || undefined,
+          },
+        });
+        if (cancelled || !res.ride) return;
+        const hit = res.ride;
         setCloudRide(hit);
         useShareStore.setState((s) => ({
           volunteerRides: s.volunteerRides.some((r) => r.id === hit.id)
-            ? s.volunteerRides.map((r) => (r.id === hit.id ? { ...r, ...hit } : r))
+            ? s.volunteerRides.map((r) =>
+                r.id === hit.id ? { ...r, ...hit } : r,
+              )
             : [hit, ...s.volunteerRides],
         }));
       } catch {
@@ -188,7 +233,7 @@ function MatchedRidePage() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [id]);
+  }, [id, user?.primaryEmail, user?.displayName, riderName]);
 
   // Live timer while ride is in progress
   useEffect(() => {
@@ -421,13 +466,20 @@ function MatchedRidePage() {
       <AppShell title="Ride" backTo="/rides" solidHeader>
         <Card className="mt-6">
           <CardContent className="space-y-3 p-6 text-center">
-            <p className="font-semibold">Ride not found on this device</p>
+            <p className="font-semibold">Loading ride…</p>
             <p className="text-sm text-[var(--color-fg-muted)]">
-              Refresh the Rides tab or Volunteer board and open it again.
+              If this stays blank, open it again from Founder inbox → Trips
+              (after entering your PIN), or from Rides while signed in as the
+              matched driver.
             </p>
-            <Button asChild>
-              <Link to="/rides">Back to Rides</Link>
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button asChild>
+                <Link to="/admin">Founder inbox</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/rides">Back to Rides</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </AppShell>

@@ -1479,6 +1479,121 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Single volunteer ride by id — founder pin, matching driver/rider, or open board.
+ * Used by the trip detail page so completed rides open reliably from Founder inbox.
+ */
+export const getVolunteerRideFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      id: string;
+      pin?: string;
+      email?: string;
+      phone?: string;
+      driverName?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const id = String(data.id || "").trim();
+    if (!id) return { ride: null as VolunteerRide | null, scope: "none" as const };
+
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+
+    let founder = false;
+    if (data.pin) {
+      try {
+        checkPin(data.pin);
+        founder = true;
+      } catch {
+        founder = false;
+      }
+    }
+
+    const rowList = await sql`
+      select * from share_volunteer_rides where id = ${id} limit 1
+    `;
+    const row = (rowList[0] || null) as {
+      id: string;
+      category: string;
+      full_name: string;
+      phone: string;
+      pickup: string;
+      dropoff: string;
+      when_text: string;
+      notes: string;
+      escalate_after_hours: number;
+      paid_offer: number;
+      requester_name: string;
+      status: string;
+      matched_driver_name: string | null;
+      matched_driver_email: string | null;
+      escalated_at: string | Date | null;
+      cancelled_at: string | Date | null;
+      cancelled_by: string | null;
+      cancelled_by_name: string | null;
+      completed_at: string | Date | null;
+      trip_started_at: string | Date | null;
+      trip_ended_at: string | Date | null;
+      created_at: string | Date;
+      rider_rating: number | null;
+      rider_review: string | null;
+      rated_at: string | Date | null;
+    } | null;
+    if (!row) return { ride: null as VolunteerRide | null, scope: "none" as const };
+
+    const mapped = mapVolunteerRow(row);
+    const [enriched] = await attachRiderFaces(sql, [mapped]);
+
+    if (founder) {
+      return { ride: enriched, scope: "founder" as const };
+    }
+
+    const email = data.email?.trim().toLowerCase() || "";
+    const phone10 = last10Digits(data.phone);
+    const driverName = (data.driverName || "").trim().toLowerCase();
+    const driverFirst = driverName.split(/\s+/)[0] || "";
+    const status = row.status;
+    const open =
+      status === "seeking_volunteer" || status === "escalated_paid";
+    const minePhone =
+      phone10.length >= 10 && last10Digits(row.phone) === phone10;
+    if (minePhone) return { ride: enriched, scope: "self" as const };
+
+    let isDriver = false;
+    if (email) {
+      try {
+        const apps = await sql<{ status: string }>`
+          select status from share_driver_apps
+          where lower(email) = ${email}
+            and status in ('active', 'approved')
+          limit 1
+        `;
+        isDriver = apps.length > 0;
+      } catch {
+        isDriver = false;
+      }
+    }
+    if (isDriver && open) {
+      return { ride: enriched, scope: "driver" as const };
+    }
+    const matchedEmail = (row.matched_driver_email || "").toLowerCase();
+    if (email && matchedEmail && matchedEmail === email) {
+      return { ride: enriched, scope: "driver" as const };
+    }
+    const matchedName = (row.matched_driver_name || "").toLowerCase();
+    if (driverName && matchedName) {
+      if (matchedName === driverName) {
+        return { ride: enriched, scope: "driver" as const };
+      }
+      if (driverFirst.length >= 3 && matchedName.includes(driverFirst)) {
+        return { ride: enriched, scope: "driver" as const };
+      }
+    }
+    // Deny: don't leak others' completed rides
+    return { ride: null as VolunteerRide | null, scope: "denied" as const };
+  });
+
 export const createVolunteerRideFn = createServerFn({ method: "POST" })
   .validator((data: Record<string, unknown>) => data)
   .handler(async ({ data }) => {

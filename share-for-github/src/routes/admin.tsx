@@ -170,7 +170,7 @@ function AdminPage() {
       setCloudWaitlist(res.waitlistEmails);
       let volCount = 0;
       try {
-        const vols = await listVolunteerRidesFn({ data: { pin } });
+        const vols = await listVolunteerRidesFn({ data: { pin: p } });
         setCloudVolunteers(vols.rides);
         useShareStore.setState({ volunteerRides: vols.rides });
         volCount = vols.rides.length;
@@ -1492,7 +1492,8 @@ function AdminPage() {
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="font-semibold">
-                              {r.fullName} · {r.pickup} → {r.dropoff}
+                              {r.riderLegalName || r.fullName} · {r.pickup} →{" "}
+                              {r.dropoff}
                             </p>
                             <p className="text-sm text-[var(--color-fg-muted)]">
                               {r.when} · {r.phone}
@@ -1535,15 +1536,88 @@ function AdminPage() {
                             {r.status}
                           </Badge>
                         </div>
+                        {/* Full detail always visible — no broken hop required */}
+                        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm space-y-1.5">
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              Category:{" "}
+                            </span>
+                            {r.category}
+                          </p>
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              Rider:{" "}
+                            </span>
+                            {r.riderLegalName || r.fullName} · {r.phone}
+                          </p>
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              Pickup:{" "}
+                            </span>
+                            {r.pickup}
+                          </p>
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              Dropoff:{" "}
+                            </span>
+                            {r.dropoff}
+                          </p>
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              When:{" "}
+                            </span>
+                            {r.when}
+                          </p>
+                          {r.notes ? (
+                            <p>
+                              <span className="text-[var(--color-fg-muted)]">
+                                Notes:{" "}
+                              </span>
+                              {r.notes}
+                            </p>
+                          ) : null}
+                          {r.matchedDriverName ? (
+                            <p>
+                              <span className="text-[var(--color-fg-muted)]">
+                                Driver:{" "}
+                              </span>
+                              {r.matchedDriverName}
+                            </p>
+                          ) : null}
+                          {r.status === "completed" &&
+                            r.tripStartedAt &&
+                            r.tripEndedAt && (
+                              <p className="font-medium text-[var(--color-primary)]">
+                                In-car{" "}
+                                {formatDurationSeconds(
+                                  tripInCarSeconds(
+                                    r.tripStartedAt,
+                                    r.tripEndedAt,
+                                  ) ?? 0,
+                                )}{" "}
+                                · Begin {formatRequestedAt(r.tripStartedAt)} →
+                                End {formatRequestedAt(r.tripEndedAt)}
+                              </p>
+                            )}
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="secondary" asChild>
                             <Link
                               to="/rides/matched/$id"
                               params={{ id: r.id }}
                             >
-                              Open
+                              Full trip page
                             </Link>
                           </Button>
+                          {r.phone && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a
+                                href={`tel:+1${r.phone.replace(/\D/g, "").slice(-10)}`}
+                              >
+                                Call rider
+                              </a>
+                            </Button>
+                          )}
                           {r.status === "cancelled" && (
                             <Button
                               size="sm"

@@ -896,24 +896,32 @@ function MatchedRidePage() {
               <Button
                 size="lg"
                 className="w-full"
-                onClick={() =>
+                onClick={() => {
+                  const riderLabel =
+                    vol.riderLegalName || vol.fullName || "Rider";
                   openTripChat({
-                    withName: vol.fullName || "Rider",
+                    withName: riderLabel,
                     relatedType: "volunteer",
-                    subject: `Ride · ${vol.fullName}`,
+                    subject: `Ride · ${riderLabel}`,
                     withPhone: vol.phone,
-                  })
-                }
+                  });
+                }}
               >
                 <MessageCircle className="size-4" />
-                Message {vol.fullName.split(" ")[0] || "rider"}
+                Message{" "}
+                {(vol.riderLegalName || vol.fullName || "rider").split(
+                  " ",
+                )[0] || "rider"}
               </Button>
             )}
             {telHref && tripPhase === "idle" && (
               <Button size="lg" variant="secondary" asChild>
                 <a href={telHref}>
                   <Phone className="size-4" />
-                  Call {vol.fullName.split(" ")[0] || "rider"}
+                  Call{" "}
+                  {(vol.riderLegalName || vol.fullName || "rider").split(
+                    " ",
+                  )[0] || "rider"}
                 </a>
               </Button>
             )}

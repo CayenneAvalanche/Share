@@ -5,7 +5,7 @@ import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShareStore } from "@/lib/share/store";
-import { messagesForThread } from "@/lib/share/messages";
+import { messagesForThread, enrichThreadsWithRiderNames } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -19,6 +19,8 @@ function ThreadPage() {
   const { id } = Route.useParams();
   const threads = useShareStore((s) => s.threads);
   const messages = useShareStore((s) => s.messages);
+  const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const riderApps = useShareStore((s) => s.riderApps);
   const sendMessage = useShareStore((s) => s.sendMessage);
   const openThread = useShareStore((s) => s.openThread);
   const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
@@ -29,7 +31,11 @@ function ThreadPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastSendRef = useRef<{ body: string; at: number } | null>(null);
 
-  const thread = threads.find((t) => t.id === id);
+  const thread = enrichThreadsWithRiderNames(
+    threads,
+    volunteerRides,
+    riderApps,
+  ).find((t) => t.id === id);
   const msgs = messagesForThread(messages, id);
 
   useEffect(() => {

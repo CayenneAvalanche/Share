@@ -5,7 +5,7 @@ import { AppShell } from "@/components/share/shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useShareStore } from "@/lib/share/store";
-import { sortThreads, threadPreview } from "@/lib/share/messages";
+import { sortThreads, threadPreview, enrichThreadsWithRiderNames } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 import { listChatFn } from "@/lib/share/server-fns";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -25,8 +25,12 @@ function MessagesPage() {
   const messages = useShareStore((s) => s.messages);
   const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
   const riderName = useShareStore((s) => s.riderName);
+  const volunteerRides = useShareStore((s) => s.volunteerRides);
+  const riderApps = useShareStore((s) => s.riderApps);
   const user = useCurrentUser();
-  const sorted = sortThreads(threads);
+  const sorted = sortThreads(
+    enrichThreadsWithRiderNames(threads, volunteerRides, riderApps),
+  );
 
   useEffect(() => {
     let cancelled = false;

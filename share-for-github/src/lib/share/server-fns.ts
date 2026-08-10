@@ -2685,6 +2685,117 @@ export const listChatFn = createServerFn({ method: "POST" })
       });
     }
 
+    // Upgrade volunteer chat titles to approved rider full names
+    const volIds = threads
+      .filter((th) => th.relatedType === "volunteer" && th.relatedId)
+      .map((th) => th.relatedId!)
+      .filter(Boolean);
+    if (volIds.length) {
+      try {
+        const rideRows = await sql`
+          select id, full_name, phone from share_volunteer_rides
+          order by created_at desc
+          limit 200
+        `;
+        const byRide = new Map<
+          string,
+          { full_name: string; phone: string }
+        >();
+        for (const rr of rideRows as {
+          id: string;
+          full_name: string;
+          phone: string;
+        }[]) {
+          byRide.set(String(rr.id), {
+            full_name: String(rr.full_name || "").trim(),
+            phone: String(rr.phone || ""),
+          });
+        }
+        // Approved rider apps by phone → preferred display name
+        const appRows = await sql`
+          select phone, full_name, status from share_rider_apps
+          where status in ('active', 'approved')
+          order by created_at desc
+          limit 400
+        `;
+        const nameByPhone = new Map<string, string>();
+        for (const a of appRows as {
+          phone: string;
+          full_name: string;
+          status: string;
+        }[]) {
+          const p10 = last10Digits(a.phone);
+          if (p10.length < 10) continue;
+          if (nameByPhone.has(p10)) continue;
+          const nm = String(a.full_name || "").trim();
+          if (nm.length >= 2) nameByPhone.set(p10, nm);
+        }
+
+        for (let i = 0; i < threads.length; i++) {
+          const th = threads[i]!;
+          if (th.relatedType !== "volunteer" || !th.relatedId) continue;
+          const ride = byRide.get(th.relatedId);
+          if (!ride) continue;
+          const legal =
+            nameByPhone.get(last10Digits(ride.phone)) || ride.full_name;
+          if (!legal || legal.length < 2) continue;
+
+          // Replace short names in participants
+          const parts = th.participants.map((p) => {
+            if (p === "You" || p === "Share Ops") return p;
+            // If participant looks like abbreviated form of legal name, upgrade
+            const pl = p.toLowerCase();
+            const ll = legal.toLowerCase();
+            if (pl === ll) return legal;
+            const first = ll.split(/\s+/)[0] || "";
+            if (first && pl.startsWith(first)) return legal;
+            // single initial last name patterns e.g. "Helena S."
+            if (first && pl.includes(first)) return legal;
+            return p;
+          });
+          // Ensure legal name is present if only "You" + short name
+          if (!parts.some((p) => p.toLowerCase() === legal.toLowerCase())) {
+            const idx = parts.findIndex((p) => p !== "You" && p !== "Share Ops");
+            if (idx >= 0) parts[idx] = legal;
+            else parts.push(legal);
+          }
+
+          const betterSubject = th.subject.match(/^Ride\s*·/i)
+            ? `Ride · ${legal}`
+            : th.subject.includes(ride.full_name) && ride.full_name !== legal
+              ? th.subject.split(ride.full_name).join(legal)
+              : th.subject.startsWith("Ride")
+                ? `Ride · ${legal}`
+                : th.subject;
+
+          threads[i] = {
+            ...th,
+            subject: betterSubject,
+            participants: parts,
+          };
+
+          // Persist upgrade so every device matches
+          if (
+            betterSubject !== th.subject ||
+            parts.join("|") !== th.participants.join("|")
+          ) {
+            try {
+              await sql`
+                update share_chat_threads set
+                  subject = ${betterSubject},
+                  participants_json = ${JSON.stringify(parts)}
+                where id = ${th.id}
+              `;
+            } catch {
+              /* ignore persist */
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[listChat] name enrich failed", e);
+      }
+    }
+
     return { threads, messages, readerKey: key, founder };
   });
 

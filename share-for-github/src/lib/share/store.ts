@@ -975,10 +975,12 @@ export const useShareStore = create<ShareState>()(
         }));
         // Open / refresh trip chat so driver can message the rider immediately
         if (ride) {
-          const first = ride.fullName?.split(" ")[0] || "there";
+          const riderLabel =
+            ride.riderLegalName || ride.fullName || "Rider";
+          const first = riderLabel.split(" ")[0] || "there";
           get().startThread({
-            subject: `Ride · ${ride.fullName || "Volunteer"}`,
-            withName: ride.fullName || "Rider",
+            subject: `Ride · ${riderLabel}`,
+            withName: riderLabel,
             relatedType: "volunteer",
             relatedId: id,
             withPhone: ride.phone,
@@ -1594,6 +1596,37 @@ export const useShareStore = create<ShareState>()(
                 ),
               }));
             }
+            // Upgrade display name if we now have a fuller rider name
+            set((state) => ({
+              threads: state.threads.map((t) => {
+                if (t.id !== id && t.id !== existing.id) return t;
+                const other = t.participants.find(
+                  (p) => p !== "You" && p !== "Share Ops",
+                );
+                const shouldUpgrade =
+                  withName &&
+                  withName.length > (other?.length || 0) &&
+                  (!other ||
+                    withName.toLowerCase().startsWith(
+                      other.split(/\s+/)[0]?.toLowerCase() || "",
+                    ));
+                if (!shouldUpgrade) {
+                  return {
+                    ...t,
+                    id,
+                    subject: subject || t.subject,
+                  };
+                }
+                return {
+                  ...t,
+                  id,
+                  subject: subject || t.subject,
+                  participants: t.participants.map((p) =>
+                    p === other ? withName : p,
+                  ),
+                };
+              }),
+            }));
             if (firstMessage?.trim()) {
               get().sendMessage(
                 id,

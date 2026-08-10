@@ -66,6 +66,7 @@ function ProfilePage() {
   const [newVehLabel, setNewVehLabel] = useState("");
   const [newVehType, setNewVehType] = useState("SUV / Crossover");
   const [newVehPhoto, setNewVehPhoto] = useState("");
+  const [addingVehicle, setAddingVehicle] = useState(false);
   const [invite, setInvite] = useState("");
   const [placeLabel, setPlaceLabel] = useState("");
   const [placeAddr, setPlaceAddr] = useState("");
@@ -367,83 +368,111 @@ function ProfilePage() {
               ))}
             </div>
             <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-              <p className="text-sm font-semibold">Add vehicle</p>
-              <PhotoField
-                id="new-veh-photo"
-                label="Car photo"
-                hint="Take a photo first — then it syncs to your Share account on every device."
-                value={newVehPhoto}
-                onChange={setNewVehPhoto}
-                facing="environment"
-                kind="vehicle"
-                captureFirst
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="new-vtype">Type</Label>
-                  <Select
-                    id="new-vtype"
-                    value={newVehType}
-                    onChange={(e) => setNewVehType(e.target.value)}
-                  >
-                    {VEHICLE_TYPES.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="new-vlabel">Year / make / model</Label>
-                  <Input
-                    id="new-vlabel"
-                    value={newVehLabel}
-                    onChange={(e) => setNewVehLabel(e.target.value)}
-                    placeholder="2018 CR-V"
+              {!addingVehicle ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setAddingVehicle(true)}
+                >
+                  Add vehicle
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">New vehicle</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingVehicle(false);
+                        setNewVehLabel("");
+                        setNewVehPhoto("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <PhotoField
+                    id="new-veh-photo"
+                    label="Car photo"
+                    hint="Take a photo first — then it syncs to your Share account on every device."
+                    value={newVehPhoto}
+                    onChange={setNewVehPhoto}
+                    facing="environment"
+                    kind="vehicle"
+                    captureFirst
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="new-vtype">Type</Label>
+                      <Select
+                        id="new-vtype"
+                        value={newVehType}
+                        onChange={(e) => setNewVehType(e.target.value)}
+                      >
+                        {VEHICLE_TYPES.map((x) => (
+                          <option key={x} value={x}>
+                            {x}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="new-vlabel">Year / make / model</Label>
+                      <Input
+                        id="new-vlabel"
+                        value={newVehLabel}
+                        onChange={(e) => setNewVehLabel(e.target.value)}
+                        placeholder="2018 CR-V"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => {
+                      if (!newVehLabel.trim()) {
+                        toast.error("Add year / make / model");
+                        return;
+                      }
+                      if (!newVehPhoto) {
+                        toast.error("Take a car photo first");
+                        return;
+                      }
+                      addVehicle({
+                        label: newVehLabel.trim(),
+                        vehicleType: newVehType,
+                        photoUrl: newVehPhoto || undefined,
+                        isDefault: myVehicles.length === 0,
+                      });
+                      setNewVehLabel("");
+                      setNewVehPhoto("");
+                      setAddingVehicle(false);
+                      const email = user?.primaryEmail;
+                      if (!email) {
+                        toast.message(
+                          "Saved on this phone — sign in to push the car photo everywhere",
+                        );
+                        return;
+                      }
+                      void pushMyVehiclesToCloud(email).then((r) => {
+                        if (r.ok) {
+                          toast.success("Vehicle + photo saved on all devices");
+                        } else {
+                          toast.message(
+                            r.error ||
+                              "Saved on this phone — cloud sync pending (retry on Wi‑Fi)",
+                          );
+                        }
+                      });
+                    }}
+                  >
+                    Save vehicle
+                  </Button>
                 </div>
-              </div>
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => {
-                  if (!newVehLabel.trim()) {
-                    toast.error("Add year / make / model");
-                    return;
-                  }
-                  if (!newVehPhoto) {
-                    toast.error("Take a car photo first");
-                    return;
-                  }
-                  addVehicle({
-                    label: newVehLabel.trim(),
-                    vehicleType: newVehType,
-                    photoUrl: newVehPhoto || undefined,
-                    isDefault: myVehicles.length === 0,
-                  });
-                  setNewVehLabel("");
-                  setNewVehPhoto("");
-                  const email = user?.primaryEmail;
-                  if (!email) {
-                    toast.message(
-                      "Saved on this phone — sign in to push the car photo everywhere",
-                    );
-                    return;
-                  }
-                  void pushMyVehiclesToCloud(email).then((r) => {
-                    if (r.ok) {
-                      toast.success("Vehicle + photo saved on all devices");
-                    } else {
-                      toast.message(
-                        r.error ||
-                          "Saved on this phone — cloud sync pending (retry on Wi‑Fi)",
-                      );
-                    }
-                  });
-                }}
-              >
-                Save vehicle
-              </Button>
+              )}
             </div>
           </CardContent>
         </Card>

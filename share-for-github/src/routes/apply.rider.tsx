@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +41,50 @@ function RiderApplyPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  const DRAFT_KEY = "share-rider-app-draft";
+
+  // Restore draft when returning mid-application
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as {
+        form?: typeof form;
+        selfie?: string;
+        acceptedTos?: boolean;
+      };
+      if (d.form) setForm((f) => ({ ...f, ...d.form }));
+      if (d.selfie) setSelfie(d.selfie);
+      if (d.acceptedTos) setAcceptedTos(true);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function saveDraft(exit?: boolean) {
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ form, selfie, acceptedTos, savedAt: new Date().toISOString() }),
+      );
+      toast.success(exit ? "Draft saved — come back anytime" : "Draft saved");
+    } catch {
+      toast.error("Could not save draft on this device");
+    }
+    if (exit) {
+      window.location.href = "/profile";
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.includes("@") || !form.phone.trim()) {
@@ -65,6 +109,7 @@ function RiderApplyPage() {
     } catch {
       toast.message("Saved on this device — cloud sync pending");
     }
+    clearDraft();
     setDone(true);
   }
 
@@ -279,7 +324,25 @@ function RiderApplyPage() {
           </span>
         </label>
 
-        <Button type="submit" size="xl" className="w-full">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => saveDraft(false)}
+              >
+                Save draft
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => saveDraft(true)}
+              >
+                Save & exit
+              </Button>
+            </div>
+<Button type="submit" size="xl" className="w-full">
           Submit rider application
         </Button>
       </form>

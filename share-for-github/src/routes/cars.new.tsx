@@ -10,6 +10,7 @@ import { HUB_CITIES } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
+import { createCarListingFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/cars/new")({
   component: ListCarPage,
@@ -37,7 +38,7 @@ function ListCarPage() {
   const [rules, setRules] = useState("No smoking. Full tank on return.");
   const [photoUrl, setPhotoUrl] = useState("");
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!hostOk) {
       toast.error("Hosts must be approved Share drivers");
@@ -53,7 +54,7 @@ function ListCarPage() {
     }
     const owner =
       user?.displayName || riderName || user?.primaryEmail || "Host";
-    listCar({
+    const listing = listCar({
       makeModel: makeModel.trim(),
       year,
       seats,
@@ -67,7 +68,19 @@ function ListCarPage() {
       rules,
       photoUrl: photoUrl.trim() || undefined,
     });
-    toast.success("Car listed — renters must be approved drivers with DMV history");
+    try {
+      await createCarListingFn({
+        data: {
+          ...listing,
+          ownerEmail: user?.primaryEmail || undefined,
+        } as unknown as Record<string, unknown>,
+      });
+      toast.success(
+        "Car listed on all devices — renters need approved driver + DMV history",
+      );
+    } catch {
+      toast.message("Listed on this device — cloud sync pending");
+    }
     navigate({ to: "/cars" });
   }
 

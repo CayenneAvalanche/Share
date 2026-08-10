@@ -2,10 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import type {
   ApplicationStatus,
+  CarShareListing,
   DriverApplication,
   DriverGender,
   InterviewMode,
   RiderApplication,
+  Trip,
   VolunteerCategory,
   VolunteerRide,
 } from "@/lib/share/data";
@@ -1056,6 +1058,170 @@ function mapVolunteerRow(r: {
   };
 }
 
+
+async function ensureTripsAndCars(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`
+    create table if not exists share_trips (
+      id text primary key,
+      type text not null default 'ride',
+      from_place text not null,
+      to_place text not null,
+      from_short text not null default '',
+      to_short text not null default '',
+      depart_at timestamptz not null,
+      arrive_at timestamptz not null,
+      seats_available integer not null default 1,
+      seats_total integer not null default 1,
+      cargo_capacity text not null default '',
+      price_per_seat integer not null default 0,
+      delivery_rate integer not null default 0,
+      stops_json text not null default '[]',
+      schedule text not null default 'moderate',
+      notes text not null default '',
+      driver_id text not null default 'member',
+      distance_miles integer not null default 0,
+      duration_hours real not null default 0,
+      vehicle_photo text,
+      vehicle_type text,
+      vehicle_label text,
+      posted_by_email text,
+      posted_by_name text,
+      driver_selfie text,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists share_car_listings (
+      id text primary key,
+      make_model text not null,
+      year integer not null default 2020,
+      seats integer not null default 5,
+      transmission text not null default 'auto',
+      rate_per_day integer not null default 45,
+      deposit integer not null default 200,
+      city text not null default 'Lafayette, LA',
+      owner_name text not null default '',
+      owner_email text,
+      has_dashcam boolean not null default true,
+      insurance_note text not null default '',
+      rules text not null default '',
+      available boolean not null default true,
+      trips_hosted integer not null default 0,
+      rating real not null default 5,
+      photo_url text,
+      created_at timestamptz not null default now()
+    )
+  `;
+}
+
+function mapTripRow(r: Record<string, unknown>): Trip {
+  let stops: string[] = [];
+  try {
+    stops = JSON.parse(String(r.stops_json || "[]"));
+    if (!Array.isArray(stops)) stops = [];
+  } catch {
+    stops = [];
+  }
+  return {
+    id: String(r.id),
+    type: (r.type === "delivery" ? "delivery" : "ride") as Trip["type"],
+    from: String(r.from_place ?? ""),
+    to: String(r.to_place ?? ""),
+    fromShort: String(r.from_short ?? ""),
+    toShort: String(r.to_short ?? ""),
+    departAt: iso(r.depart_at as string | Date | null) ?? new Date().toISOString(),
+    arriveAt: iso(r.arrive_at as string | Date | null) ?? new Date().toISOString(),
+    seatsAvailable: Number(r.seats_available ?? 1),
+    seatsTotal: Number(r.seats_total ?? 1),
+    cargoCapacity: String(r.cargo_capacity ?? ""),
+    pricePerSeat: Number(r.price_per_seat ?? 0),
+    deliveryRate: Number(r.delivery_rate ?? 0),
+    stops,
+    schedule: (String(r.schedule || "moderate") as Trip["schedule"]),
+    notes: String(r.notes ?? ""),
+    driverId: String(r.driver_id ?? "member"),
+    distanceMiles: Number(r.distance_miles ?? 0),
+    durationHours: Number(r.duration_hours ?? 0),
+    vehiclePhoto: r.vehicle_photo ? String(r.vehicle_photo) : undefined,
+    vehicleType: r.vehicle_type ? String(r.vehicle_type) : undefined,
+    vehicleLabel: r.vehicle_label ? String(r.vehicle_label) : undefined,
+    postedByEmail: r.posted_by_email ? String(r.posted_by_email) : undefined,
+    postedByName: r.posted_by_name ? String(r.posted_by_name) : undefined,
+    driverSelfie: r.driver_selfie ? String(r.driver_selfie) : undefined,
+  };
+}
+
+function mapCarRow(r: Record<string, unknown>): CarShareListing {
+  return {
+    id: String(r.id),
+    makeModel: String(r.make_model ?? ""),
+    year: Number(r.year ?? 2020),
+    seats: Number(r.seats ?? 5),
+    transmission: r.transmission === "manual" ? "manual" : "auto",
+    ratePerDay: Number(r.rate_per_day ?? 0),
+    deposit: Number(r.deposit ?? 0),
+    city: String(r.city ?? "Lafayette, LA"),
+    ownerName: String(r.owner_name ?? ""),
+    ownerId: r.owner_email ? String(r.owner_email) : undefined,
+    hasDashcam: Boolean(r.has_dashcam),
+    insuranceNote: String(r.insurance_note ?? ""),
+    rules: String(r.rules ?? ""),
+    available: r.available !== false,
+    tripsHosted: Number(r.trips_hosted ?? 0),
+    rating: Number(r.rating ?? 5),
+    photoUrl: r.photo_url ? String(r.photo_url) : undefined,
+  };
+}
+
+/** Attach approved rider selfie to volunteer rides (by phone last-10). */
+async function attachRiderFaces(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  rides: VolunteerRide[],
+): Promise<VolunteerRide[]> {
+  if (!rides.length) return rides;
+  try {
+    const rows = await sql.query<{
+      phone: string;
+      selfie: string | null;
+      status: string;
+      full_name: string;
+    }>(
+      `select phone, selfie, status, full_name from share_rider_apps
+       where selfie is not null and length(selfie) > 20
+       order by created_at desc limit 300`,
+    );
+    const byPhone = new Map<
+      string,
+      { selfie: string; status: ApplicationStatus; name: string }
+    >();
+    for (const row of rows) {
+      const p = last10Digits(row.phone);
+      if (p.length < 10) continue;
+      if (byPhone.has(p)) continue; // newest first
+      byPhone.set(p, {
+        selfie: String(row.selfie || ""),
+        status: row.status as ApplicationStatus,
+        name: row.full_name,
+      });
+    }
+    return rides.map((ride) => {
+      const hit = byPhone.get(last10Digits(ride.phone));
+      if (!hit) {
+        return { ...ride, riderAppStatus: "none" as const };
+      }
+      const approved =
+        hit.status === "active" || hit.status === "approved";
+      return {
+        ...ride,
+        riderSelfie: approved ? hit.selfie : undefined,
+        riderAppStatus: hit.status,
+      };
+    });
+  } catch {
+    return rides;
+  }
+}
+
 /**
  * Privacy-scoped volunteer list.
  * - Founder pin → full board
@@ -1132,7 +1298,11 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
     );
 
     if (founder) {
-      return { rides: rows.map(mapVolunteerRow), scope: "founder" as const };
+      const mapped = rows.map(mapVolunteerRow);
+      return {
+        rides: await attachRiderFaces(sql, mapped),
+        scope: "founder" as const,
+      };
     }
 
     const rides = rows.filter((r) => {
@@ -1164,8 +1334,9 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
       return false;
     });
 
+    const mapped = rides.map(mapVolunteerRow);
     return {
-      rides: rides.map(mapVolunteerRow),
+      rides: await attachRiderFaces(sql, mapped),
       scope: isDriver ? ("driver" as const) : ("self" as const),
     };
   });
@@ -1870,4 +2041,169 @@ export const founderResetPasswordFn = createServerFn({ method: "POST" })
       `;
     }
     return { ok: true as const, email };
+  });
+
+
+/* ─── Corridor trips (cloud) ─── */
+
+export const listTripsFn = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const sql = await getSql();
+    await ensureTripsAndCars(sql);
+    const rows = await sql`
+      select * from share_trips
+      where depart_at > now() - interval '2 days'
+      order by depart_at asc
+      limit 200
+    `;
+    return { trips: (rows as Record<string, unknown>[]).map(mapTripRow) };
+  },
+);
+
+export const createTripFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureTripsAndCars(sql);
+    const id =
+      String(data.id ?? "").trim() || uid("user");
+    const stops = Array.isArray(data.stops)
+      ? data.stops
+      : typeof data.stops === "string"
+        ? String(data.stops)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+    await sql`
+      insert into share_trips (
+        id, type, from_place, to_place, from_short, to_short,
+        depart_at, arrive_at, seats_available, seats_total, cargo_capacity,
+        price_per_seat, delivery_rate, stops_json, schedule, notes,
+        driver_id, distance_miles, duration_hours, vehicle_photo,
+        vehicle_type, vehicle_label, posted_by_email, posted_by_name,
+        driver_selfie, created_at
+      ) values (
+        ${id},
+        ${String(data.type ?? "ride")},
+        ${String(data.from ?? "").trim()},
+        ${String(data.to ?? "").trim()},
+        ${String(data.fromShort ?? "")},
+        ${String(data.toShort ?? "")},
+        ${String(data.departAt ?? new Date().toISOString())},
+        ${String(data.arriveAt ?? new Date().toISOString())},
+        ${Number(data.seatsAvailable ?? data.seatsTotal ?? 1)},
+        ${Number(data.seatsTotal ?? 1)},
+        ${String(data.cargoCapacity ?? "")},
+        ${Number(data.pricePerSeat ?? 0)},
+        ${Number(data.deliveryRate ?? 0)},
+        ${JSON.stringify(stops)},
+        ${String(data.schedule ?? "moderate")},
+        ${String(data.notes ?? "")},
+        ${String(data.driverId ?? "member")},
+        ${Number(data.distanceMiles ?? 0)},
+        ${Number(data.durationHours ?? 0)},
+        ${data.vehiclePhoto ? String(data.vehiclePhoto) : null},
+        ${data.vehicleType ? String(data.vehicleType) : null},
+        ${data.vehicleLabel ? String(data.vehicleLabel) : null},
+        ${data.postedByEmail ? String(data.postedByEmail).toLowerCase() : null},
+        ${data.postedByName ? String(data.postedByName) : null},
+        ${data.driverSelfie ? String(data.driverSelfie) : null},
+        ${new Date().toISOString()}
+      )
+      on conflict (id) do update set
+        from_place = excluded.from_place,
+        to_place = excluded.to_place,
+        from_short = excluded.from_short,
+        to_short = excluded.to_short,
+        depart_at = excluded.depart_at,
+        arrive_at = excluded.arrive_at,
+        seats_available = excluded.seats_available,
+        seats_total = excluded.seats_total,
+        cargo_capacity = excluded.cargo_capacity,
+        price_per_seat = excluded.price_per_seat,
+        delivery_rate = excluded.delivery_rate,
+        stops_json = excluded.stops_json,
+        schedule = excluded.schedule,
+        notes = excluded.notes,
+        vehicle_photo = excluded.vehicle_photo,
+        vehicle_type = excluded.vehicle_type,
+        vehicle_label = excluded.vehicle_label,
+        driver_selfie = excluded.driver_selfie
+    `;
+    return { id, ok: true as const };
+  });
+
+export const deleteTripFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string; email?: string }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureTripsAndCars(sql);
+    await sql`delete from share_trips where id = ${data.id}`;
+    return { ok: true as const };
+  });
+
+/* ─── Share-a-car listings (cloud) ─── */
+
+export const listCarListingsFn = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const sql = await getSql();
+    await ensureTripsAndCars(sql);
+    const rows = await sql`
+      select * from share_car_listings
+      where available = true
+      order by created_at desc
+      limit 100
+    `;
+    return {
+      cars: (rows as Record<string, unknown>[]).map(mapCarRow),
+    };
+  },
+);
+
+export const createCarListingFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureTripsAndCars(sql);
+    const id = String(data.id ?? "").trim() || uid("car");
+    await sql`
+      insert into share_car_listings (
+        id, make_model, year, seats, transmission, rate_per_day, deposit,
+        city, owner_name, owner_email, has_dashcam, insurance_note, rules,
+        available, trips_hosted, rating, photo_url, created_at
+      ) values (
+        ${id},
+        ${String(data.makeModel ?? "").trim()},
+        ${Number(data.year ?? 2020)},
+        ${Number(data.seats ?? 5)},
+        ${String(data.transmission ?? "auto")},
+        ${Number(data.ratePerDay ?? 45)},
+        ${Number(data.deposit ?? 200)},
+        ${String(data.city ?? "Lafayette, LA")},
+        ${String(data.ownerName ?? "Host")},
+        ${data.ownerEmail ? String(data.ownerEmail).toLowerCase() : null},
+        ${Boolean(data.hasDashcam !== false)},
+        ${String(data.insuranceNote ?? "")},
+        ${String(data.rules ?? "")},
+        ${true},
+        ${Number(data.tripsHosted ?? 0)},
+        ${Number(data.rating ?? 5)},
+        ${data.photoUrl ? String(data.photoUrl) : null},
+        ${new Date().toISOString()}
+      )
+      on conflict (id) do update set
+        make_model = excluded.make_model,
+        year = excluded.year,
+        seats = excluded.seats,
+        transmission = excluded.transmission,
+        rate_per_day = excluded.rate_per_day,
+        deposit = excluded.deposit,
+        city = excluded.city,
+        insurance_note = excluded.insurance_note,
+        rules = excluded.rules,
+        photo_url = excluded.photo_url,
+        available = excluded.available
+    `;
+    return { id, ok: true as const };
   });

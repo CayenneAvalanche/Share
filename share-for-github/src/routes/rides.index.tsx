@@ -10,7 +10,7 @@ import { Input, Select } from "@/components/ui/input";
 import { HUB_CITIES, VOLUNTEER_LABELS, type Trip, type VolunteerRide } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { formatRequestedAt, formatCurrency } from "@/lib/utils";
-import { listVolunteerRidesFn } from "@/lib/share/server-fns";
+import { listVolunteerRidesFn, listTripsFn } from "@/lib/share/server-fns";
 import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -36,6 +36,44 @@ function RidesPage() {
   const [to, setTo] = useState("Any");
   const [query, setQuery] = useState("");
   const [cloudVol, setCloudVol] = useState<VolunteerRide[]>([]);
+
+  // Cloud corridor trips — visible on every device
+  useEffect(() => {
+    let cancelled = false;
+    listTripsFn()
+      .then(async (res) => {
+        if (cancelled) return;
+        const cloudIds = new Set(res.trips.map((tr) => tr.id));
+        useShareStore.setState((s) => {
+          const byId = new Map(s.trips.map((tr) => [tr.id, tr]));
+          for (const tr of res.trips) byId.set(tr.id, tr);
+          return { trips: Array.from(byId.values()) };
+        });
+        // One-time push: publish this device's user posts that never hit cloud
+        const localOnly = useShareStore
+          .getState()
+          .trips.filter(
+            (tr) =>
+              (tr.id.startsWith("user_") || tr.postedByEmail) &&
+              !cloudIds.has(tr.id) &&
+              !tr.id.match(/^(t\d+|trip)/),
+          );
+        const { createTripFn } = await import("@/lib/share/server-fns");
+        for (const tr of localOnly.slice(0, 20)) {
+          try {
+            await createTripFn({
+              data: tr as unknown as Record<string, unknown>,
+            });
+          } catch {
+            /* ignore single failure */
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     function pull() {
@@ -289,7 +327,16 @@ function RidesPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold">{r.fullName}</p>
+                    <div className="flex items-center gap-2">
+                      {r.riderSelfie ? (
+                        <img
+                          src={r.riderSelfie}
+                          alt=""
+                          className="size-8 shrink-0 rounded-full object-cover"
+                        />
+                      ) : null}
+                      <p className="font-semibold">{r.fullName}</p>
+                    </div>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
                     </p>

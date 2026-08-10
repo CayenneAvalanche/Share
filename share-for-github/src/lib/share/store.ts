@@ -156,8 +156,11 @@ type ShareState = {
     req: Omit<LocalRideRequest, "id" | "status" | "createdAt" | "adminNote">,
   ) => LocalRideRequest;
   listCar: (
-    car: Omit<CarShareListing, "id" | "available" | "tripsHosted" | "rating">,
-  ) => void;
+    car: Omit<
+      CarShareListing,
+      "id" | "available" | "tripsHosted" | "rating"
+    > & { id?: string },
+  ) => CarShareListing;
   bookCar: (carId: string, days: number) => void;
   requestVolunteerRide: (
     req: Omit<
@@ -877,19 +880,18 @@ export const useShareStore = create<ShareState>()(
       },
 
       listCar: (car) => {
+        const listing: CarShareListing = {
+          ...car,
+          id: car.id || uid("car"),
+          available: true,
+          tripsHosted: 0,
+          rating: 5,
+        };
         set((state) => ({
-          carListings: [
-            {
-              ...car,
-              id: uid("car"),
-              available: true,
-              tripsHosted: 0,
-              rating: 5,
-            },
-            ...state.carListings,
-          ],
+          carListings: [listing, ...state.carListings],
         }));
         systemNotify(set, "Car listed for Share a car");
+        return listing;
       },
 
       bookCar: (carId, days) => {

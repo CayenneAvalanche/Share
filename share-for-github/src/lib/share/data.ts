@@ -963,6 +963,10 @@ export type VolunteerRide = {
   /** Optional written review from rider */
   riderReview?: string;
   ratedAt?: string;
+  /** Approved rider profile selfie (shown after match) */
+  riderSelfie?: string;
+  /** Rider application status if we found one by phone */
+  riderAppStatus?: ApplicationStatus | "none";
 };
 
 export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { Car, Plus, Star, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { PhotoField } from "@/components/share/photo-field";
+import { listCarListingsFn } from "@/lib/share/server-fns";
 
 export const Route = createFileRoute("/cars")({
   component: CarsLayout,
@@ -27,6 +28,39 @@ function CarsLayout() {
 
 function CarsPage() {
   const cars = useShareStore((s) => s.carListings);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCarListingsFn()
+      .then(async (res) => {
+        if (cancelled) return;
+        const cloudIds = new Set(res.cars.map((c) => c.id));
+        useShareStore.setState((s) => {
+          const byId = new Map(s.carListings.map((c) => [c.id, c]));
+          for (const c of res.cars) byId.set(c.id, c);
+          return { carListings: Array.from(byId.values()) };
+        });
+        const localOnly = useShareStore
+          .getState()
+          .carListings.filter(
+            (c) => c.id.startsWith("car_") && !cloudIds.has(c.id),
+          );
+        const { createCarListingFn } = await import("@/lib/share/server-fns");
+        for (const c of localOnly.slice(0, 15)) {
+          try {
+            await createCarListingFn({
+              data: c as unknown as Record<string, unknown>,
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const bookCar = useShareStore((s) => s.bookCar);
   const carBookings = useShareStore((s) => s.carBookings);
   const idVerified = useShareStore((s) => s.idVerified);

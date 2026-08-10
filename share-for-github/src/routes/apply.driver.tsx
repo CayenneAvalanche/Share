@@ -90,6 +90,77 @@ function DriverApplyPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  const DRAFT_KEY = "share-driver-app-draft";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (d.form && typeof d.form === "object") {
+        setForm((f) => ({ ...f, ...(d.form as typeof f) }));
+      }
+      if (typeof d.selfie === "string" && d.selfie) setSelfie(d.selfie);
+      if (typeof d.vehiclePhoto === "string") setVehiclePhoto(d.vehiclePhoto);
+      if (typeof d.licenseFront === "string") setLicenseFront(d.licenseFront);
+      if (typeof d.licenseBack === "string") setLicenseBack(d.licenseBack);
+      if (typeof d.insuranceCard === "string") setInsuranceCard(d.insuranceCard);
+      if (typeof d.vehicleType === "string") setVehicleType(d.vehicleType);
+      if (d.platformStatus && typeof d.platformStatus === "object") {
+        setPlatformStatus((s) => ({
+          ...s,
+          ...(d.platformStatus as typeof s),
+        }));
+      }
+      if (d.platformMeta && typeof d.platformMeta === "object") {
+        setPlatformMeta((s) => ({
+          ...s,
+          ...(d.platformMeta as typeof s),
+        }));
+      }
+      if (d.acceptedTos) setAcceptedTos(true);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function saveDraft(exit?: boolean) {
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          form,
+          selfie,
+          vehiclePhoto,
+          licenseFront,
+          licenseBack,
+          insuranceCard,
+          vehicleType,
+          platformStatus,
+          platformMeta,
+          acceptedTos,
+          savedAt: new Date().toISOString(),
+        }),
+      );
+      toast.success(exit ? "Draft saved — come back anytime" : "Draft saved");
+    } catch {
+      toast.error("Could not save draft on this device");
+    }
+    if (exit) {
+      window.location.href = "/profile";
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.includes("@") || !form.phone.trim()) {
@@ -159,6 +230,7 @@ function DriverApplyPage() {
         description: "Founder can still see local apps; Neon will catch up after deploy.",
       });
     }
+    clearDraft();
     setDone(true);
   }
 
@@ -696,7 +768,25 @@ function DriverApplyPage() {
           </span>
         </label>
 
-        <Button type="submit" size="xl" className="w-full">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => saveDraft(false)}
+              >
+                Save draft
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => saveDraft(true)}
+              >
+                Save & exit
+              </Button>
+            </div>
+<Button type="submit" size="xl" className="w-full">
           Submit driver application
         </Button>
       </form>

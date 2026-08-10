@@ -456,6 +456,63 @@ function MatchedRidePage() {
               </Badge>
             </div>
 
+            {/* Rider face: approved selfie after accept; else prompt first-ride apply */}
+            {(vol.status === "matched" ||
+              vol.status === "completed" ||
+              vol.status === "cancelled") && (
+              <div className="flex gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3">
+                {vol.riderSelfie ? (
+                  <img
+                    src={vol.riderSelfie}
+                    alt={`${vol.fullName} face`}
+                    className="size-16 shrink-0 rounded-full object-cover ring-2 ring-[var(--color-primary)]/30"
+                  />
+                ) : (
+                  <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-elevated)] text-lg font-semibold text-[var(--color-fg-subtle)]">
+                    {(vol.fullName || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 text-sm">
+                  {vol.riderSelfie ? (
+                    <>
+                      <p className="font-semibold text-[var(--color-fg)]">
+                        Approved rider
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        Profile selfie on file — match faces at pickup.
+                      </p>
+                    </>
+                  ) : vol.riderAppStatus &&
+                    vol.riderAppStatus !== "none" &&
+                    vol.riderAppStatus !== "active" &&
+                    vol.riderAppStatus !== "approved" ? (
+                    <>
+                      <p className="font-semibold text-[var(--color-fg)]">
+                        Rider application:{" "}
+                        {String(vol.riderAppStatus).replace(/_/g, " ")}
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        Face photo shows here once they are approved / active.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-[var(--color-fg)]">
+                        First ride — face not on file yet
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        Rider should apply so drivers can recognize them. After
+                        founder approval, their selfie appears here.
+                      </p>
+                      <Button size="sm" className="mt-2" variant="secondary" asChild>
+                        <Link to="/apply/rider">Apply as rider</Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {(vol.status === "completed" ||
               (vol.tripStartedAt && vol.tripEndedAt)) && (
               <div className="rounded-[var(--radius-md)] border border-[var(--color-primary)]/25 bg-[var(--color-primary)]/8 p-3 text-sm">

@@ -16,6 +16,7 @@ import {
 import { useShareStore } from "@/lib/share/store";
 import { pushMyVehiclesToCloud } from "@/lib/share/sync-vehicles";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { createTripFn } from "@/lib/share/server-fns";
 
 type PostSearch = { edit?: string };
 
@@ -132,7 +133,7 @@ function PostRidePage() {
     toast.message("Airport corridor loaded");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (from === to) {
       toast.error("Pick two different cities");
@@ -198,7 +199,39 @@ function PostRidePage() {
         postedByEmail: ownerEmail,
         driverSelfie: profileSelfie || existing.driverSelfie,
       });
-      toast.success("Trip updated");
+      try {
+        await createTripFn({
+          data: {
+            ...existing,
+            from,
+            to,
+            fromShort: SHORT[from] ?? from.slice(0, 3).toUpperCase(),
+            toShort: SHORT[to] ?? to.slice(0, 3).toUpperCase(),
+            departAt: depart.toISOString(),
+            arriveAt: arrive.toISOString(),
+            seatsAvailable: seats,
+            seatsTotal: seats,
+            cargoCapacity: cargo,
+            pricePerSeat: price,
+            deliveryRate: Math.round(price * 0.65),
+            stops: stops
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            schedule,
+            notes: notes || "Posted via Share.",
+            vehiclePhoto,
+            vehicleType,
+            vehicleLabel: vehicleLabel.trim() || undefined,
+            postedByName: ownerName,
+            postedByEmail: ownerEmail,
+            driverSelfie: profileSelfie || existing.driverSelfie,
+          } as unknown as Record<string, unknown>,
+        });
+        toast.success("Trip updated on all devices");
+      } catch {
+        toast.message("Updated on this device — cloud sync pending");
+      }
       navigate({ to: `/rides/${existing.id}` as any });
       return;
     }
@@ -236,7 +269,14 @@ function PostRidePage() {
     };
 
     postTrip(trip);
-    toast.success("Trip posted");
+    try {
+      await createTripFn({ data: trip as unknown as Record<string, unknown> });
+      toast.success("Trip posted — live on all devices");
+    } catch {
+      toast.message(
+        "Trip saved on this device — cloud sync pending. Check connection.",
+      );
+    }
     navigate({ to: `/rides/${trip.id}` as any });
   }
 

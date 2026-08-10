@@ -29,10 +29,13 @@ type AuthUserBits = {
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
   const setRiderName = useShareStore((s) => s.setRiderName);
+  const setEmergencyContact = useShareStore((s) => s.setEmergencyContact);
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [ecName, setEcName] = useState("");
+  const [ecPhone, setEcPhone] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (!isPending && user) {
@@ -52,6 +55,10 @@ function LoginPage() {
     }
     if (mode === "signup" && !name.trim()) {
       toast.error("Please enter your real name");
+      return;
+    }
+    if (mode === "signup" && (!ecName.trim() || !ecPhone.trim())) {
+      toast.error("Add an emergency contact name and phone for SOS");
       return;
     }
     setBusy(true);
@@ -113,6 +120,9 @@ function LoginPage() {
 
       const realName = (("name" in u ? u.name : null) || displayName).trim();
       setRiderName(realName);
+      if (mode === "signup") {
+        setEmergencyContact(ecName, ecPhone);
+      }
       toast.success(
         mode === "signup"
           ? `Welcome, ${realName}`
@@ -190,17 +200,50 @@ function LoginPage() {
                 <>
                   <form onSubmit={onEmailSubmit} className="space-y-3">
                     {mode === "signup" && (
-                      <div>
-                        <Label htmlFor="nm">Your real name</Label>
-                        <Input
-                          id="nm"
-                          required
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="e.g. Travis DeYoung"
-                          autoComplete="name"
-                        />
-                      </div>
+                      <>
+                        <div>
+                          <Label htmlFor="nm">Your real name</Label>
+                          <Input
+                            id="nm"
+                            required
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Travis DeYoung"
+                            autoComplete="name"
+                          />
+                        </div>
+                        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 space-y-2">
+                          <p className="text-sm font-semibold text-[var(--color-fg)]">
+                            Emergency contact
+                          </p>
+                          <p className="text-xs text-[var(--color-fg-muted)]">
+                            Who we can reach if SOS is used during a ride.
+                          </p>
+                          <div>
+                            <Label htmlFor="ecn">Contact name</Label>
+                            <Input
+                              id="ecn"
+                              required
+                              value={ecName}
+                              onChange={(e) => setEcName(e.target.value)}
+                              placeholder="e.g. Mom, partner, roommate"
+                              autoComplete="name"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="ecp">Contact phone</Label>
+                            <Input
+                              id="ecp"
+                              required
+                              type="tel"
+                              value={ecPhone}
+                              onChange={(e) => setEcPhone(e.target.value)}
+                              placeholder="(337) 555-0100"
+                              autoComplete="tel"
+                            />
+                          </div>
+                        </div>
+                      </>
                     )}
                     <div>
                       <Label htmlFor="em">Email</Label>

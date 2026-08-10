@@ -69,13 +69,8 @@ function ProfilePage() {
   const [invite, setInvite] = useState("");
   const [placeLabel, setPlaceLabel] = useState("");
   const [placeAddr, setPlaceAddr] = useState("");
-  const emergencyContactName = useShareStore((s) => s.emergencyContactName);
-  const emergencyContactPhone = useShareStore((s) => s.emergencyContactPhone);
-  const setEmergencyContact = useShareStore((s) => s.setEmergencyContact);
   const idVerified = useShareStore((s) => s.idVerified);
   const setIdVerified = useShareStore((s) => s.setIdVerified);
-  const [ecName, setEcName] = useState(emergencyContactName);
-  const [ecPhone, setEcPhone] = useState(emergencyContactPhone);
   const demo = isDemoMode();
   const navigate = useNavigate();
   const founderTapRef = useRef({ n: 0, t: 0 });
@@ -508,31 +503,11 @@ function ProfilePage() {
         
         <Card>
           <CardContent className="space-y-3 p-5">
-            <h2 className="font-display text-lg font-semibold">Safety & ID</h2>
+            <h2 className="font-display text-lg font-semibold">ID verification</h2>
             <p className="text-sm text-[var(--color-fg-muted)]">
-              Emergency contact for SOS. ID verify required before car rentals in pilot.
+              Required before car rentals in pilot. Emergency contact is collected
+              when you create your account (for SOS).
             </p>
-            <div className="grid gap-2">
-              <Input
-                placeholder="Emergency contact name"
-                value={ecName}
-                onChange={(e) => setEcName(e.target.value)}
-              />
-              <Input
-                placeholder="Their phone"
-                value={ecPhone}
-                onChange={(e) => setEcPhone(e.target.value)}
-              />
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setEmergencyContact(ecName, ecPhone);
-                  toast.success("Emergency contact saved");
-                }}
-              >
-                Save emergency contact
-              </Button>
-            </div>
             <div className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2 text-sm">
               <span>ID verification</span>
               <Badge variant={idVerified ? "success" : "outline"}>

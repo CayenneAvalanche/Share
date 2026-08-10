@@ -14,6 +14,7 @@ import {
   type Trip,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { pushMyVehiclesToCloud } from "@/lib/share/sync-vehicles";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 type PostSearch = { edit?: string };
@@ -152,6 +153,8 @@ function PostRidePage() {
       photoUrl: vehiclePhoto,
       isDefault: myVehicles.length === 0 || selectedVehicleId === "__new__",
     });
+    void pushMyVehiclesToCloud(user?.primaryEmail);
+
     if (!isDriverApproved && !isEdit) {
       applyAsDriver();
       toast.message("Driver screening noted", {

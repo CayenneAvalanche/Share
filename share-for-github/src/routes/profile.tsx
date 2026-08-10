@@ -28,6 +28,10 @@ import { isDemoMode } from "@/lib/share/mode";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES, VEHICLE_TYPES } from "@/lib/share/data";
 import { updateMyProfileSelfieFn } from "@/lib/share/server-fns";
+import {
+  pullMyVehiclesFromCloud,
+  pushMyVehiclesToCloud,
+} from "@/lib/share/sync-vehicles";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
@@ -113,6 +117,17 @@ function ProfilePage() {
       setName(user.displayName.trim());
     }
   }, [user?.displayName, setRiderName]);
+
+  // Garage + car photos: pull from cloud (or push this phone if cloud empty)
+  useEffect(() => {
+    const email = user?.primaryEmail;
+    if (!email) return;
+    void pullMyVehiclesFromCloud(email).then((r) => {
+      if (r.ok && r.count > 0) {
+        /* silent — list updates via store */
+      }
+    });
+  }, [user?.primaryEmail]);
 
   const accountLabel =
     (user?.displayName && user.displayName.trim()) ||
@@ -319,7 +334,14 @@ function ProfilePage() {
                           size="sm"
                           variant="ghost"
                           type="button"
-                          onClick={() => setDefaultVehicle(v.id)}
+                          onClick={() => {
+                            setDefaultVehicle(v.id);
+                            void pushMyVehiclesToCloud(user?.primaryEmail).then(
+                              (r) => {
+                                if (r.ok) toast.success("Default car synced");
+                              },
+                            );
+                          }}
                         >
                           Make default
                         </Button>
@@ -329,8 +351,17 @@ function ProfilePage() {
                         variant="ghost"
                         type="button"
                         onClick={() => {
-                          if (window.confirm(`Remove ${v.label}?`))
-                            removeVehicle(v.id);
+                          if (!window.confirm(`Remove ${v.label}?`)) return;
+                          removeVehicle(v.id);
+                          void pushMyVehiclesToCloud(user?.primaryEmail).then(
+                            (r) => {
+                              if (r.ok) toast.success("Garage updated in cloud");
+                              else if (r.error === "sign-in-required")
+                                toast.message(
+                                  "Removed on this phone — sign in to sync",
+                                );
+                            },
+                          );
                         }}
                       >
                         Remove
@@ -345,9 +376,12 @@ function ProfilePage() {
               <PhotoField
                 id="new-veh-photo"
                 label="Car photo"
+                hint="Take a photo first — then it syncs to your Share account on every device."
                 value={newVehPhoto}
                 onChange={setNewVehPhoto}
                 facing="environment"
+                kind="vehicle"
+                captureFirst
               />
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -382,6 +416,10 @@ function ProfilePage() {
                     toast.error("Add year / make / model");
                     return;
                   }
+                  if (!newVehPhoto) {
+                    toast.error("Take a car photo first");
+                    return;
+                  }
                   addVehicle({
                     label: newVehLabel.trim(),
                     vehicleType: newVehType,
@@ -390,7 +428,23 @@ function ProfilePage() {
                   });
                   setNewVehLabel("");
                   setNewVehPhoto("");
-                  toast.success("Vehicle saved");
+                  const email = user?.primaryEmail;
+                  if (!email) {
+                    toast.message(
+                      "Saved on this phone — sign in to push the car photo everywhere",
+                    );
+                    return;
+                  }
+                  void pushMyVehiclesToCloud(email).then((r) => {
+                    if (r.ok) {
+                      toast.success("Vehicle + photo saved on all devices");
+                    } else {
+                      toast.message(
+                        r.error ||
+                          "Saved on this phone — cloud sync pending (retry on Wi‑Fi)",
+                      );
+                    }
+                  });
                 }}
               >
                 Save vehicle

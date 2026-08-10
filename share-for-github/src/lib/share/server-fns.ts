@@ -65,6 +65,7 @@ type DriverRow = {
   license_back?: string;
   insurance_card?: string;
   selfie?: string;
+  vehicle_photo?: string;
   interview_at: string | Date | null;
   admin_note: string | null;
   created_at: string | Date;
@@ -124,6 +125,7 @@ function mapDriver(r: DriverRow): DriverApplication {
     licenseBack: r.license_back || undefined,
     insuranceCard: r.insurance_card || undefined,
     selfie: r.selfie || undefined,
+    vehiclePhoto: r.vehicle_photo || undefined,
   };
 }
 
@@ -1648,6 +1650,159 @@ export const updateMyProfileSelfieFn = createServerFn({ method: "POST" })
       where lower(email) = ${email}
     `;
     return { ok: true as const };
+  });
+
+
+async function ensureUserVehiclesTable(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`
+    create table if not exists share_user_vehicles (
+      id text primary key,
+      email text not null,
+      label text not null,
+      vehicle_type text not null default 'Other',
+      license_plate text not null default '',
+      photo_url text not null default '',
+      is_default boolean not null default false,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  try {
+    await sql.query(
+      `create index if not exists share_user_vehicles_email_idx on share_user_vehicles (lower(email))`,
+    );
+  } catch {
+    /* ignore */
+  }
+  try {
+    await sql.query(
+      `alter table share_driver_apps add column if not exists vehicle_photo text not null default ''`,
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Full replace of the signed-in user's garage — photos included.
+ * Keeps default vehicle_photo on driver apps in sync for HQ.
+ */
+export const syncMyVehiclesFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      email: string;
+      vehicles: Array<{
+        id: string;
+        label: string;
+        vehicleType?: string;
+        licensePlate?: string;
+        photoUrl?: string;
+        isDefault?: boolean;
+        createdAt?: string;
+      }>;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const email = String(data.email ?? "").trim().toLowerCase();
+    if (!email.includes("@")) throw new Error("Sign in required to sync vehicles");
+    const vehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+    if (vehicles.length > 12) throw new Error("Too many vehicles (max 12)");
+    const sql = await getSql();
+    await ensureUserVehiclesTable(sql);
+    const at = new Date().toISOString();
+
+    // Wipe + rewrite (simple source of truth per account)
+    await sql`delete from share_user_vehicles where lower(email) = ${email}`;
+
+    for (const v of vehicles) {
+      const id = String(v.id || "").trim();
+      const label = String(v.label || "").trim();
+      if (!id || !label) continue;
+      let photo = String(v.photoUrl || "");
+      if (photo && !photo.startsWith("data:image/") && !photo.startsWith("http")) {
+        photo = "";
+      }
+      if (photo.length > 450_000) {
+        throw new Error("Vehicle photo too large — retake a bit farther out");
+      }
+      const created = v.createdAt || at;
+      await sql`
+        insert into share_user_vehicles (
+          id, email, label, vehicle_type, license_plate, photo_url, is_default, created_at, updated_at
+        ) values (
+          ${id},
+          ${email},
+          ${label},
+          ${String(v.vehicleType || "Other")},
+          ${String(v.licensePlate || "")},
+          ${photo},
+          ${Boolean(v.isDefault)},
+          ${created},
+          ${at}
+        )
+      `;
+    }
+
+    // Mirror default car onto latest driver application rows
+    const def =
+      vehicles.find((x) => x.isDefault) || vehicles[0] || null;
+    if (def) {
+      const photo = String(def.photoUrl || "");
+      try {
+        await sql`
+          update share_driver_apps set
+            vehicle = ${String(def.label || "")},
+            license_plate = ${String(def.licensePlate || "")},
+            vehicle_photo = ${photo},
+            updated_at = ${at}
+          where lower(email) = ${email}
+        `;
+      } catch {
+        await sql`
+          update share_driver_apps set
+            vehicle = ${String(def.label || "")},
+            license_plate = ${String(def.licensePlate || "")},
+            updated_at = ${at}
+          where lower(email) = ${email}
+        `;
+      }
+    }
+
+    return { ok: true as const, count: vehicles.length };
+  });
+
+export const listMyVehiclesFn = createServerFn({ method: "POST" })
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const email = String(data.email ?? "").trim().toLowerCase();
+    if (!email.includes("@")) return { vehicles: [] as const };
+    const sql = await getSql();
+    await ensureUserVehiclesTable(sql);
+    const rows = await sql<{
+      id: string;
+      label: string;
+      vehicle_type: string;
+      license_plate: string;
+      photo_url: string;
+      is_default: boolean;
+      created_at: string | Date;
+    }>`
+      select * from share_user_vehicles
+      where lower(email) = ${email}
+      order by is_default desc, created_at desc
+      limit 12
+    `;
+    return {
+      vehicles: rows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        vehicleType: r.vehicle_type || "Other",
+        licensePlate: r.license_plate || undefined,
+        photoUrl: r.photo_url || undefined,
+        isDefault: Boolean(r.is_default),
+        createdAt: iso(r.created_at) ?? new Date().toISOString(),
+      })),
+    };
   });
 
 /** Founder: list sign-up accounts (Better Auth "user" table). */

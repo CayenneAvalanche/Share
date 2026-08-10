@@ -16,6 +16,7 @@ import {
   VEHICLE_TYPES,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { pushMyVehiclesToCloud } from "@/lib/share/sync-vehicles";
 import { submitDriverAppFn } from "@/lib/share/server-fns";
 import { PhotoField } from "@/components/share/photo-field";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
@@ -147,6 +148,8 @@ function DriverApplyPage() {
     // Always keep local store for offline UX; Neon when available
     if (selfie) setProfileSelfie(selfie);
     submit(payload);
+    // Garage photo must leave this phone
+    void pushMyVehiclesToCloud(form.email);
     try {
       await submitDriverAppFn({ data: payload as Record<string, unknown> });
       toast.success("Saved to Share HQ — bio goes public after interview");

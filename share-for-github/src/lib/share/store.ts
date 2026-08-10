@@ -81,9 +81,13 @@ type ShareState = {
   emergencyContactName: string;
   emergencyContactPhone: string;
   idVerified: boolean;
+  /** DMV driving history — required before renting a car */
+  drivingHistoryDoc: string;
+  drivingHistoryAt?: string;
   tripRatings: Record<string, number>;
   setEmergencyContact: (name: string, phone: string) => void;
   setIdVerified: (v: boolean) => void;
+  setDrivingHistory: (dataUrl: string) => void;
   rateTrip: (bookingId: string, stars: number) => void;
   postRideRequest: (
     req: Omit<
@@ -588,6 +592,8 @@ export const useShareStore = create<ShareState>()(
       emergencyContactName: "",
       emergencyContactPhone: "",
       idVerified: false,
+      drivingHistoryDoc: "",
+      drivingHistoryAt: undefined,
       tripRatings: {},
 
       bookRide: (tripId, seats, cargoNote, opts) => {
@@ -889,6 +895,22 @@ export const useShareStore = create<ShareState>()(
       bookCar: (carId, days) => {
         const car = get().carListings.find((c) => c.id === carId);
         if (!car || days < 1) return;
+        const st = get();
+        const apps = st.driverApps || [];
+        const activeApp = apps.some(
+          (a) => a.status === "active" || a.status === "approved",
+        );
+        if (!st.isDriverApproved && !activeApp) {
+          systemNotify(set, "Become an approved driver before renting a car");
+          return;
+        }
+        if (!st.drivingHistoryDoc || st.drivingHistoryDoc.length < 40) {
+          systemNotify(
+            set,
+            "Upload your DMV driving history before renting",
+          );
+          return;
+        }
         const total = car.ratePerDay * days;
         set((state) => ({
           carBookings: [
@@ -902,11 +924,11 @@ export const useShareStore = create<ShareState>()(
             },
             ...state.carBookings,
           ],
+          carListings: state.carListings.map((c) =>
+            c.id === carId ? { ...c, available: false } : c,
+          ),
         }));
-        systemNotify(
-          set,
-          `Car reserved ${days}d · $${total} (Share ~10% when live payments)`,
-        );
+        systemNotify(set, `Car reserved · ${days} day(s) · pay host in person`);
       },
 
       requestVolunteerRide: (req) => {
@@ -1735,6 +1757,21 @@ export const useShareStore = create<ShareState>()(
           emergencyContactPhone: phone.trim(),
         }),
       setIdVerified: (v) => set({ idVerified: v }),
+      setDrivingHistory: (dataUrl) => {
+        const at = new Date().toISOString();
+        set((state) => ({
+          drivingHistoryDoc: dataUrl,
+          drivingHistoryAt: at,
+          driverApps: state.driverApps.map((a) =>
+            a.status === "active" ||
+            a.status === "approved" ||
+            a === state.driverApps[0]
+              ? { ...a, drivingHistory: dataUrl, drivingHistoryAt: at }
+              : a,
+          ),
+        }));
+        systemNotify(set, "Driving history saved for car rentals");
+      },
       rateTrip: (bookingId, stars) => {
         set((state) => ({
           tripRatings: { ...state.tripRatings, [bookingId]: stars },
@@ -1783,6 +1820,11 @@ export const useShareStore = create<ShareState>()(
         emergencyContactName: s.emergencyContactName,
         emergencyContactPhone: s.emergencyContactPhone,
         idVerified: s.idVerified,
+        drivingHistoryDoc:
+          s.drivingHistoryDoc && s.drivingHistoryDoc.length > 280_000
+            ? ""
+            : s.drivingHistoryDoc || "",
+        drivingHistoryAt: s.drivingHistoryAt,
         tripRatings: s.tripRatings,
       }),
       merge: (persisted, current) => {

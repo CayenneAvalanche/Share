@@ -172,6 +172,9 @@ export type DriverApplication = {
   /** Exterior car photo from driver app */
   vehiclePhoto?: string;
   vehicleType?: string;
+  /** DMV / motor vehicle driving history upload (required to rent cars) */
+  drivingHistory?: string;
+  drivingHistoryAt?: string;
 };
 
 export type SavedVehicle = {

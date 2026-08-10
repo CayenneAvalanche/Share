@@ -355,6 +355,11 @@ function AdminPage() {
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         {a.city} · {a.vehicle}
                       </p>
+                      {a.drivingHistory && (
+                        <Badge variant="success" className="mt-1">
+                          DMV history on file
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <Badge variant="outline" className="capitalize">

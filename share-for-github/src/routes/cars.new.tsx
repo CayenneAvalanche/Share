@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { PhotoField } from "@/components/share/photo-field";
 import { HUB_CITIES } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useMyAppStatus } from "@/lib/share/use-my-apps";
 
 export const Route = createFileRoute("/cars/new")({
   component: ListCarPage,
@@ -17,8 +18,11 @@ export const Route = createFileRoute("/cars/new")({
 function ListCarPage() {
   const listCar = useShareStore((s) => s.listCar);
   const riderName = useShareStore((s) => s.riderName);
+  const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const user = useCurrentUser();
+  const { driverActive } = useMyAppStatus();
   const navigate = useNavigate();
+  const hostOk = driverActive || isDriverApproved;
   const [makeModel, setMakeModel] = useState("");
   const [year, setYear] = useState(2020);
   const [seats, setSeats] = useState(5);
@@ -28,15 +32,23 @@ function ListCarPage() {
   const [city, setCity] = useState("Lafayette, LA");
   const [hasDashcam, setHasDashcam] = useState(true);
   const [insuranceNote, setInsurance] = useState(
-    "Owner policy primary · renter 21+ · pilot: pay host in person",
+    "Owner policy primary · renter must be approved Share driver + DMV history · pilot: pay host in person",
   );
   const [rules, setRules] = useState("No smoking. Full tank on return.");
   const [photoUrl, setPhotoUrl] = useState("");
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!hostOk) {
+      toast.error("Hosts must be approved Share drivers");
+      return;
+    }
     if (!makeModel.trim()) {
       toast.error("Make & model required");
+      return;
+    }
+    if (!photoUrl) {
+      toast.error("Add a photo of the car");
       return;
     }
     const owner =
@@ -55,7 +67,7 @@ function ListCarPage() {
       rules,
       photoUrl: photoUrl.trim() || undefined,
     });
-    toast.success("Car listed — visible under Share a car");
+    toast.success("Car listed — renters must be approved drivers with DMV history");
     navigate({ to: "/cars" });
   }
 
@@ -71,14 +83,33 @@ function ListCarPage() {
           <CardContent className="space-y-2 p-4 text-sm text-[var(--color-fg-muted)]">
             <p>
               <strong className="text-[var(--color-fg)]">Share a car</strong>{" "}
-              is whole-vehicle rental (Turo-style), not a ride seat. During the
-              pilot: list → someone reserves →{" "}
+              is whole-vehicle rental (Turo-style), not a ride seat. Anyone who
+              reserves must be an{" "}
+              <strong className="text-[var(--color-fg)]">
+                approved Share driver
+              </strong>{" "}
+              with a{" "}
+              <strong className="text-[var(--color-fg)]">
+                DMV driving history
+              </strong>{" "}
+              on file (same Drivers list in your founder inbox).
+            </p>
+            <p>
+              Pilot: list → reserve →{" "}
               <strong className="text-[var(--color-fg)]">
                 pay / handoff in person
               </strong>
-              . Insurance stays on you + your broker until platform coverage is
+              . Insurance stays with you + broker until platform coverage is
               live.
             </p>
+            {!hostOk && (
+              <p className="rounded-[var(--radius-md)] bg-[#b42318]/10 px-3 py-2 text-[#b42318]">
+                You need an approved driver application before listing.{" "}
+                <Link to="/apply/driver" className="underline font-semibold">
+                  Apply as driver
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -96,10 +127,13 @@ function ListCarPage() {
             <PhotoField
               id="car-photo"
               label="Vehicle photo"
-              hint="Front or ¾ view · clear daylight helps renters trust the listing"
+              hint="Take a live photo first — then add more from your library if needed"
               value={photoUrl}
               onChange={setPhotoUrl}
               facing="environment"
+              kind="vehicle"
+              captureFirst
+              required
             />
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -123,9 +157,9 @@ function ListCarPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="tr">Trans</Label>
+                <Label htmlFor="trans">Trans</Label>
                 <Select
-                  id="tr"
+                  id="trans"
                   value={transmission}
                   onChange={(e) =>
                     setTransmission(e.target.value as "auto" | "manual")
@@ -136,13 +170,13 @@ function ListCarPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label htmlFor="rate">$/day</Label>
                 <Input
                   id="rate"
                   type="number"
-                  min={1}
+                  min={10}
                   value={ratePerDay}
                   onChange={(e) => setRate(Number(e.target.value))}
                 />
@@ -152,6 +186,7 @@ function ListCarPage() {
                 <Input
                   id="dep"
                   type="number"
+                  min={0}
                   value={deposit}
                   onChange={(e) => setDeposit(Number(e.target.value))}
                 />
@@ -173,36 +208,38 @@ function ListCarPage() {
             </div>
             <div className="flex items-center gap-2">
               <input
-                id="cam"
+                id="dash"
                 type="checkbox"
                 checked={hasDashcam}
                 onChange={(e) => setHasDashcam(e.target.checked)}
                 className="size-4 accent-[var(--color-primary)]"
               />
-              <Label htmlFor="cam" className="mb-0">
+              <Label htmlFor="dash" className="mb-0">
                 Dashcam on during rentals
               </Label>
             </div>
             <div>
-              <Label htmlFor="ins">Insurance note (honest)</Label>
-              <Input
+              <Label htmlFor="ins">Insurance note</Label>
+              <Textarea
                 id="ins"
                 value={insuranceNote}
                 onChange={(e) => setInsurance(e.target.value)}
+                rows={2}
               />
             </div>
             <div>
-              <Label htmlFor="rules">Rules</Label>
+              <Label htmlFor="rules">House rules</Label>
               <Textarea
                 id="rules"
                 value={rules}
                 onChange={(e) => setRules(e.target.value)}
+                rows={2}
               />
             </div>
           </CardContent>
         </Card>
-        <Button type="submit" size="xl" className="w-full">
-          Publish car listing
+        <Button type="submit" size="xl" className="w-full" disabled={!hostOk}>
+          {hostOk ? "List car for rent" : "Driver approval required"}
         </Button>
       </form>
     </AppShell>

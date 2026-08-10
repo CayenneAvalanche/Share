@@ -12,6 +12,8 @@ import { useShareStore } from "@/lib/share/store";
 import { PLATFORM_TAKE_RATE } from "@/lib/share/data";
 import { formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useMyAppStatus } from "@/lib/share/use-my-apps";
+import { PhotoField } from "@/components/share/photo-field";
 
 export const Route = createFileRoute("/cars")({
   component: CarsLayout,
@@ -29,7 +31,13 @@ function CarsPage() {
   const carBookings = useShareStore((s) => s.carBookings);
   const idVerified = useShareStore((s) => s.idVerified);
   const riderName = useShareStore((s) => s.riderName);
+  const drivingHistoryDoc = useShareStore((s) => s.drivingHistoryDoc);
+  const setDrivingHistory = useShareStore((s) => s.setDrivingHistory);
+  const isDriverApproved = useShareStore((s) => s.isDriverApproved);
   const user = useCurrentUser();
+  const { driverActive, canApplyDriver, latestDriver } = useMyAppStatus();
+  const canRent =
+    (driverActive || isDriverApproved) && Boolean(drivingHistoryDoc);
   const [daysById, setDaysById] = useState<Record<string, number>>({});
 
   const me = (user?.displayName || riderName || "").toLowerCase();
@@ -74,6 +82,81 @@ function CarsPage() {
               .
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-3 border-[var(--color-border)]">
+        <CardContent className="space-y-3 p-4 text-sm">
+          <p className="font-semibold text-[var(--color-fg)]">
+            To rent a car on Share
+          </p>
+          <ul className="list-disc space-y-1 pl-5 text-[var(--color-fg-muted)]">
+            <li>
+              Be an{" "}
+              <strong className="text-[var(--color-fg)]">approved driver</strong>{" "}
+              (same application under Drivers in founder inbox)
+            </li>
+            <li>
+              Upload your{" "}
+              <strong className="text-[var(--color-fg)]">
+                DMV driving history
+              </strong>{" "}
+              (motor vehicle record / official printout or clear photo)
+            </li>
+            <li>Then Reserve — pay host in person during the pilot</li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            {driverActive || isDriverApproved ? (
+              <Badge variant="success">Driver approved</Badge>
+            ) : (
+              <Button size="sm" asChild>
+                <Link to="/apply/driver">Apply as driver first</Link>
+              </Button>
+            )}
+            {drivingHistoryDoc ? (
+              <Badge variant="success">Driving history on file</Badge>
+            ) : (
+              <Badge variant="outline">Driving history needed</Badge>
+            )}
+          </div>
+          {!drivingHistoryDoc && (driverActive || isDriverApproved || canApplyDriver) && (
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <PhotoField
+                id="dmv-history"
+                label="DMV driving history"
+                hint="Photo of your official driving record from the DMV / OMV. Required before any car rental."
+                value={drivingHistoryDoc}
+                onChange={(url) => {
+                  setDrivingHistory(url);
+                  toast.success("Driving history saved — you can reserve when approved");
+                }}
+                facing="environment"
+                kind="document"
+                captureFirst={false}
+              />
+            </div>
+          )}
+          {drivingHistoryDoc && (
+            <p className="text-xs text-[var(--color-fg-subtle)]">
+              History on file
+              {latestDriver?.fullName ? ` for ${latestDriver.fullName}` : ""}.
+              Re-upload anytime by clearing from You (or re-save below).
+            </p>
+          )}
+          {drivingHistoryDoc && (
+            <PhotoField
+              id="dmv-history-replace"
+              label="Replace driving history"
+              value={drivingHistoryDoc}
+              onChange={(url) => {
+                setDrivingHistory(url);
+                toast.success("Driving history updated");
+              }}
+              facing="environment"
+              kind="document"
+              captureFirst={false}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -237,15 +320,29 @@ function CarsPage() {
                       </p>
                     </div>
                     <Button
-                      disabled={isMine}
+                      disabled={isMine || (!canRent && !isMine)}
                       onClick={() => {
                         if (isMine) {
-                          toast.message("This is your listing — reserve from another phone/account");
+                          toast.message(
+                            "This is your listing — reserve from another phone/account",
+                          );
+                          return;
+                        }
+                        if (!(driverActive || isDriverApproved)) {
+                          toast.error(
+                            "You must be an approved Share driver to rent a car",
+                          );
+                          return;
+                        }
+                        if (!drivingHistoryDoc) {
+                          toast.error(
+                            "Upload your DMV driving history above before reserving",
+                          );
                           return;
                         }
                         if (!idVerified) {
                           toast.message(
-                            "Pilot: reserving without full ID verify — still verify under You when you can",
+                            "Tip: finish ID verify under You when you can",
                           );
                         }
                         bookCar(car.id, days);
@@ -255,7 +352,13 @@ function CarsPage() {
                         });
                       }}
                     >
-                      {isMine ? "Yours" : "Reserve"}
+                      {isMine
+                        ? "Yours"
+                        : !driverActive && !isDriverApproved
+                          ? "Driver required"
+                          : !drivingHistoryDoc
+                            ? "Need DMV history"
+                            : "Reserve"}
                     </Button>
                   </div>
                 </CardContent>

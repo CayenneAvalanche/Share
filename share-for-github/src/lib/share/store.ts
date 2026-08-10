@@ -945,14 +945,30 @@ export const useShareStore = create<ShareState>()(
       },
 
       claimVolunteer: (id, driverName) => {
+        const ride = get().volunteerRides.find((r) => r.id === id);
         set((state) => ({
           volunteerRides: state.volunteerRides.map((r) =>
             r.id === id
-              ? { ...r, status: "matched", matchedDriverName: driverName }
+              ? {
+                  ...r,
+                  status: "matched" as const,
+                  matchedDriverName: driverName,
+                }
               : r,
           ),
         }));
-        systemNotify(set, `Volunteer ride matched with ${driverName}`);
+        // Open / refresh trip chat so driver can message the rider immediately
+        if (ride) {
+          const first = ride.fullName?.split(" ")[0] || "there";
+          get().startThread({
+            subject: `Ride · ${ride.fullName || "Volunteer"}`,
+            withName: ride.fullName || "Rider",
+            relatedType: "volunteer",
+            relatedId: id,
+            firstMessage: `Hi ${first} — I'm ${driverName} and I accepted your ride. Reply here anytime.`,
+          });
+        }
+        systemNotify(set, "Matched — message the rider in Chat");
       },
 
       reopenVolunteerForReaccept: (id, patch) => {
@@ -1424,6 +1440,23 @@ export const useShareStore = create<ShareState>()(
         relatedId,
         firstMessage,
       }) => {
+        // Reuse one thread per trip so driver/rider don't spawn duplicates
+        if (relatedId) {
+          const existing = get().threads.find(
+            (t) =>
+              t.relatedId === relatedId && t.relatedType === relatedType,
+          );
+          if (existing) {
+            if (firstMessage?.trim()) {
+              get().sendMessage(
+                existing.id,
+                firstMessage,
+                get().riderName || "You",
+              );
+            }
+            return existing.id;
+          }
+        }
         const id = uid("th");
         const now = new Date().toISOString();
         const thread: ChatThread = {

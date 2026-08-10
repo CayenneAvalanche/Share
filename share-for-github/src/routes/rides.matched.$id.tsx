@@ -9,6 +9,7 @@ import {
   Play,
   Square,
   Timer,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -64,6 +65,8 @@ function MatchedRidePage() {
   const cancelLocal = useShareStore((s) => s.cancelVolunteerRide);
   const localRides = useShareStore((s) => s.localRides);
   const setLocalRideStatus = useShareStore((s) => s.setLocalRideStatus);
+  const startThread = useShareStore((s) => s.startThread);
+  const threads = useShareStore((s) => s.threads);
 
   const [cloudRide, setCloudRide] = useState<VolunteerRide | null>(null);
   const [editing, setEditing] = useState(false);
@@ -314,6 +317,28 @@ function MatchedRidePage() {
     navigate({ to: "/rides", replace: true });
   }
 
+  function openTripChat(opts: {
+    withName: string;
+    relatedType: "volunteer" | "local";
+    subject: string;
+  }) {
+    const existing = threads.find(
+      (th) => th.relatedId === id && th.relatedType === opts.relatedType,
+    );
+    const first = opts.withName.split(" ")[0] || "there";
+    const me = user?.displayName || riderName || "Your driver";
+    const threadId =
+      existing?.id ||
+      startThread({
+        subject: opts.subject,
+        withName: opts.withName,
+        relatedType: opts.relatedType,
+        relatedId: id,
+        firstMessage: `Hi ${first} — I'm ${me}. Message me here about the ride.`,
+      });
+    navigate({ to: "/messages/$id", params: { id: threadId } });
+  }
+
   // Local ride detail (matched / broadcasting)
   if (!vol && local) {
     return (
@@ -340,9 +365,25 @@ function MatchedRidePage() {
             <p className="text-xs text-[var(--color-fg-subtle)]">
               Requested {formatRequestedAt(local.createdAt)}
             </p>
+            {(local.status === "matched" || local.status === "broadcasting") && (
+              <Button
+                className="w-full"
+                onClick={() =>
+                  openTripChat({
+                    withName: local.requesterName || "Rider",
+                    relatedType: "local",
+                    subject: `Local · ${local.pickup.split(",")[0]} → ${local.dropoff.split(",")[0]}`,
+                  })
+                }
+              >
+                <MessageCircle className="size-4" />
+                Message {local.requesterName.split(" ")[0] || "rider"}
+              </Button>
+            )}
             {local.status === "matched" && (
               <Button
                 className="w-full"
+                variant="outline"
                 onClick={() => {
                   setLocalRideStatus(local.id, "cancelled", "Cancelled after match");
                   toast.success("Local ride cancelled");
@@ -721,8 +762,24 @@ function MatchedRidePage() {
                 </CardContent>
               </Card>
             )}
+            {vol.status === "matched" && (
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() =>
+                  openTripChat({
+                    withName: vol.fullName || "Rider",
+                    relatedType: "volunteer",
+                    subject: `Ride · ${vol.fullName}`,
+                  })
+                }
+              >
+                <MessageCircle className="size-4" />
+                Message {vol.fullName.split(" ")[0] || "rider"}
+              </Button>
+            )}
             {telHref && tripPhase === "idle" && (
-              <Button size="lg" asChild>
+              <Button size="lg" variant="secondary" asChild>
                 <a href={telHref}>
                   <Phone className="size-4" />
                   Call {vol.fullName.split(" ")[0] || "rider"}

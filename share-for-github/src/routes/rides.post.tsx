@@ -223,7 +223,7 @@ function PostRidePage() {
         .filter(Boolean),
       schedule,
       notes: notes || "Posted via Share.",
-      driverId: "d1",
+      driverId: "member",
       distanceMiles:
         from.includes("Shreveport") || to.includes("Shreveport") ? 215 : 200,
       durationHours: 3.5,

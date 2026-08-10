@@ -17,12 +17,21 @@ import {
 import { useShareStore } from "@/lib/share/store";
 
 export function TripCard({ trip, className }: { trip: Trip; className?: string }) {
-  const driver = getDriver(trip.driverId);
+  const isMemberTrip =
+    trip.id.startsWith("user_") ||
+    trip.driverId === "member" ||
+    Boolean(trip.postedByEmail);
+  const driver = isMemberTrip ? undefined : getDriver(trip.driverId);
   const profileSelfie = useShareStore((s) => s.profileSelfie);
   const face =
     trip.driverSelfie ||
-    (trip.id.startsWith("user_") ? profileSelfie : "") ||
+    (isMemberTrip ? profileSelfie : "") ||
     "";
+  const vehicleLine =
+    trip.vehicleLabel ||
+    trip.vehicleType ||
+    driver?.vehicle ||
+    "Your trip";
 
   return (
     <a href={`/rides/${trip.id}`} className={cn("block", className)}>
@@ -117,7 +126,7 @@ export function TripCard({ trip, className }: { trip: Trip; className?: string }
                   )}
                 </div>
                 <p className="truncate text-xs text-[var(--color-fg-muted)]">
-                  {trip.vehicleLabel || trip.vehicleType || driver?.vehicle || "Your trip"}
+                  {vehicleLine}
                 </p>
               </div>
               {driver && (

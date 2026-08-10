@@ -25,6 +25,7 @@ import {
   type DriverPreference,
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
+import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import {
   formatCurrency,
   formatDate,
@@ -47,6 +48,9 @@ function RideDetailPage() {
   const deleteTrip = useShareStore((s) => s.deleteTrip);
   const profileSelfie = useShareStore((s) => s.profileSelfie);
   const riderName = useShareStore((s) => s.riderName);
+  const driverApps = useShareStore((s) => s.driverApps);
+  const myVehicles = useShareStore((s) => s.myVehicles);
+  const { latestDriver } = useMyAppStatus();
 
   const [mode, setMode] = useState<"ride" | "delivery">("ride");
   const [seats, setSeats] = useState(1);
@@ -72,18 +76,41 @@ function RideDetailPage() {
   }
 
   const item = trip;
-  const driver = getDriver(item.driverId);
+  // Member posts must NEVER pull demo seed drivers (d1 = Travis + Highlander)
+  const isMemberTrip =
+    item.id.startsWith("user_") ||
+    item.driverId === "member" ||
+    Boolean(item.postedByEmail);
+  const seedDriver = isMemberTrip ? undefined : getDriver(item.driverId);
+  const driver = seedDriver;
   const total =
     mode === "ride" ? seats * item.pricePerSeat : item.deliveryRate;
   const driverEarns = Math.round(total * (1 - PLATFORM_TAKE_RATE));
   const isFav = driver ? favorites.includes(driver.id) : false;
-  // Member-posted trips use user_* ids (and optional postedBy*)
-  const isOwner =
-    item.id.startsWith("user_") || Boolean(item.postedByEmail);
+  const isOwner = isMemberTrip;
   const face =
     item.driverSelfie ||
-    (item.id.startsWith("user_") ? profileSelfie : "") ||
+    (isMemberTrip ? profileSelfie : "") ||
     "";
+  // Real vehicle for this trip (what the poster entered) — not demo garage
+  const tripVehicle =
+    [item.vehicleType, item.vehicleLabel].filter(Boolean).join(" · ") ||
+    item.vehicleLabel ||
+    item.vehicleType ||
+    myVehicles.find((v) => v.isDefault)?.label ||
+    myVehicles[0]?.label ||
+    "";
+  // Real bio from driver application when this is a member post
+  const appDriver =
+    isMemberTrip
+      ? latestDriver ||
+        driverApps.find(
+          (a) =>
+            item.postedByEmail &&
+            a.email?.toLowerCase() === item.postedByEmail.toLowerCase(),
+        ) ||
+        driverApps[0]
+      : undefined;
 
   function handleDelete() {
     if (
@@ -325,7 +352,7 @@ function RideDetailPage() {
                 <p className="text-sm text-[var(--color-fg-muted)]">
                   {driver
                     ? `${driver.city} · ${driver.trips} trips · ${driver.vehicle}`
-                    : item.vehicleLabel || item.vehicleType || "Member trip"}
+                    : tripVehicle || "Member trip"}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {driver?.gender === "woman" && (
@@ -372,6 +399,56 @@ function RideDetailPage() {
         )}
 
         {driver && <DriverStory driver={driver} />}
+
+        {isMemberTrip && !driver && (
+          <Card>
+            <CardContent className="space-y-3 p-5">
+              <div>
+                <h3 className="font-display text-lg font-semibold">
+                  Know your driver
+                </h3>
+                <p className="text-xs text-[var(--color-fg-subtle)]">
+                  From their Share profile · this trip's vehicle is listed
+                  above
+                </p>
+              </div>
+              {appDriver?.publicBio ? (
+                <p className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
+                  {appDriver.publicBio}
+                </p>
+              ) : (
+                <p className="text-sm text-[var(--color-fg-muted)]">
+                  {item.postedByName || "This driver"} posted this corridor trip
+                  on Share.
+                </p>
+              )}
+              <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-3 py-2 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                  Vehicle on this trip
+                </p>
+                <p className="font-semibold text-[var(--color-fg)]">
+                  {tripVehicle || "See photo above"}
+                </p>
+                {appDriver?.city && (
+                  <p className="text-xs text-[var(--color-fg-muted)]">
+                    Based in {appDriver.city}
+                  </p>
+                )}
+              </div>
+              {appDriver?.platformsText && (
+                <div>
+                  <p className="text-sm font-semibold">Other platforms</p>
+                  <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
+                    Self-reported on application
+                  </p>
+                  <p className="mt-2 text-sm text-[var(--color-fg)]">
+                    {appDriver.platformsText}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-4 p-5">

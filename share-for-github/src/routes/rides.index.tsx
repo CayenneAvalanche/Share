@@ -195,7 +195,7 @@ function RidesPage() {
       stops: [],
       schedule: "moderate",
       notes: "Quick post: leaving Hub City Saturday morning.",
-      driverId: "d1",
+      driverId: "member",
       distanceMiles: 217,
       durationHours: 3.5,
     };

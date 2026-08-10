@@ -31,7 +31,22 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           <Link to="/" className="shrink-0 rounded-[var(--radius-md)] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]" aria-label="Share home">
             <ShareWordmark />
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="ghost" size="sm" className="hidden md:inline-flex" asChild>
+              <Link to="/rideshare">Rides</Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="hidden md:inline-flex" asChild>
+              <Link to="/delivery">Delivery</Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="hidden lg:inline-flex" asChild>
+              <Link to="/car-rental">Cars</Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="hidden lg:inline-flex" asChild>
+              <Link to="/lagniappe">Lagniappe</Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/locations">Cities</Link>
+            </Button>
             <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
               <Link to="/apply">Apply</Link>
             </Button>

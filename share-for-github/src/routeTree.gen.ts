@@ -14,17 +14,21 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as ApplyRouteImport } from './routes/apply'
+import { Route as CarRentalRouteImport } from './routes/car-rental'
 import { Route as CarsRouteImport } from './routes/cars'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as DeliveriesRouteImport } from './routes/deliveries'
+import { Route as DeliveryRouteImport } from './routes/delivery'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as LafayetteFreeRidesRouteImport } from './routes/lafayette-free-rides'
+import { Route as LagniappeRouteImport } from './routes/lagniappe'
 import { Route as LocalRouteImport } from './routes/local'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RideshareRouteImport } from './routes/rideshare'
 import { Route as ShareStuffRouteImport } from './routes/share-stuff'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TripsRouteImport } from './routes/trips'
@@ -34,6 +38,8 @@ import { Route as ApplyDriverRouteImport } from './routes/apply.driver'
 import { Route as ApplyRiderRouteImport } from './routes/apply.rider'
 import { Route as CarsNewRouteImport } from './routes/cars.new'
 import { Route as DeliveriesRequestRouteImport } from './routes/deliveries.request'
+import { Route as LocationsIndexRouteImport } from './routes/locations.index'
+import { Route as LocationsCityRouteImport } from './routes/locations.$city'
 import { Route as MessagesIdRouteImport } from './routes/messages.$id'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
@@ -45,6 +51,7 @@ import { Route as TrackCodeRouteImport } from './routes/track.$code'
 import { Route as VolunteerManageRouteImport } from './routes/volunteer.manage'
 import { Route as VolunteerNewRouteImport } from './routes/volunteer.new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as LocationsCityServiceRouteImport } from './routes/locations.$city.$service'
 import { Route as RidesMatchedIdRouteImport } from './routes/rides.matched.$id'
 import { Route as RidesRequestNewRouteImport } from './routes/rides.request.new'
 import { Route as RidesRequestsIdRouteImport } from './routes/rides.requests.$id'
@@ -74,6 +81,11 @@ const ApplyRoute = ApplyRouteImport.update({
   path: '/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CarRentalRoute = CarRentalRouteImport.update({
+  id: '/car-rental',
+  path: '/car-rental',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CarsRoute = CarsRouteImport.update({
   id: '/cars',
   path: '/cars',
@@ -89,6 +101,11 @@ const DeliveriesRoute = DeliveriesRouteImport.update({
   path: '/deliveries',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeliveryRoute = DeliveryRouteImport.update({
+  id: '/delivery',
+  path: '/delivery',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoRoute = DemoRouteImport.update({
   id: '/demo',
   path: '/demo',
@@ -102,6 +119,11 @@ const EarningsRoute = EarningsRouteImport.update({
 const LafayetteFreeRidesRoute = LafayetteFreeRidesRouteImport.update({
   id: '/lafayette-free-rides',
   path: '/lafayette-free-rides',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LagniappeRoute = LagniappeRouteImport.update({
+  id: '/lagniappe',
+  path: '/lagniappe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LocalRoute = LocalRouteImport.update({
@@ -127,6 +149,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RideshareRoute = RideshareRouteImport.update({
+  id: '/rideshare',
+  path: '/rideshare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareStuffRoute = ShareStuffRouteImport.update({
@@ -173,6 +200,16 @@ const DeliveriesRequestRoute = DeliveriesRequestRouteImport.update({
   id: '/request',
   path: '/request',
   getParentRoute: () => DeliveriesRoute,
+} as any)
+const LocationsIndexRoute = LocationsIndexRouteImport.update({
+  id: '/locations/',
+  path: '/locations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocationsCityRoute = LocationsCityRouteImport.update({
+  id: '/locations/$city',
+  path: '/locations/$city',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesIdRoute = MessagesIdRouteImport.update({
   id: '/$id',
@@ -229,6 +266,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocationsCityServiceRoute = LocationsCityServiceRouteImport.update({
+  id: '/$service',
+  path: '/$service',
+  getParentRoute: () => LocationsCityRoute,
+} as any)
 const RidesMatchedIdRoute = RidesMatchedIdRouteImport.update({
   id: '/rides/matched/$id',
   path: '/rides/matched/$id',
@@ -251,17 +293,21 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/apply': typeof ApplyRouteWithChildren
+  '/car-rental': typeof CarRentalRoute
   '/cars': typeof CarsRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/deliveries': typeof DeliveriesRouteWithChildren
+  '/delivery': typeof DeliveryRoute
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
+  '/lagniappe': typeof LagniappeRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/rideshare': typeof RideshareRoute
   '/share-stuff': typeof ShareStuffRouteWithChildren
   '/terms': typeof TermsRoute
   '/trips': typeof TripsRoute
@@ -271,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/apply/rider': typeof ApplyRiderRoute
   '/cars/new': typeof CarsNewRoute
   '/deliveries/request': typeof DeliveriesRequestRoute
+  '/locations/$city': typeof LocationsCityRouteWithChildren
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
@@ -280,8 +327,10 @@ export interface FileRoutesByFullPath {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
+  '/locations/': typeof LocationsIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/locations/$city/$service': typeof LocationsCityServiceRoute
   '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
@@ -292,17 +341,21 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/apply': typeof ApplyRouteWithChildren
+  '/car-rental': typeof CarRentalRoute
   '/cars': typeof CarsRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/deliveries': typeof DeliveriesRouteWithChildren
+  '/delivery': typeof DeliveryRoute
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
+  '/lagniappe': typeof LagniappeRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/rideshare': typeof RideshareRoute
   '/share-stuff': typeof ShareStuffRouteWithChildren
   '/terms': typeof TermsRoute
   '/trips': typeof TripsRoute
@@ -312,6 +365,7 @@ export interface FileRoutesByTo {
   '/apply/rider': typeof ApplyRiderRoute
   '/cars/new': typeof CarsNewRoute
   '/deliveries/request': typeof DeliveriesRequestRoute
+  '/locations/$city': typeof LocationsCityRouteWithChildren
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
@@ -321,8 +375,10 @@ export interface FileRoutesByTo {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
+  '/locations': typeof LocationsIndexRoute
   '/rides': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/locations/$city/$service': typeof LocationsCityServiceRoute
   '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
@@ -334,17 +390,21 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/app': typeof AppRoute
   '/apply': typeof ApplyRouteWithChildren
+  '/car-rental': typeof CarRentalRoute
   '/cars': typeof CarsRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/deliveries': typeof DeliveriesRouteWithChildren
+  '/delivery': typeof DeliveryRoute
   '/demo': typeof DemoRoute
   '/earnings': typeof EarningsRoute
   '/lafayette-free-rides': typeof LafayetteFreeRidesRoute
+  '/lagniappe': typeof LagniappeRoute
   '/local': typeof LocalRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/rideshare': typeof RideshareRoute
   '/share-stuff': typeof ShareStuffRouteWithChildren
   '/terms': typeof TermsRoute
   '/trips': typeof TripsRoute
@@ -354,6 +414,7 @@ export interface FileRoutesById {
   '/apply/rider': typeof ApplyRiderRoute
   '/cars/new': typeof CarsNewRoute
   '/deliveries/request': typeof DeliveriesRequestRoute
+  '/locations/$city': typeof LocationsCityRouteWithChildren
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
@@ -363,8 +424,10 @@ export interface FileRoutesById {
   '/track/$code': typeof TrackCodeRoute
   '/volunteer/manage': typeof VolunteerManageRoute
   '/volunteer/new': typeof VolunteerNewRoute
+  '/locations/': typeof LocationsIndexRoute
   '/rides/': typeof RidesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/locations/$city/$service': typeof LocationsCityServiceRoute
   '/rides/matched/$id': typeof RidesMatchedIdRoute
   '/rides/request/new': typeof RidesRequestNewRoute
   '/rides/requests/$id': typeof RidesRequestsIdRoute
@@ -377,17 +440,21 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/apply'
+    | '/car-rental'
     | '/cars'
     | '/checkout'
     | '/deliveries'
+    | '/delivery'
     | '/demo'
     | '/earnings'
     | '/lafayette-free-rides'
+    | '/lagniappe'
     | '/local'
     | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
+    | '/rideshare'
     | '/share-stuff'
     | '/terms'
     | '/trips'
@@ -397,6 +464,7 @@ export interface FileRouteTypes {
     | '/apply/rider'
     | '/cars/new'
     | '/deliveries/request'
+    | '/locations/$city'
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
@@ -406,8 +474,10 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/manage'
     | '/volunteer/new'
+    | '/locations/'
     | '/rides/'
     | '/api/auth/$'
+    | '/locations/$city/$service'
     | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
@@ -418,17 +488,21 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/apply'
+    | '/car-rental'
     | '/cars'
     | '/checkout'
     | '/deliveries'
+    | '/delivery'
     | '/demo'
     | '/earnings'
     | '/lafayette-free-rides'
+    | '/lagniappe'
     | '/local'
     | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
+    | '/rideshare'
     | '/share-stuff'
     | '/terms'
     | '/trips'
@@ -438,6 +512,7 @@ export interface FileRouteTypes {
     | '/apply/rider'
     | '/cars/new'
     | '/deliveries/request'
+    | '/locations/$city'
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
@@ -447,8 +522,10 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/manage'
     | '/volunteer/new'
+    | '/locations'
     | '/rides'
     | '/api/auth/$'
+    | '/locations/$city/$service'
     | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
@@ -459,17 +536,21 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/apply'
+    | '/car-rental'
     | '/cars'
     | '/checkout'
     | '/deliveries'
+    | '/delivery'
     | '/demo'
     | '/earnings'
     | '/lafayette-free-rides'
+    | '/lagniappe'
     | '/local'
     | '/login'
     | '/messages'
     | '/privacy'
     | '/profile'
+    | '/rideshare'
     | '/share-stuff'
     | '/terms'
     | '/trips'
@@ -479,6 +560,7 @@ export interface FileRouteTypes {
     | '/apply/rider'
     | '/cars/new'
     | '/deliveries/request'
+    | '/locations/$city'
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
@@ -488,8 +570,10 @@ export interface FileRouteTypes {
     | '/track/$code'
     | '/volunteer/manage'
     | '/volunteer/new'
+    | '/locations/'
     | '/rides/'
     | '/api/auth/$'
+    | '/locations/$city/$service'
     | '/rides/matched/$id'
     | '/rides/request/new'
     | '/rides/requests/$id'
@@ -501,25 +585,31 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AppRoute: typeof AppRoute
   ApplyRoute: typeof ApplyRouteWithChildren
+  CarRentalRoute: typeof CarRentalRoute
   CarsRoute: typeof CarsRouteWithChildren
   CheckoutRoute: typeof CheckoutRoute
   DeliveriesRoute: typeof DeliveriesRouteWithChildren
+  DeliveryRoute: typeof DeliveryRoute
   DemoRoute: typeof DemoRoute
   EarningsRoute: typeof EarningsRoute
   LafayetteFreeRidesRoute: typeof LafayetteFreeRidesRoute
+  LagniappeRoute: typeof LagniappeRoute
   LocalRoute: typeof LocalRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  RideshareRoute: typeof RideshareRoute
   ShareStuffRoute: typeof ShareStuffRouteWithChildren
   TermsRoute: typeof TermsRoute
   TripsRoute: typeof TripsRoute
   VolunteerRoute: typeof VolunteerRouteWithChildren
+  LocationsCityRoute: typeof LocationsCityRouteWithChildren
   RidesIdRoute: typeof RidesIdRoute
   RidesPostRoute: typeof RidesPostRoute
   RidesRequestsRoute: typeof RidesRequestsRouteWithChildren
   TrackCodeRoute: typeof TrackCodeRoute
+  LocationsIndexRoute: typeof LocationsIndexRoute
   RidesIndexRoute: typeof RidesIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   RidesMatchedIdRoute: typeof RidesMatchedIdRoute
@@ -563,6 +653,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApplyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/car-rental': {
+      id: '/car-rental'
+      path: '/car-rental'
+      fullPath: '/car-rental'
+      preLoaderRoute: typeof CarRentalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cars': {
       id: '/cars'
       path: '/cars'
@@ -584,6 +681,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeliveriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/delivery': {
+      id: '/delivery'
+      path: '/delivery'
+      fullPath: '/delivery'
+      preLoaderRoute: typeof DeliveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo': {
       id: '/demo'
       path: '/demo'
@@ -603,6 +707,13 @@ declare module '@tanstack/react-router' {
       path: '/lafayette-free-rides'
       fullPath: '/lafayette-free-rides'
       preLoaderRoute: typeof LafayetteFreeRidesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lagniappe': {
+      id: '/lagniappe'
+      path: '/lagniappe'
+      fullPath: '/lagniappe'
+      preLoaderRoute: typeof LagniappeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/local': {
@@ -638,6 +749,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rideshare': {
+      id: '/rideshare'
+      path: '/rideshare'
+      fullPath: '/rideshare'
+      preLoaderRoute: typeof RideshareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share-stuff': {
@@ -702,6 +820,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/deliveries/request'
       preLoaderRoute: typeof DeliveriesRequestRouteImport
       parentRoute: typeof DeliveriesRoute
+    }
+    '/locations/': {
+      id: '/locations/'
+      path: '/locations'
+      fullPath: '/locations/'
+      preLoaderRoute: typeof LocationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/locations/$city': {
+      id: '/locations/$city'
+      path: '/locations/$city'
+      fullPath: '/locations/$city'
+      preLoaderRoute: typeof LocationsCityRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/messages/$id': {
       id: '/messages/$id'
@@ -779,6 +911,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/locations/$city/$service': {
+      id: '/locations/$city/$service'
+      path: '/$service'
+      fullPath: '/locations/$city/$service'
+      preLoaderRoute: typeof LocationsCityServiceRouteImport
+      parentRoute: typeof LocationsCityRoute
     }
     '/rides/matched/$id': {
       id: '/rides/matched/$id'
@@ -880,6 +1019,18 @@ const VolunteerRouteWithChildren = VolunteerRoute._addFileChildren(
   VolunteerRouteChildren,
 )
 
+interface LocationsCityRouteChildren {
+  LocationsCityServiceRoute: typeof LocationsCityServiceRoute
+}
+
+const LocationsCityRouteChildren: LocationsCityRouteChildren = {
+  LocationsCityServiceRoute: LocationsCityServiceRoute,
+}
+
+const LocationsCityRouteWithChildren = LocationsCityRoute._addFileChildren(
+  LocationsCityRouteChildren,
+)
+
 interface RidesRequestsRouteChildren {
   RidesRequestsIdRoute: typeof RidesRequestsIdRoute
 }
@@ -898,25 +1049,31 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AppRoute: AppRoute,
   ApplyRoute: ApplyRouteWithChildren,
+  CarRentalRoute: CarRentalRoute,
   CarsRoute: CarsRouteWithChildren,
   CheckoutRoute: CheckoutRoute,
   DeliveriesRoute: DeliveriesRouteWithChildren,
+  DeliveryRoute: DeliveryRoute,
   DemoRoute: DemoRoute,
   EarningsRoute: EarningsRoute,
   LafayetteFreeRidesRoute: LafayetteFreeRidesRoute,
+  LagniappeRoute: LagniappeRoute,
   LocalRoute: LocalRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  RideshareRoute: RideshareRoute,
   ShareStuffRoute: ShareStuffRouteWithChildren,
   TermsRoute: TermsRoute,
   TripsRoute: TripsRoute,
   VolunteerRoute: VolunteerRouteWithChildren,
+  LocationsCityRoute: LocationsCityRouteWithChildren,
   RidesIdRoute: RidesIdRoute,
   RidesPostRoute: RidesPostRoute,
   RidesRequestsRoute: RidesRequestsRouteWithChildren,
   TrackCodeRoute: TrackCodeRoute,
+  LocationsIndexRoute: LocationsIndexRoute,
   RidesIndexRoute: RidesIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   RidesMatchedIdRoute: RidesMatchedIdRoute,

@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   MapPin,
   Video,
-  Building2,
   CheckCircle2,
   Phone,
 } from "lucide-react";
@@ -82,39 +81,76 @@ function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 py-12">
+      <section id="services" className="mx-auto max-w-5xl px-4 py-12">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl font-semibold">Services</h2>
+            <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
+              Landing pages for each product — and by city
+            </p>
+          </div>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/locations">All cities →</Link>
+          </Button>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               icon: Car,
-              title: "Share a ride",
-              body: "Corridor seats with screened drivers and clear schedules.",
+              title: "Rideshare",
+              body: "Local seats, corridor trips, volunteer free rides.",
+              to: "/rideshare" as const,
             },
             {
               icon: Package,
-              title: "Share a delivery",
-              body: "Parts and packages ride along trips already happening.",
+              title: "Delivery",
+              body: "Parts and packages along trips already going.",
+              to: "/delivery" as const,
+            },
+            {
+              icon: Car,
+              title: "Car rental",
+              body: "Peer cars by the day — approved drivers only.",
+              to: "/car-rental" as const,
             },
             {
               icon: Boxes,
               title: "Lagniappe",
-              body: "Tools, trailers, grills — borrow what you need locally.",
-            },
-            {
-              icon: Building2,
-              title: "Business handoffs",
-              body: "Shop needs something across town? Post it.",
+              body: "Tools, food, gear — neighborhood extras.",
+              to: "/lagniappe" as const,
             },
           ].map((f) => (
-            <Card key={f.title}>
-              <CardContent className="p-5">
-                <f.icon className="size-6 text-[var(--color-primary)]" />
-                <h2 className="mt-3 font-semibold">{f.title}</h2>
-                <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-                  {f.body}
-                </p>
-              </CardContent>
-            </Card>
+            <Link key={f.title} to={f.to} className="block">
+              <Card className="h-full transition-shadow hover:shadow-[var(--shadow-md)]">
+                <CardContent className="p-5">
+                  <f.icon className="size-6 text-[var(--color-primary)]" />
+                  <h2 className="mt-3 font-semibold">{f.title}</h2>
+                  <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
+                    {f.body}
+                  </p>
+                  <p className="mt-3 text-xs font-medium text-[var(--color-primary)]">
+                    Learn more →
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+          {[
+            { name: "Lafayette, LA", slug: "lafayette" },
+            { name: "Shreveport, LA", slug: "shreveport" },
+            { name: "Las Vegas, NV", slug: "las-vegas" },
+          ].map((c) => (
+            <Link
+              key={c.slug}
+              to="/locations/$city"
+              params={{ city: c.slug }}
+              className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-4 py-3 text-sm font-semibold transition-colors hover:border-[var(--color-primary)]/40"
+            >
+              <MapPin className="mb-1 inline size-4 text-[var(--color-primary)]" />{" "}
+              {c.name}
+            </Link>
           ))}
         </div>
       </section>

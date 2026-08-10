@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Home,
@@ -13,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { useShareStore } from "@/lib/share/store";
 import { SHARE_BUILD } from "@/lib/share/contact";
 import { FounderRideAlerts } from "./founder-ride-alerts";
+import { listChatFn } from "@/lib/share/server-fns";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+
 
 type NavItem = {
   to: string;
@@ -85,6 +89,42 @@ export function AppShell({
   const unread = useShareStore((s) =>
     s.threads.reduce((n, t) => n + t.unread, 0),
   );
+  const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
+  const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
+
+  // Keep Chat badge live across devices
+  useEffect(() => {
+    let cancelled = false;
+    async function pull() {
+      let phone = "";
+      try {
+        phone = localStorage.getItem("share-vol-guest-phone") || "";
+      } catch {
+        /* ignore */
+      }
+      if (!user?.primaryEmail && !phone) return;
+      try {
+        const res = await listChatFn({
+          data: {
+            email: user?.primaryEmail || undefined,
+            phone: phone || undefined,
+            name: user?.displayName || riderName || undefined,
+          },
+        });
+        if (cancelled) return;
+        mergeCloudChat({ threads: res.threads, messages: res.messages });
+      } catch {
+        /* offline */
+      }
+    }
+    pull();
+    const t = window.setInterval(pull, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [user?.primaryEmail, user?.displayName, riderName, mergeCloudChat]);
 
   const NAV: NavItem[] = [
     {

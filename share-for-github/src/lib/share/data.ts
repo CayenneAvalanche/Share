@@ -1201,6 +1201,10 @@ export type ChatThread = {
   id: string;
   subject: string;
   participants: string[];
+  /** Emails (lowercase) who can see this thread across devices */
+  participantEmails?: string[];
+  /** Phone last-10s for guest riders */
+  participantPhones?: string[];
   relatedType: "ride" | "delivery" | "volunteer" | "support" | "local" | "rental";
   relatedId?: string;
   updatedAt: string;
@@ -1211,6 +1215,7 @@ export type ChatMessage = {
   id: string;
   threadId: string;
   from: string;
+  fromEmail?: string;
   body: string;
   at: string;
   kind?: "text" | "system" | "photo";

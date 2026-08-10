@@ -247,7 +247,12 @@ type ShareState = {
     status: LocalRideRequest["status"],
     adminNote?: string,
   ) => void;
-  sendMessage: (threadId: string, body: string, from?: string) => void;
+  sendMessage: (
+    threadId: string,
+    body: string,
+    from?: string,
+    fromEmail?: string,
+  ) => void;
   openThread: (threadId: string) => void;
   startThread: (opts: {
     subject: string;
@@ -255,7 +260,16 @@ type ShareState = {
     relatedType: ChatThread["relatedType"];
     relatedId?: string;
     firstMessage?: string;
+    withEmail?: string;
+    withPhone?: string;
+    myEmail?: string;
+    myPhone?: string;
   }) => string;
+  /** Merge cloud chat into local store (deduped) */
+  mergeCloudChat: (payload: {
+    threads: ChatThread[];
+    messages: ChatMessage[];
+  }) => void;
   addSavedPlace: (label: string, address: string) => void;
   removeSavedPlace: (id: string) => void;
   redeemInvite: (code: string) => boolean;
@@ -967,6 +981,7 @@ export const useShareStore = create<ShareState>()(
             withName: ride.fullName || "Rider",
             relatedType: "volunteer",
             relatedId: id,
+            withPhone: ride.phone,
             firstMessage: `Hi ${first} — I'm ${driverName} and I accepted your ride. Reply here anytime.`,
           });
         }
@@ -1407,7 +1422,7 @@ export const useShareStore = create<ShareState>()(
         }));
       },
 
-      sendMessage: (threadId, body, from) => {
+      sendMessage: (threadId, body, from, fromEmail) => {
         const text = body.trim();
         if (!text) return;
         const sender = from ?? (get().riderName || "You");
@@ -1415,16 +1430,35 @@ export const useShareStore = create<ShareState>()(
           id: uid("m"),
           threadId,
           from: sender,
+          fromEmail: fromEmail || undefined,
           body: text,
           at: new Date().toISOString(),
           kind: "text",
         };
         set((state) => ({
-          messages: [...state.messages, msg],
+          messages: state.messages.some((m) => m.id === msg.id)
+            ? state.messages
+            : [...state.messages, msg],
           threads: state.threads.map((t) =>
-            t.id === threadId ? { ...t, updatedAt: msg.at, unread: 0 } : t,
+            t.id === threadId
+              ? { ...t, updatedAt: msg.at, unread: 0 }
+              : t,
           ),
         }));
+        // Cloud persist (fire-and-forget from callers can also await)
+        void import("@/lib/share/server-fns")
+          .then(({ sendChatMessageFn }) =>
+            sendChatMessageFn({
+              data: {
+                threadId,
+                body: text,
+                fromName: sender,
+                fromEmail: fromEmail || undefined,
+                messageId: msg.id,
+              },
+            }),
+          )
+          .catch(() => {});
       },
 
       openThread: (threadId) => {
@@ -1435,36 +1469,157 @@ export const useShareStore = create<ShareState>()(
         }));
       },
 
+      mergeCloudChat: ({ threads, messages }) => {
+        set((state) => {
+          const tById = new Map(state.threads.map((x) => [x.id, x]));
+          // Also index by related trip so device-local th_* ids collapse
+          const byRelated = new Map<string, string>();
+          for (const th of state.threads) {
+            if (th.relatedId) {
+              byRelated.set(`${th.relatedType}:${th.relatedId}`, th.id);
+            }
+          }
+          for (const th of threads) {
+            const key = th.relatedId
+              ? `${th.relatedType}:${th.relatedId}`
+              : "";
+            const localDup = key ? byRelated.get(key) : undefined;
+            if (localDup && localDup !== th.id) {
+              // drop local duplicate thread id later
+              tById.delete(localDup);
+            }
+            const prev = tById.get(th.id);
+            tById.set(th.id, {
+              ...prev,
+              ...th,
+              // keep higher unread from cloud (source of truth for multi-device)
+              unread: th.unread,
+            });
+            if (key) byRelated.set(key, th.id);
+          }
+
+          const mById = new Map(state.messages.map((x) => [x.id, x]));
+          // Remap messages that pointed at local dup thread ids
+          const idRemap = new Map<string, string>();
+          for (const th of threads) {
+            if (th.relatedId) {
+              const key = `${th.relatedType}:${th.relatedId}`;
+              // any local thread with same related
+              for (const local of state.threads) {
+                if (
+                  local.relatedId === th.relatedId &&
+                  local.relatedType === th.relatedType &&
+                  local.id !== th.id
+                ) {
+                  idRemap.set(local.id, th.id);
+                }
+              }
+            }
+          }
+          for (const m of state.messages) {
+            const tid = idRemap.get(m.threadId) || m.threadId;
+            mById.set(m.id, { ...m, threadId: tid });
+          }
+          for (const m of messages) {
+            mById.set(m.id, m);
+          }
+
+          // Drop seed demo threads once cloud has real ones
+          let nextThreads = Array.from(tById.values());
+          if (threads.length > 0) {
+            nextThreads = nextThreads.filter(
+              (th) => !th.id.match(/^th\d+$/) || th.relatedId,
+            );
+          }
+
+          return {
+            threads: nextThreads,
+            messages: Array.from(mById.values()),
+          };
+        });
+      },
+
       startThread: ({
         subject,
         withName,
         relatedType,
         relatedId,
         firstMessage,
+        withEmail,
+        withPhone,
+        myEmail,
+        myPhone,
       }) => {
-        // Reuse one thread per trip so driver/rider don't spawn duplicates
+        // Deterministic cloud id so every device shares one thread per trip
+        const id =
+          relatedId
+            ? `th_${relatedType}_${relatedId}`.replace(
+                /[^a-zA-Z0-9_-]/g,
+                "_",
+              )
+            : uid("th");
+
+        // Reuse existing (local or deterministic)
         if (relatedId) {
           const existing = get().threads.find(
             (t) =>
-              t.relatedId === relatedId && t.relatedType === relatedType,
+              t.id === id ||
+              (t.relatedId === relatedId && t.relatedType === relatedType),
           );
           if (existing) {
+            // Prefer deterministic id going forward
+            if (existing.id !== id) {
+              set((state) => ({
+                threads: state.threads.map((t) =>
+                  t.id === existing.id ? { ...t, id } : t,
+                ),
+                messages: state.messages.map((m) =>
+                  m.threadId === existing.id ? { ...m, threadId: id } : m,
+                ),
+              }));
+            }
             if (firstMessage?.trim()) {
               get().sendMessage(
-                existing.id,
+                id,
                 firstMessage,
                 get().riderName || "You",
+                myEmail,
               );
             }
-            return existing.id;
+            // still upsert cloud membership
+            void import("@/lib/share/server-fns")
+              .then(({ upsertChatThreadFn }) =>
+                upsertChatThreadFn({
+                  data: {
+                    id,
+                    subject,
+                    relatedType,
+                    relatedId,
+                    participants: ["You", withName],
+                    participantEmails: [myEmail, withEmail].filter(Boolean),
+                    participantPhones: [myPhone, withPhone].filter(Boolean),
+                    fromName: get().riderName || "You",
+                    fromEmail: myEmail,
+                  },
+                }),
+              )
+              .catch(() => {});
+            return id;
           }
         }
-        const id = uid("th");
         const now = new Date().toISOString();
+        const emails = [myEmail, withEmail]
+          .filter(Boolean)
+          .map((e) => String(e).toLowerCase());
+        const phones = [myPhone, withPhone]
+          .filter(Boolean)
+          .map((p) => String(p).replace(/\D/g, "").slice(-10));
         const thread: ChatThread = {
           id,
           subject,
           participants: ["You", withName],
+          participantEmails: emails,
+          participantPhones: phones,
           relatedType,
           relatedId,
           updatedAt: now,
@@ -1485,15 +1640,37 @@ export const useShareStore = create<ShareState>()(
             id: uid("m"),
             threadId: id,
             from: get().riderName || "You",
+            fromEmail: myEmail,
             body: firstMessage,
             at: now,
             kind: "text",
           });
         }
         set((state) => ({
-          threads: [thread, ...state.threads],
-          messages: [...state.messages, ...msgs],
+          threads: [thread, ...state.threads.filter((t) => t.id !== id)],
+          messages: [
+            ...state.messages.filter((m) => m.threadId !== id),
+            ...msgs,
+          ],
         }));
+        void import("@/lib/share/server-fns")
+          .then(({ upsertChatThreadFn }) =>
+            upsertChatThreadFn({
+              data: {
+                id,
+                subject,
+                relatedType,
+                relatedId,
+                participants: thread.participants,
+                participantEmails: emails,
+                participantPhones: phones,
+                firstMessage: firstMessage || undefined,
+                fromName: get().riderName || "You",
+                fromEmail: myEmail,
+              },
+            }),
+          )
+          .catch(() => {});
         return id;
       },
 

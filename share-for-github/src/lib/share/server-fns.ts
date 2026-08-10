@@ -3,6 +3,8 @@ import { getSql } from "@/lib/db";
 import type {
   ApplicationStatus,
   CarShareListing,
+  ChatMessage,
+  ChatThread,
   DriverApplication,
   DriverGender,
   InterviewMode,
@@ -2206,4 +2208,373 @@ export const createCarListingFn = createServerFn({ method: "POST" })
         available = excluded.available
     `;
     return { id, ok: true as const };
+  });
+
+
+/* ─── Cloud Chat (multi-device) ─── */
+
+async function ensureChatTables(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`
+    create table if not exists share_chat_threads (
+      id text primary key,
+      subject text not null default '',
+      participants_json text not null default '[]',
+      participant_emails_json text not null default '[]',
+      participant_phones_json text not null default '[]',
+      related_type text not null default 'support',
+      related_id text,
+      updated_at timestamptz not null default now(),
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists share_chat_messages (
+      id text primary key,
+      thread_id text not null,
+      from_name text not null default '',
+      from_email text,
+      body text not null default '',
+      kind text not null default 'text',
+      at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists share_chat_reads (
+      thread_id text not null,
+      reader_key text not null,
+      last_read_at timestamptz not null default now(),
+      primary key (thread_id, reader_key)
+    )
+  `;
+}
+
+function parseJsonArr(raw: unknown): string[] {
+  try {
+    const v = JSON.parse(String(raw || "[]"));
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readerKey(email?: string, phone?: string): string {
+  const e = (email || "").trim().toLowerCase();
+  if (e.includes("@")) return `e:${e}`;
+  const p = last10Digits(phone);
+  if (p.length >= 10) return `p:${p}`;
+  return "anon";
+}
+
+function threadIdFor(
+  relatedType: string | undefined,
+  relatedId: string | undefined,
+  fallback?: string,
+): string {
+  if (relatedType && relatedId) {
+    return `th_${relatedType}_${relatedId}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+  }
+  return fallback || uid("th");
+}
+
+export const listChatFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: { email?: string; phone?: string; name?: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureChatTables(sql);
+    const email = (data.email || "").trim().toLowerCase();
+    const phone = last10Digits(data.phone);
+    const name = (data.name || "").trim().toLowerCase();
+    const key = readerKey(email, data.phone);
+
+    const rows = await sql`
+      select * from share_chat_threads
+      order by updated_at desc
+      limit 200
+    `;
+
+    const mine = (rows as Record<string, unknown>[]).filter((r) => {
+      const emails = parseJsonArr(r.participant_emails_json).map((x) =>
+        x.toLowerCase(),
+      );
+      const phones = parseJsonArr(r.participant_phones_json).map((x) =>
+        last10Digits(x),
+      );
+      const parts = parseJsonArr(r.participants_json).map((x) =>
+        x.toLowerCase(),
+      );
+      if (email && emails.includes(email)) return true;
+      if (phone.length >= 10 && phones.some((p) => p === phone)) return true;
+      // name match as soft fallback (pilot)
+      if (name.length >= 3 && parts.some((p) => p.includes(name) || name.includes(p))) {
+        return true;
+      }
+      // founder / ops: if no identity, show nothing (not all chats)
+      return false;
+    });
+
+    const threads: ChatThread[] = [];
+    const messages: ChatMessage[] = [];
+
+    for (const r of mine) {
+      const id = String(r.id);
+      const msgs = await sql`
+        select * from share_chat_messages
+        where thread_id = ${id}
+        order by at asc
+        limit 500
+      `;
+      const readRows = await sql`
+        select last_read_at from share_chat_reads
+        where thread_id = ${id} and reader_key = ${key}
+        limit 1
+      `;
+      const lastRead =
+        readRows[0]?.last_read_at != null
+          ? +new Date(readRows[0].last_read_at as string | Date)
+          : 0;
+
+      let unread = 0;
+      for (const m of msgs as Record<string, unknown>[]) {
+        const fromEmail = String(m.from_email || "").toLowerCase();
+        const at = +new Date(m.at as string | Date);
+        const mineMsg =
+          (email && fromEmail && fromEmail === email) ||
+          String(m.kind) === "system";
+        if (!mineMsg && at > lastRead) unread += 1;
+        messages.push({
+          id: String(m.id),
+          threadId: id,
+          from: String(m.from_name || "Share"),
+          fromEmail: m.from_email ? String(m.from_email) : undefined,
+          body: String(m.body || ""),
+          at: iso(m.at as string | Date) ?? new Date().toISOString(),
+          kind: (String(m.kind || "text") as ChatMessage["kind"]) || "text",
+        });
+      }
+
+      threads.push({
+        id,
+        subject: String(r.subject || "Chat"),
+        participants: parseJsonArr(r.participants_json),
+        participantEmails: parseJsonArr(r.participant_emails_json),
+        participantPhones: parseJsonArr(r.participant_phones_json),
+        relatedType: String(
+          r.related_type || "support",
+        ) as ChatThread["relatedType"],
+        relatedId: r.related_id ? String(r.related_id) : undefined,
+        updatedAt:
+          iso(r.updated_at as string | Date) ?? new Date().toISOString(),
+        unread,
+      });
+    }
+
+    return { threads, messages, readerKey: key };
+  });
+
+export const upsertChatThreadFn = createServerFn({ method: "POST" })
+  .validator((data: Record<string, unknown>) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureChatTables(sql);
+    const relatedType = String(data.relatedType || "support");
+    const relatedId = data.relatedId ? String(data.relatedId) : undefined;
+    const id = threadIdFor(
+      relatedType,
+      relatedId,
+      data.id ? String(data.id) : undefined,
+    );
+    const subject = String(data.subject || "Chat").trim() || "Chat";
+    const participants = Array.isArray(data.participants)
+      ? data.participants.map(String)
+      : [];
+    const emails = (
+      Array.isArray(data.participantEmails)
+        ? data.participantEmails.map(String)
+        : []
+    )
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes("@"));
+    const phones = (
+      Array.isArray(data.participantPhones)
+        ? data.participantPhones.map(String)
+        : []
+    )
+      .map((p) => last10Digits(p))
+      .filter((p) => p.length >= 10);
+    const now = new Date().toISOString();
+
+    await sql`
+      insert into share_chat_threads (
+        id, subject, participants_json, participant_emails_json,
+        participant_phones_json, related_type, related_id, updated_at, created_at
+      ) values (
+        ${id},
+        ${subject},
+        ${JSON.stringify(participants)},
+        ${JSON.stringify(emails)},
+        ${JSON.stringify(phones)},
+        ${relatedType},
+        ${relatedId ?? null},
+        ${now},
+        ${now}
+      )
+      on conflict (id) do update set
+        subject = excluded.subject,
+        participants_json = excluded.participants_json,
+        participant_emails_json = excluded.participant_emails_json,
+        participant_phones_json = excluded.participant_phones_json,
+        updated_at = excluded.updated_at
+    `;
+
+    // seed system message if none
+    const existing = await sql`
+      select id from share_chat_messages where thread_id = ${id} limit 1
+    `;
+    if (!existing.length) {
+      const mid = uid("m");
+      await sql`
+        insert into share_chat_messages (
+          id, thread_id, from_name, from_email, body, kind, at
+        ) values (
+          ${mid},
+          ${id},
+          ${"Share Ops"},
+          ${null},
+          ${"This conversation is logged for safety. Keep trip talk in Share."},
+          ${"system"},
+          ${now}
+        )
+      `;
+    }
+
+    if (data.firstMessage && String(data.firstMessage).trim()) {
+      const textCount = await sql`
+        select id from share_chat_messages
+        where thread_id = ${id} and kind = ${"text"}
+        limit 1
+      `;
+      if (!textCount.length) {
+        const mid = uid("m");
+        const fromName = String(data.fromName || "You");
+        const fromEmail = data.fromEmail
+          ? String(data.fromEmail).toLowerCase()
+          : null;
+        await sql`
+          insert into share_chat_messages (
+            id, thread_id, from_name, from_email, body, kind, at
+          ) values (
+            ${mid},
+            ${id},
+            ${fromName},
+            ${fromEmail},
+            ${String(data.firstMessage).trim()},
+            ${"text"},
+            ${now}
+          )
+        `;
+        await sql`
+          update share_chat_threads set updated_at = ${now} where id = ${id}
+        `;
+      }
+    }
+
+    return { id, ok: true as const };
+  });
+
+export const sendChatMessageFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      threadId: string;
+      body: string;
+      fromName: string;
+      fromEmail?: string;
+      kind?: string;
+      messageId?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureChatTables(sql);
+    const threadId = data.threadId;
+    const body = data.body.trim();
+    if (!body) throw new Error("Empty message");
+    const id = data.messageId || uid("m");
+    const at = new Date().toISOString();
+    const fromEmail = data.fromEmail
+      ? data.fromEmail.trim().toLowerCase()
+      : null;
+
+    // ensure thread exists
+    const th = await sql`
+      select id from share_chat_threads where id = ${threadId} limit 1
+    `;
+    if (!th.length) {
+      await sql`
+        insert into share_chat_threads (
+          id, subject, participants_json, participant_emails_json,
+          participant_phones_json, related_type, updated_at, created_at
+        ) values (
+          ${threadId},
+          ${"Chat"},
+          ${JSON.stringify([data.fromName || "You"])},
+          ${JSON.stringify(fromEmail ? [fromEmail] : [])},
+          ${"[]"},
+          ${"support"},
+          ${at},
+          ${at}
+        )
+      `;
+    }
+
+    await sql`
+      insert into share_chat_messages (
+        id, thread_id, from_name, from_email, body, kind, at
+      ) values (
+        ${id},
+        ${threadId},
+        ${data.fromName || "You"},
+        ${fromEmail},
+        ${body},
+        ${data.kind || "text"},
+        ${at}
+      )
+      on conflict (id) do nothing
+    `;
+    await sql`
+      update share_chat_threads set updated_at = ${at} where id = ${threadId}
+    `;
+
+    // sender has read up to now
+    if (fromEmail) {
+      const key = readerKey(fromEmail);
+      await sql`
+        insert into share_chat_reads (thread_id, reader_key, last_read_at)
+        values (${threadId}, ${key}, ${at})
+        on conflict (thread_id, reader_key) do update set
+          last_read_at = excluded.last_read_at
+      `;
+    }
+
+    return { id, at, ok: true as const };
+  });
+
+export const markChatReadFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: { threadId: string; email?: string; phone?: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureChatTables(sql);
+    const key = readerKey(data.email, data.phone);
+    if (key === "anon") return { ok: true as const };
+    const at = new Date().toISOString();
+    await sql`
+      insert into share_chat_reads (thread_id, reader_key, last_read_at)
+      values (${data.threadId}, ${key}, ${at})
+      on conflict (thread_id, reader_key) do update set
+        last_read_at = excluded.last_read_at
+    `;
+    return { ok: true as const };
   });

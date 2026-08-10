@@ -8,6 +8,13 @@ import { useShareStore } from "@/lib/share/store";
 import { messagesForThread } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import {
+  listChatFn,
+  markChatReadFn,
+  sendChatMessageFn,
+} from "@/lib/share/server-fns";
+
 
 export const Route = createFileRoute("/messages/$id")({
   component: ThreadPage,
@@ -19,7 +26,9 @@ function ThreadPage() {
   const messages = useShareStore((s) => s.messages);
   const sendMessage = useShareStore((s) => s.sendMessage);
   const openThread = useShareStore((s) => s.openThread);
+  const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
   const riderName = useShareStore((s) => s.riderName);
+  const user = useCurrentUser();
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +37,51 @@ function ThreadPage() {
 
   useEffect(() => {
     openThread(id);
-  }, [id, openThread]);
+    void markChatReadFn({
+      data: {
+        threadId: id,
+        email: user?.primaryEmail || undefined,
+        phone: (() => {
+          try {
+            return localStorage.getItem("share-vol-guest-phone") || undefined;
+          } catch {
+            return undefined;
+          }
+        })(),
+      },
+    }).catch(() => {});
+  }, [id, openThread, user?.primaryEmail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function pull() {
+      let phone = "";
+      try {
+        phone = localStorage.getItem("share-vol-guest-phone") || "";
+      } catch {
+        /* ignore */
+      }
+      try {
+        const res = await listChatFn({
+          data: {
+            email: user?.primaryEmail || undefined,
+            phone: phone || undefined,
+            name: user?.displayName || riderName || undefined,
+          },
+        });
+        if (cancelled) return;
+        mergeCloudChat({ threads: res.threads, messages: res.messages });
+      } catch {
+        /* offline */
+      }
+    }
+    pull();
+    const t = window.setInterval(pull, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [user?.primaryEmail, user?.displayName, riderName, mergeCloudChat]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,11 +100,29 @@ function ThreadPage() {
     );
   }
 
-  function onSend(e: React.FormEvent) {
+  async function onSend(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
-    sendMessage(id, text, riderName || "You");
+    const body = text.trim();
+    const fromName = user?.displayName || riderName || "You";
+    const fromEmail = user?.primaryEmail || undefined;
     setText("");
+    sendMessage(id, body, fromName, fromEmail);
+    try {
+      await sendChatMessageFn({
+        data: {
+          threadId: id,
+          body,
+          fromName,
+          fromEmail,
+        },
+      });
+      void markChatReadFn({
+        data: { threadId: id, email: fromEmail },
+      });
+    } catch {
+      /* local already has it; cloud retry on next send */
+    }
   }
 
   return (
@@ -73,7 +144,10 @@ function ThreadPage() {
             const mine =
               m.from === "You" ||
               m.from === riderName ||
-              m.from === (riderName || "You");
+              m.from === user?.displayName ||
+              (!!user?.primaryEmail &&
+                !!m.fromEmail &&
+                m.fromEmail.toLowerCase() === user.primaryEmail.toLowerCase());
             const system = m.kind === "system";
             if (system) {
               return (

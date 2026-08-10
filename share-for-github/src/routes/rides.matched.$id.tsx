@@ -321,21 +321,33 @@ function MatchedRidePage() {
     withName: string;
     relatedType: "volunteer" | "local";
     subject: string;
+    withPhone?: string;
+    withEmail?: string;
   }) {
-    const existing = threads.find(
-      (th) => th.relatedId === id && th.relatedType === opts.relatedType,
-    );
     const first = opts.withName.split(" ")[0] || "there";
     const me = user?.displayName || riderName || "Your driver";
-    const threadId =
-      existing?.id ||
-      startThread({
-        subject: opts.subject,
-        withName: opts.withName,
-        relatedType: opts.relatedType,
-        relatedId: id,
-        firstMessage: `Hi ${first} — I'm ${me}. Message me here about the ride.`,
-      });
+    let guestPhone = "";
+    try {
+      guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const already = threads.some(
+      (th) => th.relatedId === id && th.relatedType === opts.relatedType,
+    );
+    const threadId = startThread({
+      subject: opts.subject,
+      withName: opts.withName,
+      relatedType: opts.relatedType,
+      relatedId: id,
+      firstMessage: already
+        ? undefined
+        : `Hi ${first} — I'm ${me}. Message me here about the ride.`,
+      withPhone: opts.withPhone,
+      withEmail: opts.withEmail,
+      myEmail: user?.primaryEmail || undefined,
+      myPhone: guestPhone || undefined,
+    });
     navigate({ to: "/messages/$id", params: { id: threadId } });
   }
 
@@ -373,6 +385,7 @@ function MatchedRidePage() {
                     withName: local.requesterName || "Rider",
                     relatedType: "local",
                     subject: `Local · ${local.pickup.split(",")[0]} → ${local.dropoff.split(",")[0]}`,
+                    withPhone: (local as { phone?: string }).phone,
                   })
                 }
               >
@@ -828,6 +841,7 @@ function MatchedRidePage() {
                     withName: vol.fullName || "Rider",
                     relatedType: "volunteer",
                     subject: `Ride · ${vol.fullName}`,
+                    withPhone: vol.phone,
                   })
                 }
               >

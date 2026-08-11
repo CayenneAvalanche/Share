@@ -1105,6 +1105,9 @@ async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
     "rider_rating int",
     "rider_review text",
     "rated_at timestamptz",
+    "driver_rating int",
+    "driver_review text",
+    "driver_rated_at timestamptz",
   ]) {
     try {
       await sql.query(
@@ -1146,6 +1149,9 @@ function mapVolunteerRow(r: {
   rider_rating?: number | null;
   rider_review?: string | null;
   rated_at?: string | Date | null;
+  driver_rating?: number | null;
+  driver_review?: string | null;
+  driver_rated_at?: string | Date | null;
 }): VolunteerRide {
   const by = (r.cancelled_by || "").toLowerCase();
   const cancelledBy =
@@ -1182,6 +1188,15 @@ function mapVolunteerRow(r: {
         : undefined,
     riderReview: (r.rider_review && String(r.rider_review).trim()) || undefined,
     ratedAt: iso(r.rated_at ?? null),
+    driverRating:
+      r.driver_rating != null &&
+      Number(r.driver_rating) >= 1 &&
+      Number(r.driver_rating) <= 5
+        ? Number(r.driver_rating)
+        : undefined,
+    driverReview:
+      (r.driver_review && String(r.driver_review).trim()) || undefined,
+    driverRatedAt: iso(r.driver_rated_at ?? null),
   };
 }
 
@@ -1961,7 +1976,7 @@ export const completeVolunteerRideFn = createServerFn({ method: "POST" })
     return { ok: true as const, completedAt: at };
   });
 
-/** Rider rates driver after trip is completed. */
+/** Post-trip rating: rider rates driver, or driver rates rider. */
 export const submitVolunteerReviewFn = createServerFn({ method: "POST" })
   .validator(
     (data: {
@@ -1969,6 +1984,8 @@ export const submitVolunteerReviewFn = createServerFn({ method: "POST" })
       rating: number;
       review?: string;
       reviewerName?: string;
+      /** Who is submitting the review */
+      asRole: "rider" | "driver";
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -1980,15 +1997,27 @@ export const submitVolunteerReviewFn = createServerFn({ method: "POST" })
     if (rating < 1 || rating > 5) throw new Error("Rating must be 1–5 stars");
     const review = String(data.review ?? "").trim().slice(0, 1000);
     const at = new Date().toISOString();
-    await sql`
-      update share_volunteer_rides set
-        rider_rating = ${rating},
-        rider_review = ${review || null},
-        rated_at = ${at}
-      where id = ${id}
-        and status = ${"completed"}
-    `;
-    return { ok: true as const, ratedAt: at, rating, review };
+    const asRole = data.asRole === "driver" ? "driver" : "rider";
+    if (asRole === "driver") {
+      await sql`
+        update share_volunteer_rides set
+          driver_rating = ${rating},
+          driver_review = ${review || null},
+          driver_rated_at = ${at}
+        where id = ${id}
+          and status = ${"completed"}
+      `;
+    } else {
+      await sql`
+        update share_volunteer_rides set
+          rider_rating = ${rating},
+          rider_review = ${review || null},
+          rated_at = ${at}
+        where id = ${id}
+          and status = ${"completed"}
+      `;
+    }
+    return { ok: true as const, ratedAt: at, rating, review, asRole };
   });
 
 

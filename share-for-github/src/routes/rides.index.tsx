@@ -206,24 +206,51 @@ function RidesPage() {
       /* ignore */
     }
     const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
+    const me = (user?.displayName || riderName || "").toLowerCase();
     return Array.from(byId.values())
-      .filter((r) => r.status === "completed" && !r.riderRating)
-      .filter((r) => {
-        if (phone10.length >= 10) {
-          const rp = r.phone.replace(/\D/g, "").slice(-10);
-          if (rp === phone10) return true;
-        }
-        // also show to matched driver so they can open / remind
-        const me = (user?.displayName || riderName || "").toLowerCase();
+      .filter((r) => r.status === "completed")
+      .map((r) => {
+        const rp = r.phone.replace(/\D/g, "").slice(-10);
         const n = (r.matchedDriverName || "").toLowerCase();
-        if (me && n && (n === me || me.split(/\s+/)[0].length >= 3 && n.includes(me.split(/\s+/)[0])))
-          return true;
-        return false;
+        const riderNm = (
+          r.riderLegalName ||
+          r.fullName ||
+          r.requesterName ||
+          ""
+        ).toLowerCase();
+        const first = me.split(/\s+/)[0] || "";
+        const isDriver =
+          Boolean(me && n) &&
+          (n === me ||
+            (first.length >= 3 && (n.includes(first) || me.includes(n.split(/\s+/)[0] || ""))));
+        const isRider =
+          (phone10.length >= 10 && rp === phone10) ||
+          (Boolean(me && riderNm) &&
+            (me === riderNm ||
+              (first.length >= 3 &&
+                (riderNm.includes(first) ||
+                  me.includes(riderNm.split(/\s+/)[0] || "")))));
+        // Driver rating of rider pending
+        if (isDriver && !r.driverRating) {
+          return { ride: r, asRole: "driver" as const };
+        }
+        // Rider rating of driver pending
+        if (isRider && !isDriver && !r.riderRating) {
+          return { ride: r, asRole: "rider" as const };
+        }
+        // If only rider match (phone) and not rated
+        if (!isDriver && isRider && !r.riderRating) {
+          return { ride: r, asRole: "rider" as const };
+        }
+        return null;
       })
+      .filter((x): x is { ride: VolunteerRide; asRole: "driver" | "rider" } =>
+        Boolean(x),
+      )
       .sort(
         (a, b) =>
-          +new Date(b.completedAt || b.createdAt) -
-          +new Date(a.completedAt || a.createdAt),
+          +new Date(b.ride.completedAt || b.ride.createdAt) -
+          +new Date(a.ride.completedAt || a.ride.createdAt),
       )
       .slice(0, 8);
   }, [cloudVol, volunteerRides, user?.displayName, riderName]);
@@ -543,12 +570,12 @@ function RidesPage() {
             Rate your ride
           </h2>
           <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-            Trip complete — leave stars for your driver (optional short review).
+            Trip complete — leave stars for the other person.
           </p>
           <div className="mt-3 flex flex-col gap-2">
-            {needsReview.map((r) => (
+            {needsReview.map(({ ride: r, asRole }) => (
               <Link
-                key={`review-${r.id}`}
+                key={`review-${r.id}-${asRole}`}
                 to="/rides/matched/$id"
                 params={{ id: r.id }}
                 className="block rounded-[var(--radius-lg)] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8 p-4"
@@ -556,13 +583,17 @@ function RidesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold">
-                      {r.riderLegalName || r.fullName}
+                      {asRole === "driver"
+                        ? `Rate rider · ${r.riderLegalName || r.fullName}`
+                        : `Rate driver · ${r.matchedDriverName || "Share driver"}`}
                     </p>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
                     </p>
                     <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                      Driver: {r.matchedDriverName || "Share driver"}
+                      {asRole === "driver"
+                        ? `Rider: ${r.riderLegalName || r.fullName}`
+                        : `Driver: ${r.matchedDriverName || "Share driver"}`}
                       {r.completedAt
                         ? ` · Done ${formatRequestedAt(r.completedAt)}`
                         : ""}
@@ -571,7 +602,9 @@ function RidesPage() {
                   <Badge variant="accent">Rate</Badge>
                 </div>
                 <p className="mt-2 text-xs font-medium text-[var(--color-accent)]">
-                  Open to rate 1–5 stars →
+                  {asRole === "driver"
+                    ? "Open to rate your rider →"
+                    : "Open to rate your driver →"}
                 </p>
               </Link>
             ))}

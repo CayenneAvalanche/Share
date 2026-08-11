@@ -52,6 +52,44 @@ function formatElapsed(totalSec: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/** Best-effort: is the current viewer the matched driver? */
+function namesLikelyMatch(a?: string | null, b?: string | null) {
+  const x = (a || "").trim().toLowerCase();
+  const y = (b || "").trim().toLowerCase();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const xf = x.split(/\s+/)[0] || "";
+  const yf = y.split(/\s+/)[0] || "";
+  if (xf.length >= 3 && (y.includes(xf) || x.includes(yf))) return true;
+  return false;
+}
+
+function viewerRoleForRide(
+  vol: VolunteerRide,
+  opts: { displayName?: string; riderName?: string; email?: string },
+): "driver" | "rider" | "unknown" {
+  const me = opts.displayName || opts.riderName || "";
+  let guestPhone = "";
+  try {
+    guestPhone = localStorage.getItem("share-vol-guest-phone") || "";
+  } catch {
+    /* ignore */
+  }
+  const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
+  const ridePhone = (vol.phone || "").replace(/\D/g, "").slice(-10);
+  const phoneIsRider = phone10.length >= 10 && phone10 === ridePhone;
+  const nameIsDriver = namesLikelyMatch(me, vol.matchedDriverName);
+  const nameIsRider =
+    namesLikelyMatch(me, vol.fullName) ||
+    namesLikelyMatch(me, vol.riderLegalName) ||
+    namesLikelyMatch(me, vol.requesterName);
+
+  // Prefer driver when name matches the matched driver (founder often drives)
+  if (nameIsDriver) return "driver";
+  if (phoneIsRider || nameIsRider) return "rider";
+  return "unknown";
+}
+
 function MatchedRidePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -652,123 +690,274 @@ function MatchedRidePage() {
               </div>
             )}
 
-            {vol.status === "completed" && (
-              <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
-                <CardContent className="space-y-3 p-4">
-                  {vol.riderRating ? (
-                    <>
-                      <p className="text-sm font-semibold text-[var(--color-fg)]">
-                        Your rating for{" "}
-                        {vol.matchedDriverName || "your driver"}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <Star
-                            key={n}
-                            className={`size-6 ${
-                              n <= (vol.riderRating ?? 0)
-                                ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
-                                : "text-[var(--color-fg-subtle)]"
-                            }`}
-                          />
-                        ))}
-                        <span className="ml-2 text-sm font-semibold">
-                          {vol.riderRating}/5
-                        </span>
-                      </div>
-                      {vol.riderReview && (
-                        <p className="text-sm text-[var(--color-fg-muted)]">
-                          “{vol.riderReview}”
-                        </p>
-                      )}
-                      {vol.ratedAt && (
-                        <p className="text-xs text-[var(--color-fg-subtle)]">
-                          Submitted {formatRequestedAt(vol.ratedAt)}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-semibold text-[var(--color-fg)]">
-                        Rate your driver
-                      </p>
-                      <p className="text-xs text-[var(--color-fg-muted)]">
-                        How was your ride with{" "}
-                        <strong className="text-[var(--color-fg)]">
-                          {vol.matchedDriverName || "your driver"}
-                        </strong>
-                        ? Tap a star, optional note below.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            aria-label={`${n} star${n > 1 ? "s" : ""}`}
-                            onClick={() => setReviewStars(n)}
-                            className="rounded-[var(--radius-md)] p-1.5 transition-transform active:scale-95"
-                          >
-                            <Star
-                              className={`size-9 ${
-                                n <= reviewStars
-                                  ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
-                                  : "text-[var(--color-fg-subtle)]"
-                              }`}
+            {vol.status === "completed" && (() => {
+              const role = viewerRoleForRide(vol, {
+                displayName: user?.displayName || undefined,
+                riderName: riderName || undefined,
+                email: user?.primaryEmail || undefined,
+              });
+              // Prefer explicit role; if unknown, default to rider copy only when no driver match
+              const asDriver = role === "driver";
+              const asRider = role === "rider" || role === "unknown";
+              const riderDisplay =
+                vol.riderLegalName || vol.fullName || vol.requesterName || "rider";
+              const driverDisplay = vol.matchedDriverName || "your driver";
+
+              // Driver UI: rate the rider
+              if (asDriver) {
+                return (
+                  <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
+                    <CardContent className="space-y-3 p-4">
+                      {vol.driverRating ? (
+                        <>
+                          <p className="text-sm font-semibold text-[var(--color-fg)]">
+                            Your rating for {riderDisplay}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Star
+                                key={n}
+                                className={`size-6 ${
+                                  n <= (vol.driverRating ?? 0)
+                                    ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                    : "text-[var(--color-fg-subtle)]"
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-2 text-sm font-semibold">
+                              {vol.driverRating}/5
+                            </span>
+                          </div>
+                          {vol.driverReview && (
+                            <p className="text-sm text-[var(--color-fg-muted)]">
+                              “{vol.driverReview}”
+                            </p>
+                          )}
+                          {vol.driverRatedAt && (
+                            <p className="text-xs text-[var(--color-fg-subtle)]">
+                              Submitted {formatRequestedAt(vol.driverRatedAt)}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-semibold text-[var(--color-fg)]">
+                            Rate your rider
+                          </p>
+                          <p className="text-xs text-[var(--color-fg-muted)]">
+                            How was your trip with{" "}
+                            <strong className="text-[var(--color-fg)]">
+                              {riderDisplay}
+                            </strong>
+                            ? Tap a star, optional note below.
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                                onClick={() => setReviewStars(n)}
+                                className="rounded-[var(--radius-md)] p-1.5 transition-transform active:scale-95"
+                              >
+                                <Star
+                                  className={`size-9 ${
+                                    n <= reviewStars
+                                      ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                      : "text-[var(--color-fg-subtle)]"
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                          <div>
+                            <Label htmlFor="driver-review">
+                              Review (optional)
+                            </Label>
+                            <Textarea
+                              id="driver-review"
+                              value={reviewText}
+                              onChange={(e) => setReviewText(e.target.value)}
+                              placeholder="On time, respectful, easy pickup…"
+                              rows={3}
                             />
-                          </button>
-                        ))}
-                      </div>
-                      <div>
-                        <Label htmlFor="rider-review">Review (optional)</Label>
-                        <Textarea
-                          id="rider-review"
-                          value={reviewText}
-                          onChange={(e) => setReviewText(e.target.value)}
-                          placeholder="Safe, kind, on time…"
-                          rows={3}
-                        />
-                      </div>
-                      <Button
-                        size="lg"
-                        className="w-full"
-                        disabled={reviewBusy}
-                        onClick={() => {
-                          void (async () => {
-                            setReviewBusy(true);
-                            rateVolunteerRide(
-                              vol.id,
-                              reviewStars,
-                              reviewText.trim(),
-                            );
-                            try {
-                              await submitVolunteerReviewFn({
-                                data: {
-                                  id: vol.id,
-                                  rating: reviewStars,
-                                  review: reviewText.trim() || undefined,
-                                  reviewerName: vol.fullName,
-                                },
-                              });
-                              toast.success("Thanks — review saved");
-                            } catch {
-                              toast.message(
-                                "Saved on this phone — cloud sync pending",
-                              );
-                            } finally {
-                              setReviewBusy(false);
-                            }
-                          })();
-                        }}
-                      >
-                        {reviewBusy
-                          ? "Sending…"
-                          : `Submit ${reviewStars}-star review`}
-                      </Button>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                          </div>
+                          <Button
+                            size="lg"
+                            className="w-full"
+                            disabled={reviewBusy}
+                            onClick={() => {
+                              void (async () => {
+                                setReviewBusy(true);
+                                rateVolunteerRide(
+                                  vol.id,
+                                  reviewStars,
+                                  reviewText.trim(),
+                                  "driver",
+                                );
+                                try {
+                                  await submitVolunteerReviewFn({
+                                    data: {
+                                      id: vol.id,
+                                      rating: reviewStars,
+                                      review: reviewText.trim() || undefined,
+                                      reviewerName:
+                                        user?.displayName ||
+                                        riderName ||
+                                        vol.matchedDriverName,
+                                      asRole: "driver",
+                                    },
+                                  });
+                                  toast.success("Thanks — rider rating saved");
+                                } catch {
+                                  toast.message(
+                                    "Saved on this phone — cloud sync pending",
+                                  );
+                                } finally {
+                                  setReviewBusy(false);
+                                }
+                              })();
+                            }}
+                          >
+                            {reviewBusy
+                              ? "Sending…"
+                              : `Submit ${reviewStars}-star rider rating`}
+                          </Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              // Rider UI: rate the driver
+              if (asRider) {
+                return (
+                  <Card className="border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
+                    <CardContent className="space-y-3 p-4">
+                      {vol.riderRating ? (
+                        <>
+                          <p className="text-sm font-semibold text-[var(--color-fg)]">
+                            Your rating for {driverDisplay}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Star
+                                key={n}
+                                className={`size-6 ${
+                                  n <= (vol.riderRating ?? 0)
+                                    ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                    : "text-[var(--color-fg-subtle)]"
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-2 text-sm font-semibold">
+                              {vol.riderRating}/5
+                            </span>
+                          </div>
+                          {vol.riderReview && (
+                            <p className="text-sm text-[var(--color-fg-muted)]">
+                              “{vol.riderReview}”
+                            </p>
+                          )}
+                          {vol.ratedAt && (
+                            <p className="text-xs text-[var(--color-fg-subtle)]">
+                              Submitted {formatRequestedAt(vol.ratedAt)}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-semibold text-[var(--color-fg)]">
+                            Rate your driver
+                          </p>
+                          <p className="text-xs text-[var(--color-fg-muted)]">
+                            How was your ride with{" "}
+                            <strong className="text-[var(--color-fg)]">
+                              {driverDisplay}
+                            </strong>
+                            ? Tap a star, optional note below.
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                                onClick={() => setReviewStars(n)}
+                                className="rounded-[var(--radius-md)] p-1.5 transition-transform active:scale-95"
+                              >
+                                <Star
+                                  className={`size-9 ${
+                                    n <= reviewStars
+                                      ? "fill-[var(--color-accent)] text-[var(--color-accent)]"
+                                      : "text-[var(--color-fg-subtle)]"
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                          <div>
+                            <Label htmlFor="rider-review">
+                              Review (optional)
+                            </Label>
+                            <Textarea
+                              id="rider-review"
+                              value={reviewText}
+                              onChange={(e) => setReviewText(e.target.value)}
+                              placeholder="Safe, kind, on time…"
+                              rows={3}
+                            />
+                          </div>
+                          <Button
+                            size="lg"
+                            className="w-full"
+                            disabled={reviewBusy}
+                            onClick={() => {
+                              void (async () => {
+                                setReviewBusy(true);
+                                rateVolunteerRide(
+                                  vol.id,
+                                  reviewStars,
+                                  reviewText.trim(),
+                                  "rider",
+                                );
+                                try {
+                                  await submitVolunteerReviewFn({
+                                    data: {
+                                      id: vol.id,
+                                      rating: reviewStars,
+                                      review: reviewText.trim() || undefined,
+                                      reviewerName: vol.fullName,
+                                      asRole: "rider",
+                                    },
+                                  });
+                                  toast.success(
+                                    "Thanks — driver rating saved",
+                                  );
+                                } catch {
+                                  toast.message(
+                                    "Saved on this phone — cloud sync pending",
+                                  );
+                                } finally {
+                                  setReviewBusy(false);
+                                }
+                              })();
+                            }}
+                          >
+                            {reviewBusy
+                              ? "Sending…"
+                              : `Submit ${reviewStars}-star driver rating`}
+                          </Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              return null;
+            })()}
 
             {!editing ? (
               <>

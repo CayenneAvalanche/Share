@@ -960,9 +960,14 @@ export type VolunteerRide = {
   requesterName: string;
   /** Rider rated the driver after complete (1–5) */
   riderRating?: number;
-  /** Optional written review from rider */
+  /** Optional written review from rider about the driver */
   riderReview?: string;
   ratedAt?: string;
+  /** Driver rated the rider after complete (1–5) */
+  driverRating?: number;
+  /** Optional written review from driver about the rider */
+  driverReview?: string;
+  driverRatedAt?: string;
   /** Approved rider profile selfie (shown after match) */
   riderSelfie?: string;
   /** Rider application status if we found one by phone */

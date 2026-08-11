@@ -203,6 +203,7 @@ type ShareState = {
     id: string,
     rating: number,
     review?: string,
+    asRole?: "rider" | "driver",
   ) => void;
   processVolunteerEscalations: () => number;
   forceEscalateVolunteer: (id: string) => void;
@@ -1105,22 +1106,35 @@ export const useShareStore = create<ShareState>()(
         systemNotify(set, "Cancelled ride restored");
       },
 
-      rateVolunteerRide: (id, rating, review) => {
+      rateVolunteerRide: (id, rating, review, asRole = "rider") => {
         const stars = Math.min(5, Math.max(1, Math.round(rating)));
         const at = new Date().toISOString();
+        const role = asRole === "driver" ? "driver" : "rider";
         set((state) => ({
-          volunteerRides: state.volunteerRides.map((r) =>
-            r.id === id
-              ? {
-                  ...r,
-                  riderRating: stars,
-                  riderReview: review?.trim() || undefined,
-                  ratedAt: at,
-                }
-              : r,
-          ),
+          volunteerRides: state.volunteerRides.map((r) => {
+            if (r.id !== id) return r;
+            if (role === "driver") {
+              return {
+                ...r,
+                driverRating: stars,
+                driverReview: review?.trim() || undefined,
+                driverRatedAt: at,
+              };
+            }
+            return {
+              ...r,
+              riderRating: stars,
+              riderReview: review?.trim() || undefined,
+              ratedAt: at,
+            };
+          }),
         }));
-        systemNotify(set, `Thanks — ${stars}-star review saved`);
+        systemNotify(
+          set,
+          role === "driver"
+            ? `Thanks — ${stars}-star rider rating saved`
+            : `Thanks — ${stars}-star driver rating saved`,
+        );
       },
 
       processVolunteerEscalations: () => {

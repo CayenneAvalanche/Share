@@ -77,6 +77,7 @@ function AdminPage() {
   >([]);
   const [resetEmail, setResetEmail] = useState("");
   const [resetPass, setResetPass] = useState("");
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
 
   const localDriverApps = useShareStore((s) => s.driverApps);
   const localRiderApps = useShareStore((s) => s.riderApps);
@@ -1447,12 +1448,12 @@ function AdminPage() {
       {tab === "trips" && (
         <section className="mt-3 space-y-4 pb-8">
           <div>
-            <h3 className="mb-2 text-sm font-semibold">
-              Volunteer & free rides (completed / cancelled / matched)
+            <h3 className="mb-1 text-sm font-semibold">
+              Volunteer & free rides
             </h3>
             <p className="mb-3 text-xs text-[var(--color-fg-muted)]">
-              Real community trips (Hailey, Helena, etc.) land here — not just
-              long-distance corridor posts. Cancel shows who did it.
+              Tap a trip for full details. Compact list so you can scan many at
+              once.
             </p>
             {(() => {
               const ops = volunteerRides
@@ -1484,167 +1485,237 @@ function AdminPage() {
                   </p>
                 );
               }
+
+              function faceFor(r: (typeof ops)[0]) {
+                if (r.riderSelfie && r.riderSelfie.length > 20) {
+                  return r.riderSelfie;
+                }
+                const p10 = r.phone.replace(/\D/g, "").slice(-10);
+                if (p10.length < 10) return "";
+                const app = riderApps.find(
+                  (a) =>
+                    a.phone.replace(/\D/g, "").slice(-10) === p10 &&
+                    a.selfie &&
+                    a.selfie.length > 20,
+                );
+                return app?.selfie || "";
+              }
+
+              function statusDate(r: (typeof ops)[0]) {
+                if (r.status === "completed") {
+                  return formatRequestedAt(
+                    r.completedAt || r.tripEndedAt || r.createdAt,
+                  );
+                }
+                if (r.status === "cancelled") {
+                  return formatRequestedAt(r.cancelledAt || r.createdAt);
+                }
+                return formatRequestedAt(r.createdAt);
+              }
+
               return (
-                <div className="mb-6 space-y-3">
-                  {ops.map((r) => (
-                    <Card key={`trip-vol-${r.id}`}>
-                      <CardContent className="space-y-2 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold">
-                              {r.riderLegalName || r.fullName} · {r.pickup} →{" "}
-                              {r.dropoff}
+                <div className="mb-6 space-y-1.5">
+                  {ops.map((r) => {
+                    const open = selectedTripId === r.id;
+                    const name = r.riderLegalName || r.fullName || "Rider";
+                    const face = faceFor(r);
+                    return (
+                      <Card
+                        key={`trip-vol-${r.id}`}
+                        className={
+                          open
+                            ? "border-[var(--color-primary)]/40 shadow-[var(--shadow-sm)]"
+                            : undefined
+                        }
+                      >
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 p-3 text-left"
+                          onClick={() =>
+                            setSelectedTripId(open ? null : r.id)
+                          }
+                        >
+                          {face ? (
+                            <img
+                              src={face}
+                              alt=""
+                              className="size-12 shrink-0 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                              {name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-semibold leading-tight">
+                              {name}
                             </p>
-                            <p className="text-sm text-[var(--color-fg-muted)]">
-                              {r.when} · {r.phone}
-                              {r.matchedDriverName
-                                ? ` · Driver: ${r.matchedDriverName}`
-                                : ""}
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <Badge
+                                variant={
+                                  r.status === "completed"
+                                    ? "success"
+                                    : r.status === "cancelled"
+                                      ? "outline"
+                                      : "secondary"
+                                }
+                                className="capitalize"
+                              >
+                                {r.status}
+                              </Badge>
+                            </div>
+                            <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+                              {statusDate(r)}
                             </p>
-                            <p className="text-xs text-[var(--color-fg-subtle)]">
-                              Requested {formatRequestedAt(r.createdAt)}
-                              {r.status === "completed" &&
-                                ` · Completed ${formatRequestedAt(r.completedAt || r.tripEndedAt || r.createdAt)}`}
+                          </div>
+                          <span
+                            className="shrink-0 text-xs font-medium text-[var(--color-fg-subtle)]"
+                            aria-hidden
+                          >
+                            {open ? "▴" : "▾"}
+                          </span>
+                        </button>
+
+                        {open && (
+                          <CardContent className="space-y-3 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                            <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm space-y-1.5">
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  Category:{" "}
+                                </span>
+                                {r.category}
+                              </p>
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  Phone:{" "}
+                                </span>
+                                {r.phone}
+                              </p>
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  Pickup:{" "}
+                                </span>
+                                {r.pickup}
+                              </p>
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  Dropoff:{" "}
+                                </span>
+                                {r.dropoff}
+                              </p>
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  When:{" "}
+                                </span>
+                                {r.when}
+                              </p>
+                              <p>
+                                <span className="text-[var(--color-fg-muted)]">
+                                  Requested:{" "}
+                                </span>
+                                {formatRequestedAt(r.createdAt)}
+                              </p>
+                              {r.notes ? (
+                                <p>
+                                  <span className="text-[var(--color-fg-muted)]">
+                                    Notes:{" "}
+                                  </span>
+                                  {r.notes}
+                                </p>
+                              ) : null}
+                              {r.matchedDriverName ? (
+                                <p>
+                                  <span className="text-[var(--color-fg-muted)]">
+                                    Driver:{" "}
+                                  </span>
+                                  {r.matchedDriverName}
+                                </p>
+                              ) : null}
                               {r.status === "completed" &&
                                 r.tripStartedAt &&
-                                r.tripEndedAt &&
-                                ` · In car ${formatDurationSeconds(tripInCarSeconds(r.tripStartedAt, r.tripEndedAt) ?? 0)} (${formatRequestedAt(r.tripStartedAt)} → ${formatRequestedAt(r.tripEndedAt)})`}
+                                r.tripEndedAt && (
+                                  <p className="font-medium text-[var(--color-primary)]">
+                                    In-car{" "}
+                                    {formatDurationSeconds(
+                                      tripInCarSeconds(
+                                        r.tripStartedAt,
+                                        r.tripEndedAt,
+                                      ) ?? 0,
+                                    )}{" "}
+                                    · Begin{" "}
+                                    {formatRequestedAt(r.tripStartedAt)} → End{" "}
+                                    {formatRequestedAt(r.tripEndedAt)}
+                                  </p>
+                                )}
                               {r.status === "completed" &&
-                                r.riderRating != null &&
-                                ` · Rider ${r.riderRating}/5★`}
-                              {r.status === "cancelled" &&
-                                ` · Cancelled ${formatRequestedAt(r.cancelledAt || r.createdAt)} by ${
-                                  r.cancelledBy === "admin"
+                                r.riderRating != null && (
+                                  <p>
+                                    Rider rating: {r.riderRating}/5★
+                                    {r.riderReview
+                                      ? ` — ${r.riderReview}`
+                                      : ""}
+                                  </p>
+                                )}
+                              {r.status === "cancelled" && (
+                                <p>
+                                  Cancelled by{" "}
+                                  {r.cancelledBy === "admin"
                                     ? "Admin"
                                     : r.cancelledBy === "driver"
                                       ? `Driver${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
                                       : r.cancelledBy === "rider"
                                         ? `Rider${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
-                                        : r.cancelledByName || "unknown"
-                                }`}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={
-                              r.status === "completed"
-                                ? "success"
-                                : r.status === "cancelled"
-                                  ? "outline"
-                                  : "secondary"
-                            }
-                          >
-                            {r.status}
-                          </Badge>
-                        </div>
-                        {/* Full detail always visible — no broken hop required */}
-                        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm space-y-1.5">
-                          <p>
-                            <span className="text-[var(--color-fg-muted)]">
-                              Category:{" "}
-                            </span>
-                            {r.category}
-                          </p>
-                          <p>
-                            <span className="text-[var(--color-fg-muted)]">
-                              Rider:{" "}
-                            </span>
-                            {r.riderLegalName || r.fullName} · {r.phone}
-                          </p>
-                          <p>
-                            <span className="text-[var(--color-fg-muted)]">
-                              Pickup:{" "}
-                            </span>
-                            {r.pickup}
-                          </p>
-                          <p>
-                            <span className="text-[var(--color-fg-muted)]">
-                              Dropoff:{" "}
-                            </span>
-                            {r.dropoff}
-                          </p>
-                          <p>
-                            <span className="text-[var(--color-fg-muted)]">
-                              When:{" "}
-                            </span>
-                            {r.when}
-                          </p>
-                          {r.notes ? (
-                            <p>
-                              <span className="text-[var(--color-fg-muted)]">
-                                Notes:{" "}
-                              </span>
-                              {r.notes}
-                            </p>
-                          ) : null}
-                          {r.matchedDriverName ? (
-                            <p>
-                              <span className="text-[var(--color-fg-muted)]">
-                                Driver:{" "}
-                              </span>
-                              {r.matchedDriverName}
-                            </p>
-                          ) : null}
-                          {r.status === "completed" &&
-                            r.tripStartedAt &&
-                            r.tripEndedAt && (
-                              <p className="font-medium text-[var(--color-primary)]">
-                                In-car{" "}
-                                {formatDurationSeconds(
-                                  tripInCarSeconds(
-                                    r.tripStartedAt,
-                                    r.tripEndedAt,
-                                  ) ?? 0,
-                                )}{" "}
-                                · Begin {formatRequestedAt(r.tripStartedAt)} →
-                                End {formatRequestedAt(r.tripEndedAt)}
-                              </p>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="secondary" asChild>
-                            <Link
-                              to="/rides/matched/$id"
-                              params={{ id: r.id }}
-                            >
-                              Full trip page
-                            </Link>
-                          </Button>
-                          {r.phone && (
-                            <Button size="sm" variant="outline" asChild>
-                              <a
-                                href={`tel:+1${r.phone.replace(/\D/g, "").slice(-10)}`}
-                              >
-                                Call rider
-                              </a>
-                            </Button>
-                          )}
-                          {r.status === "cancelled" && (
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                const as = r.matchedDriverName
-                                  ? "matched"
-                                  : "seeking_volunteer";
-                                restoreVolunteerRide(r.id, as);
-                                void restoreVolunteerRideFn({
-                                  data: { pin, id: r.id, as },
-                                })
-                                  .then(() => {
-                                    toast.success("Restored");
-                                    void refreshCloud(pin);
-                                  })
-                                  .catch(() =>
-                                    toast.error("Restore failed"),
-                                  );
-                              }}
-                            >
-                              Undo cancel
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                                        : r.cancelledByName || "unknown"}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="secondary" asChild>
+                                <Link
+                                  to="/rides/matched/$id"
+                                  params={{ id: r.id }}
+                                >
+                                  Full trip page
+                                </Link>
+                              </Button>
+                              {r.phone && (
+                                <Button size="sm" variant="outline" asChild>
+                                  <a
+                                    href={`tel:+1${r.phone.replace(/\D/g, "").slice(-10)}`}
+                                  >
+                                    Call rider
+                                  </a>
+                                </Button>
+                              )}
+                              {r.status === "cancelled" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const as = r.matchedDriverName
+                                      ? "matched"
+                                      : "seeking_volunteer";
+                                    restoreVolunteerRide(r.id, as);
+                                    void restoreVolunteerRideFn({
+                                      data: { pin, id: r.id, as },
+                                    })
+                                      .then(() => {
+                                        toast.success("Restored");
+                                        void refreshCloud(pin);
+                                      })
+                                      .catch(() =>
+                                        toast.error("Restore failed"),
+                                      );
+                                  }}
+                                >
+                                  Undo cancel
+                                </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    );
+                  })}
                 </div>
               );
             })()}

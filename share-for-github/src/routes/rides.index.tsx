@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Search, MapPinned, Zap, HeartHandshake } from "lucide-react";
+import { Plus, Search, MapPinned, HeartHandshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { TripCard } from "@/components/share/trip-card";
@@ -60,8 +60,6 @@ function enrichVolunteerWithRiderApp(
 
 function RidesPage() {
   const trips = useShareStore((s) => s.trips);
-  const postTrip = useShareStore((s) => s.postTrip);
-  const applyAsDriver = useShareStore((s) => s.applyAsDriver);
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const riderApps = useShareStore((s) => s.riderApps);
   const localRides = useShareStore((s) => s.localRides);
@@ -247,41 +245,6 @@ function RidesPage() {
           new Date(a.departAt).getTime() - new Date(b.departAt).getTime(),
       );
   }, [trips, from, to, query]);
-
-  function quickLeaveLftSaturday() {
-    applyAsDriver();
-    // next Saturday 8am
-    const d = new Date();
-    const day = d.getDay();
-    const add = day === 6 ? 7 : (6 - day + 7) % 7 || 7;
-    d.setDate(d.getDate() + add);
-    d.setHours(8, 0, 0, 0);
-    const arrive = new Date(d.getTime() + 3.5 * 3600_000);
-    const trip: Trip = {
-      id: `user_${Math.random().toString(36).slice(2, 9)}`,
-      type: "ride",
-      from: "Lafayette, LA",
-      to: "Houston, TX",
-      fromShort: "LFT",
-      toShort: "HOU",
-      departAt: d.toISOString(),
-      arriveAt: arrive.toISOString(),
-      seatsAvailable: 3,
-      seatsTotal: 3,
-      cargoCapacity: "2 medium bags + trunk",
-      pricePerSeat: 30,
-      deliveryRate: 18,
-      stops: [],
-      schedule: "moderate",
-      notes: "Quick post: leaving Hub City Saturday morning.",
-      driverId: "member",
-      distanceMiles: 217,
-      durationHours: 3.5,
-    };
-    postTrip(trip);
-    toast.success("Saturday LFT → HOU posted");
-    navigate({ to: `/rides/${trip.id}` as any });
-  }
 
   return (
     <AppShell
@@ -586,23 +549,9 @@ function RidesPage() {
         </section>
       )}
 
-<p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+      <p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
         Long-distance / corridor
       </p>
-
-      <Card className="mt-2 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Zap className="size-4 text-[var(--color-primary)]" />
-            <span>
-              <strong>Quick post:</strong> “Leaving LFT Saturday”
-            </span>
-          </div>
-          <Button size="sm" onClick={quickLeaveLftSaturday}>
-            Post LFT → HOU Sat
-          </Button>
-        </CardContent>
-      </Card>
 
       <Card className="mt-2 border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">

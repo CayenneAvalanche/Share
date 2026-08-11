@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-
 import { Car, Plus, Star, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { NearMeBar } from "@/components/share/near-me-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,15 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { PhotoField } from "@/components/share/photo-field";
 import { listCarListingsFn } from "@/lib/share/server-fns";
+import {
+  DEFAULT_RADIUS_CARS,
+  filterSortByRadius,
+  formatMiles,
+  loadSearchCity,
+  loadSearchRadius,
+  saveSearchCity,
+  saveSearchRadius,
+} from "@/lib/share/geo";
 
 export const Route = createFileRoute("/cars")({
   component: CarsLayout,
@@ -73,6 +83,22 @@ function CarsPage() {
   const canRent =
     (driverActive || isDriverApproved) && Boolean(drivingHistoryDoc);
   const [daysById, setDaysById] = useState<Record<string, number>>({});
+  const [nearCity, setNearCity] = useState("Lafayette, LA");
+  const [radius, setRadius] = useState(DEFAULT_RADIUS_CARS);
+
+  useEffect(() => {
+    setNearCity(loadSearchCity());
+    setRadius(loadSearchRadius(DEFAULT_RADIUS_CARS));
+  }, []);
+
+  const nearbyCars = useMemo(() => {
+    return filterSortByRadius(
+      cars.filter((c) => c.available),
+      (c) => c.city,
+      nearCity,
+      radius,
+    );
+  }, [cars, nearCity, radius]);
 
   const me = (user?.displayName || riderName || "").toLowerCase();
   const myCars = useMemo(
@@ -238,12 +264,31 @@ function CarsPage() {
         </section>
       )}
 
+      <div className="mt-4">
+        <NearMeBar
+          idPrefix="cars"
+          city={nearCity}
+          radius={radius}
+          onCityChange={(c) => {
+            setNearCity(c);
+            saveSearchCity(c);
+          }}
+          onRadiusChange={(mi) => {
+            setRadius(mi);
+            saveSearchRadius(mi);
+          }}
+          hint="Metro radius — Kansas City MO can see Kansas City KS. Far states stay out of the list."
+        />
+      </div>
+
       <section className="mt-5 space-y-3 pb-8">
-        <h2 className="font-display text-lg font-semibold">Cars near you</h2>
-        {cars.filter((c) => c.available).length === 0 && (
+        <h2 className="font-display text-lg font-semibold">
+          Cars near {nearCity.split(",")[0] || "you"}
+        </h2>
+        {nearbyCars.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-sm text-[var(--color-fg-muted)]">
-              No cars listed yet. Be the first host — tap{" "}
+              No cars in this radius. Widen miles, switch city, or tap{" "}
               <Link to="/cars/new" className="font-semibold underline">
                 List
               </Link>
@@ -251,9 +296,7 @@ function CarsPage() {
             </CardContent>
           </Card>
         )}
-        {cars
-          .filter((c) => c.available)
-          .map((car) => {
+        {nearbyCars.map((car) => {
             const days = daysById[car.id] ?? 2;
             const total = car.ratePerDay * days;
             const hostKeeps = Math.round(total * (1 - PLATFORM_TAKE_RATE));
@@ -291,6 +334,9 @@ function CarsPage() {
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         {car.city} · {car.ownerName}
                         {isMine ? " · you" : ""}
+                        {car.distanceMiles != null
+                          ? ` · ${formatMiles(car.distanceMiles)}`
+                          : ""}
                       </p>
                     </div>
                     {!car.photoUrl && (

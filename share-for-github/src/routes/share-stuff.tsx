@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { Plus, Search, Wrench, HandHelping } from "lucide-react";
 import { AppShell } from "@/components/share/shell";
+import { NearMeBar } from "@/components/share/near-me-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,15 @@ import { useShareStore } from "@/lib/share/store";
 import { formatCurrency } from "@/lib/utils";
 import { listMarketplaceFn } from "@/lib/share/server-fns";
 import type { BorrowRequest, RentalListing } from "@/lib/share/data";
+import {
+  DEFAULT_RADIUS_MARKETPLACE,
+  filterSortByRadius,
+  formatMiles,
+  loadSearchCity,
+  loadSearchRadius,
+  saveSearchCity,
+  saveSearchRadius,
+} from "@/lib/share/geo";
 
 export const Route = createFileRoute("/share-stuff")({
   component: ShareStuffLayout,
@@ -57,6 +67,13 @@ function ShareStuffPage() {
   );
   const [tab, setTab] = useState<"list" | "need">("list");
   const [query, setQuery] = useState("");
+  const [nearCity, setNearCity] = useState("Lafayette, LA");
+  const [radius, setRadius] = useState(DEFAULT_RADIUS_MARKETPLACE);
+
+  useEffect(() => {
+    setNearCity(loadSearchCity());
+    setRadius(loadSearchRadius(DEFAULT_RADIUS_MARKETPLACE));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,27 +115,31 @@ function ShareStuffPage() {
   );
 
   const filteredListings = useMemo(() => {
-    return rentals.filter((r) => {
-      if (!query.trim()) return true;
-      const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
+    const text = rentals.filter((r) => {
+      if (!q) return true;
       return (
         r.title.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q) ||
         r.city.toLowerCase().includes(q)
       );
     });
-  }, [rentals, query]);
+    // Local goods only — hide far marketplace (ND shouldn't show in LA)
+    return filterSortByRadius(text, (r) => r.city, nearCity, radius);
+  }, [rentals, query, nearCity, radius]);
 
   const filteredBorrows = useMemo(() => {
-    return borrows.filter((b) => {
-      if (!query.trim()) return true;
-      const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
+    const text = borrows.filter((b) => {
+      if (!q) return true;
       return (
         b.title.toLowerCase().includes(q) ||
-        b.description.toLowerCase().includes(q)
+        b.description.toLowerCase().includes(q) ||
+        b.city.toLowerCase().includes(q)
       );
     });
-  }, [borrows, query]);
+    return filterSortByRadius(text, (b) => b.city, nearCity, radius);
+  }, [borrows, query, nearCity, radius]);
 
   return (
     <AppShell
@@ -143,6 +164,23 @@ function ShareStuffPage() {
           </span>
         )}
       </p>
+
+      <div className="mt-3">
+        <NearMeBar
+          idPrefix="lagniappe"
+          city={nearCity}
+          radius={radius}
+          onCityChange={(c) => {
+            setNearCity(c);
+            saveSearchCity(c);
+          }}
+          onRadiusChange={(mi) => {
+            setRadius(mi);
+            saveSearchRadius(mi);
+          }}
+          hint="Local only — far-away homemade & tools stay hidden so you’re not browsing North Dakota from Louisiana."
+        />
+      </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
@@ -187,7 +225,7 @@ function ShareStuffPage() {
         <div className="mt-4 space-y-3 pb-8">
           {filteredListings.length === 0 && (
             <p className="py-8 text-center text-sm text-[var(--color-fg-muted)]">
-              Nothing listed yet. Tap Post to add something.
+              Nothing in this radius. Widen miles or change city — or Post something nearby.
             </p>
           )}
           {filteredListings.map((r) => {
@@ -216,6 +254,12 @@ function ShareStuffPage() {
                         <p className="font-semibold">{r.title}</p>
                         <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
                           {r.city} · {r.ownerName}
+                          {r.distanceMiles != null ? (
+                            <span className="text-[var(--color-primary)]">
+                              {" "}
+                              · {formatMiles(r.distanceMiles)}
+                            </span>
+                          ) : null}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -301,6 +345,9 @@ function ShareStuffPage() {
                 </p>
                 <p className="mt-2 text-xs text-[var(--color-fg-subtle)]">
                   {b.requesterName} · {b.city}
+                  {b.distanceMiles != null
+                    ? ` · ${formatMiles(b.distanceMiles)}`
+                    : ""}
                 </p>
               </CardContent>
             </Card>

@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Plus, Search, MapPinned, HeartHandshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
+import { NearMeBar } from "@/components/share/near-me-bar";
 import { TripCard } from "@/components/share/trip-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
+import {
+  DEFAULT_RADIUS_RIDE_HUB,
+  DEFAULT_RADIUS_RIDE_PATH,
+  filterSortCorridors,
+  formatMiles,
+  loadSearchCity,
+  loadSearchRadius,
+  saveSearchCity,
+  saveSearchRadius,
+} from "@/lib/share/geo";
 
 export const Route = createFileRoute("/rides/")({
   component: RidesPage,
@@ -73,6 +84,13 @@ function RidesPage() {
   const [to, setTo] = useState("Any");
   const [query, setQuery] = useState("");
   const [cloudVol, setCloudVol] = useState<VolunteerRide[]>([]);
+  const [nearCity, setNearCity] = useState("Lafayette, LA");
+  const [rideRadius, setRideRadius] = useState(DEFAULT_RADIUS_RIDE_HUB);
+
+  useEffect(() => {
+    setNearCity(loadSearchCity());
+    setRideRadius(loadSearchRadius(DEFAULT_RADIUS_RIDE_HUB));
+  }, []);
 
   // Cloud corridor trips — visible on every device
   useEffect(() => {
@@ -228,7 +246,7 @@ function RidesPage() {
   );
 
   const filtered = useMemo(() => {
-    return trips
+    const texted = trips
       .filter((t) => (from === "Any" ? true : t.from === from))
       .filter((t) => (to === "Any" ? true : t.to === to))
       .filter((t) => {
@@ -239,12 +257,24 @@ function RidesPage() {
           t.to.toLowerCase().includes(q) ||
           t.notes.toLowerCase().includes(q)
         );
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.departAt).getTime() - new Date(b.departAt).getTime(),
-      );
-  }, [trips, from, to, query]);
+      });
+    // Corridor-aware: Houston sees LA → Corpus; pure local goods logic does NOT apply
+    const scored = filterSortCorridors(
+      texted,
+      (t) => t.from,
+      (t) => t.to,
+      nearCity,
+      rideRadius,
+      DEFAULT_RADIUS_RIDE_PATH,
+    );
+    // Then by depart time within distance bands
+    return scored.sort((a, b) => {
+      if (Math.abs(a.distanceMiles - b.distanceMiles) > 40) {
+        return a.distanceMiles - b.distanceMiles;
+      }
+      return new Date(a.departAt).getTime() - new Date(b.departAt).getTime();
+    });
+  }, [trips, from, to, query, nearCity, rideRadius]);
 
   return (
     <AppShell
@@ -553,6 +583,30 @@ function RidesPage() {
         Long-distance / corridor
       </p>
 
+      <div className="mt-2">
+        <NearMeBar
+          idPrefix="rides"
+          city={nearCity}
+          radius={rideRadius}
+          onCityChange={(c) => {
+            setNearCity(c);
+            saveSearchCity(c);
+          }}
+          onRadiusChange={(mi) => {
+            setRideRadius(mi);
+            saveSearchRadius(mi);
+          }}
+          radiusOptions={[
+            { value: 75, label: "75 mi ends" },
+            { value: 100, label: "100 mi ends" },
+            { value: 150, label: "150 mi ends" },
+            { value: 250, label: "250 mi ends" },
+            { value: 400, label: "400 mi ends" },
+          ]}
+          hint="Corridors: if you’re in Houston, a Louisiana → Corpus Christi trip still shows when you’re along the path — not only exact city matches."
+        />
+      </div>
+
       <Card className="mt-2 border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
           <div className="text-sm">
@@ -612,10 +666,29 @@ function RidesPage() {
       <div className="mt-4 flex flex-col gap-3 pb-6">
         {filtered.length === 0 ? (
           <p className="py-10 text-center text-sm text-[var(--color-fg-muted)]">
-            No trips match. Post one or widen filters.
+            No corridors near {nearCity.split(",")[0] || "you"}. Widen the
+            radius, change city, or post a trip.
           </p>
         ) : (
-          filtered.map((trip) => <TripCard key={trip.id} trip={trip} />)
+          filtered.map((trip) => (
+            <div key={trip.id} className="space-y-1">
+              {(trip.corridorReason || trip.distanceMiles != null) && (
+                <p className="px-1 text-[11px] font-medium text-[var(--color-primary)]">
+                  {trip.corridorReason === "along_path"
+                    ? "Along your corridor"
+                    : trip.corridorReason === "near_to"
+                      ? "Near your destination side"
+                      : trip.corridorReason === "near_from"
+                        ? "Near your area"
+                        : "Nearby"}
+                  {trip.distanceMiles != null && trip.distanceMiles < 900
+                    ? ` · ${formatMiles(trip.distanceMiles)}`
+                    : ""}
+                </p>
+              )}
+              <TripCard trip={trip} />
+            </div>
+          ))
         )}
       </div>
     </AppShell>

@@ -36,16 +36,6 @@ export function TripCard({ trip, className }: { trip: Trip; className?: string }
   return (
     <a href={`/rides/${trip.id}`} className={cn("block", className)}>
       <Card className="overflow-hidden transition-all duration-150 hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-md)] active:scale-[0.99]">
-        {trip.vehiclePhoto ? (
-          <div className="aspect-[16/9] w-full bg-[var(--color-bg-subtle)]">
-            <img
-              src={trip.vehiclePhoto}
-              alt={trip.vehicleLabel || trip.vehicleType || "Vehicle"}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          </div>
-        ) : null}
         <CardContent className="p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>

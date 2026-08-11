@@ -256,22 +256,6 @@ function RideDetailPage() {
           </Card>
         )}
 
-        {item.vehiclePhoto && (
-          <Card className="overflow-hidden">
-            <div className="aspect-[16/9] w-full bg-[var(--color-bg-subtle)]">
-              <img
-                src={item.vehiclePhoto}
-                alt={item.vehicleLabel || item.vehicleType || "Vehicle"}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            {(item.vehicleType || item.vehicleLabel) && (
-              <CardContent className="p-3 text-sm text-[var(--color-fg-muted)]">
-                {[item.vehicleType, item.vehicleLabel].filter(Boolean).join(" · ")}
-              </CardContent>
-            )}
-          </Card>
-        )}
         <Card className="overflow-hidden">
           <div className="bg-[var(--color-bg-inverse)] px-5 py-5 text-[var(--color-fg-inverse)]">
             <p className="text-xs uppercase tracking-wide opacity-70">

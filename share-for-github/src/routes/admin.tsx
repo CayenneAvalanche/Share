@@ -78,6 +78,11 @@ function AdminPage() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetPass, setResetPass] = useState("");
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  /** Compact expand key: drivers:id | riders:id | local:id | vol:id | del:id */
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  function toggleExpand(key: string) {
+    setExpandedKey((cur) => (cur === key ? null : key));
+  }
 
   const localDriverApps = useShareStore((s) => s.driverApps);
   const localRiderApps = useShareStore((s) => s.riderApps);
@@ -333,179 +338,184 @@ function AdminPage() {
       </div>
 
       {tab === "drivers" && (
-        <section className="mt-3 space-y-3 pb-8">
+        <section className="mt-3 space-y-1.5 pb-8">
+          <p className="mb-2 text-xs text-[var(--color-fg-muted)]">
+            Tap a row for docs, actions, and details.
+          </p>
           {driverApps.length === 0 && (
             <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
               No driver applications.
             </p>
           )}
-          {driverApps.map((a) => (
-            <Card key={a.id}>
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between gap-2">
-                  <div className="flex min-w-0 items-start gap-3">
-                    {a.selfie ? (
-                      <img
-                        src={a.selfie}
-                        alt=""
-                        className="size-12 shrink-0 rounded-full object-cover"
-                      />
-                    ) : null}
-                    <div>
-                      <p className="font-semibold">{a.fullName}</p>
-                      <p className="text-sm text-[var(--color-fg-muted)]">
-                        {a.city} · {a.vehicle}
-                      </p>
-                      {a.drivingHistory && (
-                        <Badge variant="success" className="mt-1">
-                          DMV history on file
-                        </Badge>
-                      )}
+          {driverApps.map((a) => {
+            const key = `drivers:${a.id}`;
+            const open = expandedKey === key;
+            const statusLabel = a.status.replace(/_/g, " ");
+            return (
+              <Card
+                key={a.id}
+                className={
+                  open
+                    ? "border-[var(--color-primary)]/40 shadow-[var(--shadow-sm)]"
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 p-3 text-left"
+                  onClick={() => toggleExpand(key)}
+                >
+                  {a.selfie ? (
+                    <img
+                      src={a.selfie}
+                      alt=""
+                      className="size-12 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                      {(a.fullName || "?").charAt(0).toUpperCase()}
                     </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold leading-tight">
+                      {a.fullName}
+                    </p>
+                    <div className="mt-0.5">
+                      <Badge
+                        variant={
+                          a.status === "active" || a.status === "approved"
+                            ? "success"
+                            : a.status === "declined"
+                              ? "outline"
+                              : "secondary"
+                        }
+                        className="capitalize"
+                      >
+                        {statusLabel}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
+                      {a.city}
+                      {a.vehicle ? ` · ${a.vehicle}` : ""}
+                    </p>
                   </div>
-                  <Badge variant="outline" className="capitalize">
-                    {a.status.replace("_", " ")}
-                  </Badge>
-                </div>
-                {a.publicBio && (
-                  <p className="line-clamp-2 text-xs text-[var(--color-fg-muted)]">
-                    {a.publicBio}
-                  </p>
-                )}
-                {a.platformsText && (
-                  <p className="text-xs text-[var(--color-fg-subtle)]">
-                    {a.platformsText}
-                  </p>
-                )}
-                {(a.licenseFront || a.licenseBack || a.insuranceCard) && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {a.licenseFront && (
-                      <a href={a.licenseFront} target="_blank" rel="noreferrer">
-                        <img
-                          src={a.licenseFront}
-                          alt="License front"
-                          className="h-20 w-full rounded border object-cover"
-                        />
-                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
-                          License front
+                  <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                    {open ? "▴" : "▾"}
+                  </span>
+                </button>
+                {open && (
+                  <CardContent className="space-y-3 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                    <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm space-y-1">
+                      <p>
+                        <span className="text-[var(--color-fg-muted)]">
+                          Phone:{" "}
+                        </span>
+                        {a.phone || "—"}
+                      </p>
+                      <p>
+                        <span className="text-[var(--color-fg-muted)]">
+                          Email:{" "}
+                        </span>
+                        {a.email || "—"}
+                      </p>
+                      {a.publicBio && (
+                        <p className="text-[var(--color-fg-muted)]">
+                          {a.publicBio}
                         </p>
-                      </a>
-                    )}
-                    {a.licenseBack && (
-                      <a href={a.licenseBack} target="_blank" rel="noreferrer">
-                        <img
-                          src={a.licenseBack}
-                          alt="License back"
-                          className="h-20 w-full rounded border object-cover"
-                        />
-                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
-                          License back
+                      )}
+                      {a.platformsText && (
+                        <p className="text-xs text-[var(--color-fg-subtle)]">
+                          {a.platformsText}
                         </p>
-                      </a>
+                      )}
+                      {a.drivingHistory && (
+                        <Badge variant="success">DMV history on file</Badge>
+                      )}
+                      <p className="text-[10px] text-[var(--color-fg-subtle)]">
+                        Applied {formatRequestedAt(a.createdAt)} · {a.id}
+                      </p>
+                    </div>
+                    {(a.licenseFront || a.licenseBack || a.insuranceCard) && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {a.licenseFront && (
+                          <a
+                            href={a.licenseFront}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={a.licenseFront}
+                              alt="License front"
+                              className="h-20 w-full rounded border object-cover"
+                            />
+                            <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                              License front
+                            </p>
+                          </a>
+                        )}
+                        {a.licenseBack && (
+                          <a
+                            href={a.licenseBack}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={a.licenseBack}
+                              alt="License back"
+                              className="h-20 w-full rounded border object-cover"
+                            />
+                            <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                              License back
+                            </p>
+                          </a>
+                        )}
+                        {a.insuranceCard && (
+                          <a
+                            href={a.insuranceCard}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={a.insuranceCard}
+                              alt="Insurance"
+                              className="h-20 w-full rounded border object-cover"
+                            />
+                            <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
+                              Insurance
+                            </p>
+                          </a>
+                        )}
+                      </div>
                     )}
-                    {a.insuranceCard && (
-                      <a href={a.insuranceCard} target="_blank" rel="noreferrer">
-                        <img
-                          src={a.insuranceCard}
-                          alt="Insurance"
-                          className="h-20 w-full rounded border object-cover"
-                        />
-                        <p className="mt-0.5 text-[10px] text-[var(--color-fg-subtle)]">
-                          Insurance
-                        </p>
-                      </a>
-                    )}
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const interviewAt = new Date(
-                        Date.now() + 86400000,
-                      ).toISOString();
-                      setDriverAppStatus(a.id, "scheduled", { interviewAt });
-                      void setDriverAppStatusFn({
-                        data: {
-                          pin,
-                          id: a.id,
-                          status: "scheduled",
-                          interviewAt,
-                        },
-                      })
-                        .then(() => refreshCloud(pin))
-                        .catch(() => {});
-                      toast.success("Interview scheduled");
-                    }}
-                  >
-                    <Calendar className="size-3.5" />
-                    Schedule
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setDriverAppStatus(a.id, "active");
-                      void setDriverAppStatusFn({
-                        data: { pin, id: a.id, status: "active" },
-                      })
-                        .then(() => refreshCloud(pin))
-                        .catch(() => {});
-                      toast.success("Approved & Active");
-                    }}
-                  >
-                    <CheckCircle2 className="size-3.5" />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setDriverAppStatus(a.id, "declined");
-                      void setDriverAppStatusFn({
-                        data: { pin, id: a.id, status: "declined" },
-                      })
-                        .then(() => refreshCloud(pin))
-                        .catch(() => {});
-                      toast.message("Declined");
-                    }}
-                  >
-                    <XCircle className="size-3.5" />
-                    Decline
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-[#b42318]/40 text-[#b42318]"
-                    onClick={() => {
-                      if (
-                        !confirm(
-                          `Permanently delete driver application for ${a.fullName}?`,
-                        )
-                      )
-                        return;
-                      removeDriverApp(a.id);
-                      void deleteDriverAppFn({ data: { pin, id: a.id } })
-                        .then(() => {
-                          refreshCloud(pin);
-                          toast.success("Driver application deleted");
-                        })
-                        .catch((e) =>
-                          toast.error(
-                            e instanceof Error ? e.message : "Delete failed",
-                          ),
-                        );
-                    }}
-                  >
-                    Delete
-                  </Button>
-                  {(a.status === "approved" ||
-                    a.status === "active" ||
-                    a.status === "inactive") && (
-                    <>
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        variant={a.status === "active" ? "default" : "outline"}
+                        onClick={() => {
+                          const interviewAt = new Date(
+                            Date.now() + 86400000,
+                          ).toISOString();
+                          setDriverAppStatus(a.id, "scheduled", {
+                            interviewAt,
+                          });
+                          void setDriverAppStatusFn({
+                            data: {
+                              pin,
+                              id: a.id,
+                              status: "scheduled",
+                              interviewAt,
+                            },
+                          })
+                            .then(() => refreshCloud(pin))
+                            .catch(() => {});
+                          toast.success("Interview scheduled");
+                        }}
+                      >
+                        <Calendar className="size-3.5" />
+                        Schedule
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
                         onClick={() => {
                           setDriverAppStatus(a.id, "active");
                           void setDriverAppStatusFn({
@@ -513,42 +523,108 @@ function AdminPage() {
                           })
                             .then(() => refreshCloud(pin))
                             .catch(() => {});
-                          toast.success("Driver Active — can take trips");
+                          toast.success("Approved & Active");
                         }}
                       >
-                        Active
+                        <CheckCircle2 className="size-3.5" />
+                        Approve
                       </Button>
                       <Button
                         size="sm"
-                        variant={a.status === "inactive" ? "secondary" : "outline"}
+                        variant="ghost"
                         onClick={() => {
-                          setDriverAppStatus(a.id, "inactive");
+                          setDriverAppStatus(a.id, "declined");
                           void setDriverAppStatusFn({
-                            data: { pin, id: a.id, status: "inactive" },
+                            data: { pin, id: a.id, status: "declined" },
                           })
                             .then(() => refreshCloud(pin))
                             .catch(() => {});
-                          toast.message("Driver Inactive — paused");
+                          toast.message("Declined");
                         }}
                       >
-                        Not active
+                        <XCircle className="size-3.5" />
+                        Decline
                       </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                      {(a.status === "approved" ||
+                        a.status === "active" ||
+                        a.status === "inactive") && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant={
+                              a.status === "active" ? "default" : "outline"
+                            }
+                            onClick={() => {
+                              setDriverAppStatus(a.id, "active");
+                              void setDriverAppStatusFn({
+                                data: { pin, id: a.id, status: "active" },
+                              })
+                                .then(() => refreshCloud(pin))
+                                .catch(() => {});
+                              toast.success("Driver Active");
+                            }}
+                          >
+                            Active
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={
+                              a.status === "inactive" ? "secondary" : "outline"
+                            }
+                            onClick={() => {
+                              setDriverAppStatus(a.id, "inactive");
+                              void setDriverAppStatusFn({
+                                data: { pin, id: a.id, status: "inactive" },
+                              })
+                                .then(() => refreshCloud(pin))
+                                .catch(() => {});
+                              toast.message("Driver Inactive");
+                            }}
+                          >
+                            Not active
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#b42318]/40 text-[#b42318]"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Permanently delete driver application for ${a.fullName}?`,
+                            )
+                          )
+                            return;
+                          removeDriverApp(a.id);
+                          void deleteDriverAppFn({ data: { pin, id: a.id } })
+                            .then(() => {
+                              refreshCloud(pin);
+                              toast.success("Deleted");
+                            })
+                            .catch((e) =>
+                              toast.error(
+                                e instanceof Error ? e.message : "Delete failed",
+                              ),
+                            );
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
         </section>
       )}
 
       {tab === "riders" && (
-        <section className="mt-3 space-y-3 pb-8">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <section className="mt-3 space-y-1.5 pb-8">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-[var(--color-fg-muted)]">
-              Tap a selfie to enlarge. Decline = retake photo (they can reapply).
-              Approve → Active for rides. Message opens in-app chat on{" "}
-              <strong>your</strong> phone.
+              Tap for photo, actions, and notes.
             </p>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -566,370 +642,429 @@ function AdminPage() {
           )}
           {riderApps
             .filter((a) => showDeclinedRiders || a.status !== "declined")
-            .map((a) => (
-              <Card key={a.id}>
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {a.selfie ? (
-                        <a
-                          href={a.selfie}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0"
-                          title="Open full size"
-                        >
-                          <img
-                            src={a.selfie}
-                            alt=""
-                            className="size-16 rounded-full object-cover ring-2 ring-[var(--color-border)]"
-                          />
-                        </a>
-                      ) : (
-                        <div className="flex size-16 items-center justify-center rounded-full bg-[var(--color-bg-subtle)] text-xs text-[var(--color-fg-subtle)]">
-                          No photo
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-semibold">{a.fullName}</p>
-                        <p className="truncate text-sm text-[var(--color-fg-muted)]">
-                          {a.email}
-                        </p>
-                        <p className="text-sm text-[var(--color-fg-muted)]">
-                          {a.phone}
-                        </p>
+            .map((a) => {
+              const key = `riders:${a.id}`;
+              const open = expandedKey === key;
+              return (
+                <Card
+                  key={a.id}
+                  className={
+                    open
+                      ? "border-[var(--color-primary)]/40 shadow-[var(--shadow-sm)]"
+                      : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 p-3 text-left"
+                    onClick={() => toggleExpand(key)}
+                  >
+                    {a.selfie ? (
+                      <img
+                        src={a.selfie}
+                        alt=""
+                        className="size-12 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                        {(a.fullName || "?").charAt(0).toUpperCase()}
                       </div>
-                    </div>
-                    <Badge
-                      variant={
-                        a.status === "active" || a.status === "approved"
-                          ? "success"
-                          : a.status === "declined"
-                            ? "outline"
-                            : "secondary"
-                      }
-                    >
-                      {a.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-[var(--color-fg-muted)]">
-                    {a.city} · {a.typicalRoutes}
-                  </p>
-                  {a.preferredTime && (
-                    <p className="text-xs text-[var(--color-fg-subtle)]">
-                      Preferred interview: {a.preferredTime} ·{" "}
-                      {a.interviewMode}
-                    </p>
-                  )}
-                  {a.notes && (
-                    <p className="text-xs text-[var(--color-fg-muted)]">
-                      Notes: {a.notes}
-                    </p>
-                  )}
-                  {a.adminNote && (
-                    <p className="text-xs font-medium text-[#b42318]">
-                      Founder note: {a.adminNote}
-                    </p>
-                  )}
-                  {a.interviewAt && (
-                    <p className="text-xs text-[var(--color-primary)]">
-                      Interview: {formatRequestedAt(a.interviewAt)}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-[var(--color-fg-subtle)]">
-                    Applied {formatRequestedAt(a.createdAt)} · ID {a.id}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {a.phone && (
-                      <Button size="sm" variant="secondary" asChild>
-                        <a
-                          href={`tel:+1${a.phone.replace(/\D/g, "").slice(-10)}`}
-                        >
-                          <Phone className="size-3.5" />
-                          Call
-                        </a>
-                      </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        const tid = startThread({
-                          subject: `Rider · ${a.fullName}`,
-                          withName: a.fullName,
-                          relatedType: "support",
-                          relatedId: a.id,
-                          firstMessage: `Hi ${a.fullName.split(" ")[0] || "there"} — this is Travis with Share. I have your rider application. Let's set a quick chat / interview.`,
-                        });
-                        toast.success("Chat opened — Messages tab");
-                        navigate({
-                          to: "/messages/$id",
-                          params: { id: tid },
-                        });
-                      }}
-                    >
-                      <MessageCircle className="size-3.5" />
-                      Message
-                    </Button>
-                    {(a.status === "pending_interview" ||
-                      a.status === "scheduled" ||
-                      a.status === "declined") && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            const interviewAt = new Date(
-                              Date.now() + 86400000,
-                            ).toISOString();
-                            setRiderAppStatus(a.id, "scheduled", {
-                              interviewAt,
-                              adminNote: "Interview scheduled by founder",
-                            });
-                            void setRiderAppStatusFn({
-                              data: {
-                                pin,
-                                id: a.id,
-                                status: "scheduled",
-                                interviewAt,
-                                adminNote: "Interview scheduled by founder",
-                              },
-                            })
-                              .then(() => refreshCloud(pin))
-                              .catch(() => {});
-                            toast.success(
-                              "Interview marked scheduled — call or message her to confirm time",
-                            );
-                          }}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold leading-tight">
+                        {a.fullName}
+                      </p>
+                      <div className="mt-0.5">
+                        <Badge
+                          variant={
+                            a.status === "active" || a.status === "approved"
+                              ? "success"
+                              : a.status === "declined"
+                                ? "outline"
+                                : "secondary"
+                          }
+                          className="capitalize"
                         >
-                          <Calendar className="size-3.5" />
-                          Schedule interview
-                        </Button>
+                          {a.status.replace(/_/g, " ")}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+                        {formatRequestedAt(a.createdAt)}
+                        {a.city ? ` · ${a.city}` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                      {open ? "▴" : "▾"}
+                    </span>
+                  </button>
+                  {open && (
+                    <CardContent className="space-y-3 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                      <div className="flex gap-3">
+                        {a.selfie ? (
+                          <a
+                            href={a.selfie}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0"
+                            title="Open full size"
+                          >
+                            <img
+                              src={a.selfie}
+                              alt=""
+                              className="size-20 rounded-[var(--radius-md)] object-cover ring-2 ring-[var(--color-border)]"
+                            />
+                          </a>
+                        ) : null}
+                        <div className="min-w-0 flex-1 space-y-1 text-sm">
+                          <p>
+                            <span className="text-[var(--color-fg-muted)]">
+                              Phone:{" "}
+                            </span>
+                            {a.phone || "—"}
+                          </p>
+                          <p className="truncate">
+                            <span className="text-[var(--color-fg-muted)]">
+                              Email:{" "}
+                            </span>
+                            {a.email || "—"}
+                          </p>
+                          {a.typicalRoutes && (
+                            <p className="text-[var(--color-fg-muted)]">
+                              Routes: {a.typicalRoutes}
+                            </p>
+                          )}
+                          {a.preferredTime && (
+                            <p className="text-xs text-[var(--color-fg-subtle)]">
+                              Interview pref: {a.preferredTime} ·{" "}
+                              {a.interviewMode}
+                            </p>
+                          )}
+                          {a.notes && (
+                            <p className="text-xs">Notes: {a.notes}</p>
+                          )}
+                          {a.adminNote && (
+                            <p className="text-xs font-medium text-[#b42318]">
+                              Founder note: {a.adminNote}
+                            </p>
+                          )}
+                          {a.interviewAt && (
+                            <p className="text-xs text-[var(--color-primary)]">
+                              Interview: {formatRequestedAt(a.interviewAt)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {a.phone && (
+                          <Button size="sm" variant="secondary" asChild>
+                            <a
+                              href={`tel:+1${a.phone.replace(/\D/g, "").slice(-10)}`}
+                            >
+                              <Phone className="size-3.5" />
+                              Call
+                            </a>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => {
-                            setRiderAppStatus(a.id, "active");
-                            void setRiderAppStatusFn({
-                              data: { pin, id: a.id, status: "active" },
-                            })
-                              .then(() => refreshCloud(pin))
-                              .catch(() => {});
-                            toast.success("Rider approved & ACTIVE");
-                          }}
-                        >
-                          <CheckCircle2 className="size-3.5" />
-                          Approve & Active
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const note =
-                              "Selfie unclear — please reapply with a clear face photo (not wall/background only).";
-                            setRiderAppStatus(a.id, "declined", {
-                              adminNote: note,
+                            const tid = startThread({
+                              subject: `Chat · ${a.fullName}`,
+                              withName: a.fullName,
+                              relatedType: "support",
+                              relatedId: a.id,
+                              withPhone: a.phone,
+                              firstMessage: `Hi ${a.fullName.split(" ")[0] || "there"} — this is Travis with Share. I have your rider application. Let's set a quick chat / interview.`,
                             });
-                            void setRiderAppStatusFn({
-                              data: {
-                                pin,
-                                id: a.id,
-                                status: "declined",
-                                adminNote: note,
-                              },
-                            })
-                              .then(() => refreshCloud(pin))
-                              .catch(() => {});
-                            toast.message(
-                              "Declined — she can reapply with a new selfie",
-                            );
+                            toast.success("Chat opened");
+                            navigate({
+                              to: "/messages/$id",
+                              params: { id: tid },
+                            });
                           }}
                         >
-                          Decline photo (retake)
+                          <MessageCircle className="size-3.5" />
+                          Message
                         </Button>
-                      </>
-                    )}
-                    {(a.status === "approved" ||
-                      a.status === "active" ||
-                      a.status === "inactive") && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant={
-                            a.status === "active" ? "default" : "outline"
-                          }
-                          onClick={() => {
-                            setRiderAppStatus(a.id, "active");
-                            void setRiderAppStatusFn({
-                              data: { pin, id: a.id, status: "active" },
-                            })
-                              .then(() => refreshCloud(pin))
-                              .catch(() => {});
-                          }}
-                        >
-                          Active
-                        </Button>
+                        {(a.status === "pending_interview" ||
+                          a.status === "scheduled" ||
+                          a.status === "declined") && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const interviewAt = new Date(
+                                  Date.now() + 86400000,
+                                ).toISOString();
+                                setRiderAppStatus(a.id, "scheduled", {
+                                  interviewAt,
+                                  adminNote: "Interview scheduled by founder",
+                                });
+                                void setRiderAppStatusFn({
+                                  data: {
+                                    pin,
+                                    id: a.id,
+                                    status: "scheduled",
+                                    interviewAt,
+                                    adminNote:
+                                      "Interview scheduled by founder",
+                                  },
+                                })
+                                  .then(() => refreshCloud(pin))
+                                  .catch(() => {});
+                                toast.success("Interview scheduled");
+                              }}
+                            >
+                              <Calendar className="size-3.5" />
+                              Schedule
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                setRiderAppStatus(a.id, "active");
+                                void setRiderAppStatusFn({
+                                  data: {
+                                    pin,
+                                    id: a.id,
+                                    status: "active",
+                                  },
+                                })
+                                  .then(() => refreshCloud(pin))
+                                  .catch(() => {});
+                                toast.success("Rider Active");
+                              }}
+                            >
+                              <CheckCircle2 className="size-3.5" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const note =
+                                  "Selfie unclear — please reapply with a clear face photo.";
+                                setRiderAppStatus(a.id, "declined", {
+                                  adminNote: note,
+                                });
+                                void setRiderAppStatusFn({
+                                  data: {
+                                    pin,
+                                    id: a.id,
+                                    status: "declined",
+                                    adminNote: note,
+                                  },
+                                })
+                                  .then(() => refreshCloud(pin))
+                                  .catch(() => {});
+                                toast.message("Declined — can reapply");
+                              }}
+                            >
+                              Decline photo
+                            </Button>
+                          </>
+                        )}
+                        {(a.status === "approved" ||
+                          a.status === "active" ||
+                          a.status === "inactive") && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant={
+                                a.status === "active" ? "default" : "outline"
+                              }
+                              onClick={() => {
+                                setRiderAppStatus(a.id, "active");
+                                void setRiderAppStatusFn({
+                                  data: {
+                                    pin,
+                                    id: a.id,
+                                    status: "active",
+                                  },
+                                })
+                                  .then(() => refreshCloud(pin))
+                                  .catch(() => {});
+                              }}
+                            >
+                              Active
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setRiderAppStatus(a.id, "inactive");
+                                void setRiderAppStatusFn({
+                                  data: {
+                                    pin,
+                                    id: a.id,
+                                    status: "inactive",
+                                  },
+                                })
+                                  .then(() => refreshCloud(pin))
+                                  .catch(() => {});
+                              }}
+                            >
+                              Not active
+                            </Button>
+                          </>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
+                          className="border-[#b42318]/40 text-[#b42318]"
                           onClick={() => {
-                            setRiderAppStatus(a.id, "inactive");
-                            void setRiderAppStatusFn({
-                              data: { pin, id: a.id, status: "inactive" },
+                            if (
+                              !confirm(
+                                `Delete rider application for ${a.fullName}?`,
+                              )
+                            )
+                              return;
+                            removeRiderApp(a.id);
+                            void deleteRiderAppFn({
+                              data: { pin, id: a.id },
                             })
-                              .then(() => refreshCloud(pin))
-                              .catch(() => {});
+                              .then(() => {
+                                refreshCloud(pin);
+                                toast.success("Deleted");
+                              })
+                              .catch((e) =>
+                                toast.error(
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Delete failed",
+                                ),
+                              );
                           }}
                         >
-                          Not active
+                          Delete
                         </Button>
-                      </>
-                    )}
-                    {a.status === "declined" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-[#b42318]/40 text-[#b42318]"
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Delete old declined app for ${a.fullName}?`,
-                            )
-                          )
-                            return;
-                          removeRiderApp(a.id);
-                          void deleteRiderAppFn({ data: { pin, id: a.id } })
-                            .then(() => {
-                              refreshCloud(pin);
-                              toast.success("Removed declined app");
-                            })
-                            .catch((e) =>
-                              toast.error(
-                                e instanceof Error
-                                  ? e.message
-                                  : "Delete failed",
-                              ),
-                            );
-                        }}
-                      >
-                        Delete old
-                      </Button>
-                    )}
-                    {a.status !== "declined" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-[#b42318]/40 text-[#b42318]"
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Permanently delete rider application for ${a.fullName}?`,
-                            )
-                          )
-                            return;
-                          removeRiderApp(a.id);
-                          void deleteRiderAppFn({ data: { pin, id: a.id } })
-                            .then(() => {
-                              refreshCloud(pin);
-                              toast.success("Rider application deleted");
-                            })
-                            .catch((e) =>
-                              toast.error(
-                                e instanceof Error
-                                  ? e.message
-                                  : "Delete failed",
-                              ),
-                            );
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
         </section>
       )}
 
       {tab === "deliveries" && (
-        <section className="mt-3 space-y-3 pb-8">
-          {deliveries.map((d) => (
-            <Card key={d.id}>
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between">
-                  <p className="font-semibold">{d.item}</p>
-                  <Badge>{d.status}</Badge>
-                </div>
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  {d.from} → {d.to} · {formatCurrency(d.offer)}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      advanceDelivery(d.id, "matched", undefined, "Founder")
-                    }
-                  >
-                    Match
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => advanceDelivery(d.id, "delivered")}
-                  >
-                    Mark delivered
-                  </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link
-                      to="/track/$code"
-                      params={{ code: d.trackingCode ?? d.id }}
-                    >
-                      Track
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <section className="mt-3 space-y-1.5 pb-8">
+          <p className="mb-2 text-xs text-[var(--color-fg-muted)]">
+            Tap a package for match / track actions.
+          </p>
+          {deliveries.length === 0 && (
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              No deliveries.
+            </p>
+          )}
+          {deliveries.map((d) => {
+            const key = `del:${d.id}`;
+            const open = expandedKey === key;
+            return (
+              <Card key={d.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 p-3 text-left"
+                  onClick={() => toggleExpand(key)}
+                >
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)]/15 text-sm font-semibold text-[var(--color-accent)]">
+                    📦
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold leading-tight">
+                      {d.item}
+                    </p>
+                    <div className="mt-0.5">
+                      <Badge className="capitalize">{d.status}</Badge>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
+                      {d.from.split(",")[0]} → {d.to.split(",")[0]} ·{" "}
+                      {formatCurrency(d.offer)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                    {open ? "▴" : "▾"}
+                  </span>
+                </button>
+                {open && (
+                  <CardContent className="space-y-2 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                    <p className="text-sm text-[var(--color-fg-muted)]">
+                      {d.from} → {d.to}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          advanceDelivery(
+                            d.id,
+                            "matched",
+                            undefined,
+                            "Founder",
+                          )
+                        }
+                      >
+                        Match
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => advanceDelivery(d.id, "delivered")}
+                      >
+                        Mark delivered
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link
+                          to="/track/$code"
+                          params={{ code: d.trackingCode ?? d.id }}
+                        >
+                          Track
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
         </section>
       )}
 
       {tab === "local" && (
-        <section className="mt-3 space-y-3 pb-8">
-          <Card className="border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
-            <CardContent className="space-y-2 p-4">
-              <p className="font-semibold">
-                Drivers online now · {onlineDrivers.length}
+        <section className="mt-3 space-y-1.5 pb-8">
+          <Card className="mb-3 border-[var(--color-primary)]/25 bg-[var(--color-primary)]/5">
+            <CardContent className="space-y-2 p-3">
+              <p className="text-sm font-semibold">
+                Drivers online · {onlineDrivers.length}
               </p>
-              <p className="text-xs text-[var(--color-fg-muted)]">
-                Active drivers who tapped Go available on Local (last 30 min).
-                Auto-refreshes.
-              </p>
-              {onlineDrivers.length === 0 && (
-                <p className="text-sm text-[var(--color-fg-muted)]">
-                  No drivers online right now.
+              {onlineDrivers.length === 0 ? (
+                <p className="text-xs text-[var(--color-fg-muted)]">
+                  None right now.
                 </p>
-              )}
-              {onlineDrivers.map((d) => (
-                <div
-                  key={d.id}
-                  className="flex items-start justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">{d.displayName}</p>
-                    <p className="text-xs text-[var(--color-fg-muted)]">
-                      {d.city}
-                      {d.email ? ` · ${d.email}` : ""}
-                    </p>
-                  </div>
-                  <Badge variant="success">Online</Badge>
+              ) : (
+                <div className="space-y-1">
+                  {onlineDrivers.map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="truncate font-medium">
+                        {d.displayName}
+                        <span className="text-xs font-normal text-[var(--color-fg-muted)]">
+                          {" "}
+                          · {d.city}
+                        </span>
+                      </span>
+                      <Badge variant="success">Online</Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
 
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-            Local ride requests
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+            Local requests
           </p>
           {localRides.length === 0 && (
             <p className="text-sm text-[var(--color-fg-muted)]">
@@ -938,139 +1073,158 @@ function AdminPage() {
           )}
           {localRides
             .slice()
-            .sort(
-              (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
-            )
-            .map((r) => (
-            <Card key={r.id}>
-              <CardContent className="space-y-2 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold">
-                      {r.pickup} → {r.dropoff}
-                    </p>
-                    <p className="text-sm text-[var(--color-fg-muted)]">
-                      {r.requesterName} · {r.when} ·{" "}
-                      {formatRequestedAt(r.createdAt)}
-                    </p>
-                    <p className="text-sm text-[var(--color-fg-muted)]">
-                      {r.sharePrice === 0
-                        ? "Offer FREE / $0"
-                        : `Offer ${formatCurrency(r.sharePrice)}`}{" "}
-                      · Uber ~{formatCurrency(r.uberEstimate)} · Lyft ~
-                      {formatCurrency(r.lyftEstimate)}
-                    </p>
-                    {r.adminNote && (
-                      <p className="text-xs text-[var(--color-fg-subtle)]">
-                        Note: {r.adminNote}
-                      </p>
-                    )}
-                  </div>
-                  <Badge
-                    variant={
-                      r.status === "matched"
-                        ? "success"
-                        : r.status === "cancelled"
-                          ? "outline"
-                          : "secondary"
-                    }
+            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+            .map((r) => {
+              const key = `local:${r.id}`;
+              const open = expandedKey === key;
+              return (
+                <Card key={r.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 p-3 text-left"
+                    onClick={() => toggleExpand(key)}
                   >
-                    {r.status}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {r.status === "broadcasting" && (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setLocalRideStatus(r.id, "matched", "Assigned by founder");
-                          toast.success("Matched");
-                        }}
-                      >
-                        Match driver
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-[#b42318]/40 text-[#b42318]"
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Cancel local ride for ${r.requesterName}?`,
-                            )
-                          )
-                            return;
-                          setLocalRideStatus(
-                            r.id,
-                            "cancelled",
-                            "Cancelled by admin",
-                          );
-                          toast.success("Local ride cancelled");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  )}
-                  {r.status === "matched" && (
-                    <>
-                      <Button size="sm" variant="secondary" asChild>
-                        <Link
-                          to="/rides/matched/$id"
-                          params={{ id: r.id }}
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                      {(r.requesterName || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold leading-tight">
+                        {r.requesterName}
+                      </p>
+                      <div className="mt-0.5">
+                        <Badge
+                          variant={
+                            r.status === "matched"
+                              ? "success"
+                              : r.status === "cancelled"
+                                ? "outline"
+                                : "secondary"
+                          }
+                          className="capitalize"
                         >
-                          Open
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-[#b42318]/40 text-[#b42318]"
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Cancel matched local ride for ${r.requesterName}?`,
-                            )
-                          )
-                            return;
-                          setLocalRideStatus(
-                            r.id,
-                            "cancelled",
-                            "Cancelled by admin after match",
-                          );
-                          toast.success("Local ride cancelled");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </>
+                          {r.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
+                        {formatRequestedAt(r.createdAt)} ·{" "}
+                        {r.pickup.split(",")[0]} → {r.dropoff.split(",")[0]}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                      {open ? "▴" : "▾"}
+                    </span>
+                  </button>
+                  {open && (
+                    <CardContent className="space-y-2 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                      <p className="text-sm">
+                        {r.pickup} → {r.dropoff}
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        {r.when} ·{" "}
+                        {r.sharePrice === 0
+                          ? "FREE"
+                          : formatCurrency(r.sharePrice)}
+                        {r.adminNote ? ` · ${r.adminNote}` : ""}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {r.status === "broadcasting" && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setLocalRideStatus(
+                                  r.id,
+                                  "matched",
+                                  "Assigned by founder",
+                                );
+                                toast.success("Matched");
+                              }}
+                            >
+                              Match driver
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[#b42318]/40 text-[#b42318]"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `Cancel local ride for ${r.requesterName}?`,
+                                  )
+                                )
+                                  return;
+                                setLocalRideStatus(
+                                  r.id,
+                                  "cancelled",
+                                  "Cancelled by admin",
+                                );
+                                toast.success("Cancelled");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {r.status === "matched" && (
+                          <>
+                            <Button size="sm" variant="secondary" asChild>
+                              <Link
+                                to="/rides/matched/$id"
+                                params={{ id: r.id }}
+                              >
+                                Open
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[#b42318]/40 text-[#b42318]"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `Cancel matched local ride for ${r.requesterName}?`,
+                                  )
+                                )
+                                  return;
+                                setLocalRideStatus(
+                                  r.id,
+                                  "cancelled",
+                                  "Cancelled by admin after match",
+                                );
+                                toast.success("Cancelled");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {r.status === "cancelled" && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setLocalRideStatus(
+                                r.id,
+                                "broadcasting",
+                                "Restored by admin",
+                              );
+                              toast.success("Restored");
+                            }}
+                          >
+                            Restore
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
                   )}
-                  {r.status === "cancelled" && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setLocalRideStatus(
-                          r.id,
-                          "broadcasting",
-                          "Restored by admin",
-                        );
-                        toast.success("Restored to broadcasting");
-                      }}
-                    >
-                      Restore broadcast
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </Card>
+              );
+            })}
         </section>
       )}
 
       {tab === "volunteer" && (
-        <section className="mt-3 space-y-3 pb-8">
+        <section className="mt-3 space-y-1.5 pb-8">
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -1111,213 +1265,195 @@ function AdminPage() {
                 r.status === "completed",
             );
             const renderRide = (r: VolunteerRide) => {
-              const open =
+              const isOpenStatus =
                 r.status === "seeking_volunteer" ||
                 r.status === "escalated_paid";
+              const key = `vol:${r.id}`;
+              const expanded = expandedKey === key;
+              const name = r.riderLegalName || r.fullName || r.requesterName || "Rider";
+              const face =
+                r.riderSelfie && r.riderSelfie.length > 20
+                  ? r.riderSelfie
+                  : "";
               return (
-                <Card key={r.id}>
-                  <CardContent className="space-y-2 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold">
-                          {r.fullName || r.requesterName}
-                        </p>
-                        <p className="text-sm text-[var(--color-fg-muted)]">
-                          {r.pickup} → {r.dropoff}
-                        </p>
-                        <p className="text-sm text-[var(--color-fg-muted)]">
+                <Card
+                  key={r.id}
+                  className={
+                    expanded
+                      ? "border-[var(--color-primary)]/40 shadow-[var(--shadow-sm)]"
+                      : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 p-3 text-left"
+                    onClick={() => toggleExpand(key)}
+                  >
+                    {face ? (
+                      <img
+                        src={face}
+                        alt=""
+                        className="size-12 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                        {name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold leading-tight">
+                        {name}
+                      </p>
+                      <div className="mt-0.5">
+                        <Badge
+                          variant={
+                            r.status === "cancelled"
+                              ? "outline"
+                              : r.status === "matched" ||
+                                  r.status === "completed"
+                                ? "success"
+                                : "default"
+                          }
+                          className="capitalize"
+                        >
+                          {r.status.replace(/_/g, " ")}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
+                        {formatRequestedAt(r.createdAt)} ·{" "}
+                        {r.pickup.split(",")[0]} → {r.dropoff.split(",")[0]}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                      {expanded ? "▴" : "▾"}
+                    </span>
+                  </button>
+                  {expanded && (
+                    <CardContent className="space-y-2 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                      <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-3 text-sm space-y-1">
+                        <p>
                           {(VOLUNTEER_LABELS as Record<string, string>)[
                             r.category
                           ] ?? r.category}{" "}
                           · {r.phone}
                         </p>
-                      </div>
-                      <Badge
-                        variant={
-                          r.status === "cancelled"
-                            ? "outline"
-                            : r.status === "matched" ||
-                                r.status === "completed"
-                              ? "success"
-                              : "default"
-                        }
-                      >
-                        {r.status.replace(/_/g, " ")}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-[var(--color-fg-subtle)]">
-                      When needed: {r.when}
-                      {r.notes ? ` · Notes: ${r.notes}` : ""}
-                      {r.matchedDriverName
-                        ? ` · Matched: ${r.matchedDriverName}`
-                        : ""}
-                    </p>
-                    <p className="text-sm font-medium text-[var(--color-fg)]">
-                      Requested: {formatRequestedAt(r.createdAt)}
-                    </p>
-                    {r.status === "cancelled" && (
-                      <p className="text-sm font-semibold text-[#b42318]">
-                        Cancelled:{" "}
-                        {formatRequestedAt(
-                          r.cancelledAt || r.createdAt,
-                        )}
-                        {" · by "}
-                        {r.cancelledBy === "admin"
-                          ? "Admin / founder"
-                          : r.cancelledBy === "driver"
-                            ? `Driver${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
-                            : r.cancelledBy === "rider"
-                              ? `Rider${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
-                              : r.cancelledBy === "system"
-                                ? "System"
-                                : r.cancelledByName || "Unknown (before tracking)"}
-                        {!r.cancelledAt &&
-                          " · time not recorded — older request"}
-                      </p>
-                    )}
-                    {r.status === "completed" && (
-                      <div className="space-y-1 rounded-[var(--radius-md)] border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 p-2.5">
-                        <p className="text-sm font-semibold text-[var(--color-primary)]">
-                          Completed:{" "}
-                          {formatRequestedAt(
-                            r.completedAt || r.tripEndedAt || r.createdAt,
-                          )}
+                        <p>
+                          {r.pickup} → {r.dropoff}
+                        </p>
+                        <p className="text-xs text-[var(--color-fg-muted)]">
+                          When: {r.when}
+                          {r.notes ? ` · ${r.notes}` : ""}
                           {r.matchedDriverName
-                            ? ` · driver ${r.matchedDriverName}`
+                            ? ` · Driver: ${r.matchedDriverName}`
                             : ""}
                         </p>
-                        {r.tripStartedAt && r.tripEndedAt ? (
-                          <p className="text-sm font-semibold text-[var(--color-fg)]">
-                            In car:{" "}
-                            <span className="font-mono tabular-nums text-[var(--color-primary)]">
+                        {r.status === "cancelled" && (
+                          <p className="text-sm font-semibold text-[#b42318]">
+                            Cancelled{" "}
+                            {formatRequestedAt(r.cancelledAt || r.createdAt)} by{" "}
+                            {r.cancelledBy === "admin"
+                              ? "Admin"
+                              : r.cancelledBy === "driver"
+                                ? `Driver${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                                : r.cancelledBy === "rider"
+                                  ? `Rider${r.cancelledByName ? ` (${r.cancelledByName})` : ""}`
+                                  : r.cancelledByName || "unknown"}
+                          </p>
+                        )}
+                        {r.status === "completed" &&
+                          r.tripStartedAt &&
+                          r.tripEndedAt && (
+                            <p className="font-medium text-[var(--color-primary)]">
+                              In-car{" "}
                               {formatDurationSeconds(
                                 tripInCarSeconds(
                                   r.tripStartedAt,
                                   r.tripEndedAt,
                                 ) ?? 0,
                               )}
-                            </span>
-                            <span className="mt-0.5 block text-xs font-normal text-[var(--color-fg-muted)]">
-                              Phase 2 Begin{" "}
-                              {formatRequestedAt(r.tripStartedAt)} → End{" "}
-                              {formatRequestedAt(r.tripEndedAt)}
-                            </span>
-                          </p>
-                        ) : (
-                          <p className="text-xs text-[var(--color-fg-muted)]">
-                            In-car duration not recorded (no Begin/End on this
-                            trip).
-                          </p>
-                        )}
-                        {r.riderRating != null && (
-                          <p className="text-sm font-semibold text-[var(--color-fg)]">
-                            Rider rating:{" "}
-                            {"★".repeat(r.riderRating)}
-                            {"☆".repeat(5 - r.riderRating)} ({r.riderRating}/5)
-                            {r.riderReview ? ` — “${r.riderReview}”` : ""}
-                          </p>
-                        )}
+                            </p>
+                          )}
                       </div>
-                    )}
-                    <p className="text-[10px] text-[var(--color-fg-subtle)]">
-                      ID {r.id}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {open && (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              claimVolunteer(r.id, "Founder match");
-                              void claimVolunteerRideFn({
-                                data: {
-                                  id: r.id,
-                                  driverName: "Founder match",
-                                },
-                              }).catch(() => {});
-                              toast.success("Matched");
-                              void refreshCloud(pin);
-                            }}
-                          >
-                            Claim free
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              forceEscalateVolunteer(r.id);
-                              void escalateVolunteerRideFn({
-                                data: { id: r.id },
-                              }).catch(() => {});
-                              toast.message("Escalated to paid");
-                              void refreshCloud(pin);
-                            }}
-                          >
-                            Force paid
-                          </Button>
-                          <Button size="sm" variant="secondary" asChild>
-                            <Link
-                              to={
-                                `/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"
-                              }
+                      <div className="flex flex-wrap gap-2">
+                        {isOpenStatus && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                claimVolunteer(r.id, "Founder match");
+                                void claimVolunteerRideFn({
+                                  data: {
+                                    id: r.id,
+                                    driverName: "Founder match",
+                                  },
+                                }).catch(() => {});
+                                toast.success("Matched");
+                                void refreshCloud(pin);
+                              }}
                             >
-                              Edit
-                            </Link>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (
-                                !confirm(
-                                  `Cancel request for ${r.fullName || r.requesterName}? It stays in History.`,
+                              Claim free
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                forceEscalateVolunteer(r.id);
+                                void escalateVolunteerRideFn({
+                                  data: { id: r.id },
+                                }).catch(() => {});
+                                toast.message("Escalated to paid");
+                                void refreshCloud(pin);
+                              }}
+                            >
+                              Force paid
+                            </Button>
+                            <Button size="sm" variant="secondary" asChild>
+                              <Link
+                                to={
+                                  `/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"
+                                }
+                              >
+                                Edit
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `Cancel request for ${name}? Stays in History.`,
+                                  )
                                 )
-                              )
-                                return;
-                              cancelVolunteerRide(r.id, {
-                                cancelledBy: "admin",
-                                cancelledByName: "Founder",
-                              });
-                              void cancelVolunteerRideFn({
-                                data: {
-                                  id: r.id,
+                                  return;
+                                cancelVolunteerRide(r.id, {
                                   cancelledBy: "admin",
                                   cancelledByName: "Founder",
-                                },
-                              })
-                                .then(() => {
-                                  toast.success(
-                                    "Cancelled — saved in History below",
-                                  );
-                                  void refreshCloud(pin);
+                                });
+                                void cancelVolunteerRideFn({
+                                  data: {
+                                    id: r.id,
+                                    cancelledBy: "admin",
+                                    cancelledByName: "Founder",
+                                  },
                                 })
-                                .catch(() =>
-                                  toast.error(
-                                    "Cloud cancel failed — try again",
-                                  ),
-                                );
-                            }}
-                          >
-                            Cancel (keep history)
-                          </Button>
-                        </>
-                      )}
-                      {r.status === "cancelled" && (
-                        <>
+                                  .then(() => {
+                                    toast.success("Cancelled");
+                                    void refreshCloud(pin);
+                                  })
+                                  .catch(() =>
+                                    toast.error("Cancel failed"),
+                                  );
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {r.status === "cancelled" && (
                           <Button
                             size="sm"
                             onClick={() => {
-                              if (
-                                !confirm(
-                                  `Restore ${r.fullName}'s ride? ${
-                                    r.matchedDriverName
-                                      ? "Back to matched with " +
-                                        r.matchedDriverName
-                                      : "Back to open board"
-                                  }.`,
-                                )
-                              )
-                                return;
                               const as = r.matchedDriverName
                                 ? ("matched" as const)
                                 : ("seeking_volunteer" as const);
@@ -1326,7 +1462,7 @@ function AdminPage() {
                                 data: { pin, id: r.id, as },
                               })
                                 .then(() => {
-                                  toast.success("Ride restored");
+                                  toast.success("Restored");
                                   void refreshCloud(pin);
                                 })
                                 .catch((e) =>
@@ -1338,78 +1474,71 @@ function AdminPage() {
                                 );
                             }}
                           >
-                            Undo cancel / restore
+                            Undo cancel
                           </Button>
+                        )}
+                        {(r.status === "completed" ||
+                          r.status === "matched") && (
                           <Button size="sm" variant="secondary" asChild>
                             <Link
-                              to={
-                                `/volunteer/new?edit=${encodeURIComponent(r.id)}` as "/volunteer/new"
-                              }
+                              to="/rides/matched/$id"
+                              params={{ id: r.id }}
                             >
-                              Edit details
+                              Open trip
                             </Link>
                           </Button>
-                        </>
-                      )}
-                      {r.status === "completed" && (
-                        <Button size="sm" variant="secondary" asChild>
-                          <Link
-                            to="/rides/matched/$id"
-                            params={{ id: r.id }}
-                          >
-                            View completed
-                          </Link>
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-[#b42318]/40 text-[#b42318]"
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Permanently delete ${r.fullName || r.id}? This removes them from History too.`,
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-[#b42318]/40 text-[#b42318]"
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `Permanently delete ${name}?`,
+                              )
                             )
-                          )
-                            return;
-                          void founderDeleteVolunteerRideFn({
-                            data: { pin, id: r.id },
-                          })
-                            .then(() => {
-                              cancelVolunteerRide(r.id);
-                              setCloudVolunteers((prev) =>
-                                (prev ?? []).filter((x) => x.id !== r.id),
-                              );
-                              useShareStore.setState((s) => ({
-                                volunteerRides: s.volunteerRides.filter(
-                                  (x) => x.id !== r.id,
-                                ),
-                              }));
-                              toast.success("Permanently deleted");
+                              return;
+                            void founderDeleteVolunteerRideFn({
+                              data: { pin, id: r.id },
                             })
-                            .catch((e) =>
-                              toast.error(
-                                e instanceof Error
-                                  ? e.message
-                                  : "Delete failed",
-                              ),
-                            );
-                        }}
-                      >
-                        Delete forever
-                      </Button>
-                    </div>
-                  </CardContent>
+                              .then(() => {
+                                cancelVolunteerRide(r.id);
+                                setCloudVolunteers((prev) =>
+                                  (prev ?? []).filter((x) => x.id !== r.id),
+                                );
+                                useShareStore.setState((s) => ({
+                                  volunteerRides: s.volunteerRides.filter(
+                                    (x) => x.id !== r.id,
+                                  ),
+                                }));
+                                toast.success("Deleted");
+                              })
+                              .catch((e) =>
+                                toast.error(
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Delete failed",
+                                ),
+                              );
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
               );
             };
+
             return (
               <>
                 <div>
                   <h3 className="mb-2 text-sm font-semibold">
                     Open ({openRides.length})
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {openRides.length === 0 ? (
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         No open requests.
@@ -1429,7 +1558,7 @@ function AdminPage() {
                     weekend logs — Chloe, bus riders, everyone). Use Delete
                     forever only if you need them gone.
                   </p>
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {historyRides.length === 0 ? (
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         No history yet — cancelled rides will appear here.

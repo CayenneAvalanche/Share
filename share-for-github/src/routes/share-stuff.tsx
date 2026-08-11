@@ -62,9 +62,6 @@ function ShareStuffPage() {
   const localBorrows = useShareStore((s) => s.borrowRequests);
   const [cloudRentals, setCloudRentals] = useState<RentalListing[]>([]);
   const [cloudBorrows, setCloudBorrows] = useState<BorrowRequest[]>([]);
-  const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "offline">(
-    "loading",
-  );
   const [tab, setTab] = useState<"list" | "need">("list");
   const [query, setQuery] = useState("");
   const [nearCity, setNearCity] = useState("Lafayette, LA");
@@ -82,10 +79,9 @@ function ShareStuffPage() {
         if (cancelled) return;
         setCloudRentals(data.rentals as RentalListing[]);
         setCloudBorrows(data.borrows as BorrowRequest[]);
-        setCloudStatus("ok");
       })
       .catch(() => {
-        if (!cancelled) setCloudStatus("offline");
+        /* offline — local listings still show */
       });
     return () => {
       cancelled = true;
@@ -155,16 +151,6 @@ function ShareStuffPage() {
         </Button>
       }
     >
-      <p className="mt-3 text-sm text-[var(--color-fg-muted)]">
-        Tools, trailers, grills — rent for a day or buy from a neighbor. Tap a
-        listing to request it.
-        {cloudStatus === "ok" && (
-          <span className="block text-xs text-[var(--color-primary)]">
-            Live board · posts sync for everyone
-          </span>
-        )}
-      </p>
-
       <div className="mt-3">
         <NearMeBar
           idPrefix="lagniappe"

@@ -1239,6 +1239,8 @@ async function ensureVolunteerExtras(sql: Awaited<ReturnType<typeof getSql>>) {
     "driver_rating int",
     "driver_review text",
     "driver_rated_at timestamptz",
+    "trip_miles double precision",
+    "trip_fare double precision",
   ]) {
     try {
       await sql.query(
@@ -1283,6 +1285,8 @@ function mapVolunteerRow(r: {
   driver_rating?: number | null;
   driver_review?: string | null;
   driver_rated_at?: string | Date | null;
+  trip_miles?: number | null;
+  trip_fare?: number | null;
 }): VolunteerRide {
   const by = (r.cancelled_by || "").toLowerCase();
   const cancelledBy =
@@ -1328,6 +1332,14 @@ function mapVolunteerRow(r: {
     driverReview:
       (r.driver_review && String(r.driver_review).trim()) || undefined,
     driverRatedAt: iso(r.driver_rated_at ?? null),
+    tripMiles:
+      r.trip_miles != null && Number(r.trip_miles) >= 0
+        ? Number(r.trip_miles)
+        : undefined,
+    tripFare:
+      r.trip_fare != null && Number(r.trip_fare) >= 0
+        ? Number(r.trip_fare)
+        : undefined,
   };
 }
 
@@ -2194,18 +2206,50 @@ export const beginVolunteerTripFn = createServerFn({ method: "POST" })
   });
 
 export const endVolunteerTripFn = createServerFn({ method: "POST" })
-  .validator((data: { id: string }) => data)
+  .validator(
+    (data: { id: string; miles?: number; fare?: number }) => data,
+  )
   .handler(async ({ data }) => {
     const sql = await getSql();
     await ensureVolunteerExtras(sql);
     const at = new Date().toISOString();
+    const miles =
+      data.miles != null && Number.isFinite(Number(data.miles))
+        ? Math.max(0, Number(data.miles))
+        : null;
+    const fare =
+      data.fare != null && Number.isFinite(Number(data.fare))
+        ? Math.max(0, Number(data.fare))
+        : null;
     await sql`
       update share_volunteer_rides set
-        trip_ended_at = ${at}
+        trip_ended_at = ${at},
+        trip_miles = coalesce(${miles}, trip_miles),
+        trip_fare = coalesce(${fare}, trip_fare)
       where id = ${data.id}
         and status = 'matched'
     `;
-    return { ok: true as const, tripEndedAt: at };
+    return { ok: true as const, tripEndedAt: at, miles, fare };
+  });
+
+/** Mid-trip pulse so the rider sees the live meter. */
+export const pulseVolunteerMeterFn = createServerFn({ method: "POST" })
+  .validator((data: { id: string; miles: number; fare: number }) => data)
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await ensureVolunteerExtras(sql);
+    const miles = Math.max(0, Number(data.miles) || 0);
+    const fare = Math.max(0, Number(data.fare) || 0);
+    await sql`
+      update share_volunteer_rides set
+        trip_miles = ${miles},
+        trip_fare = ${fare}
+      where id = ${data.id}
+        and status = 'matched'
+        and trip_started_at is not null
+        and trip_ended_at is null
+    `;
+    return { ok: true as const };
   });
 
 /** Drivers/riders check their application status by email after approval. */

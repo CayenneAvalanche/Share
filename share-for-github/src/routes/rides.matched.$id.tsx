@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { AddressField } from "@/components/share/address-field";
 import { SosPanel } from "@/components/share/sos-panel";
+import { FareMeterPanel, useTaxiMeter } from "@/components/share/fare-meter";
 import { OpenInMaps } from "@/components/share/open-in-maps";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +37,9 @@ import {
   cancelVolunteerRideFn,
   beginVolunteerTripFn,
   endVolunteerTripFn,
+  pulseVolunteerMeterFn,
 } from "@/lib/share/server-fns";
+import { formatMoney, formatMiles } from "@/lib/share/fare";
 
 export const Route = createFileRoute("/rides/matched/$id")({
   component: MatchedRidePage,
@@ -120,6 +123,29 @@ function MatchedRidePage() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [endedDuration, setEndedDuration] = useState<string | null>(null);
+
+  const meter = useTaxiMeter({
+    rideId: id,
+    active: tripPhase === "in_progress",
+    startedAt,
+    elapsedSec,
+  });
+
+  useEffect(() => {
+    if (tripPhase !== "in_progress") return;
+    const tick = () => {
+      void pulseVolunteerMeterFn({
+        data: {
+          id,
+          miles: meter.fare.miles,
+          fare: meter.fare.meter,
+        },
+      }).catch(() => {});
+    };
+    tick();
+    const t = window.setInterval(tick, 15000);
+    return () => window.clearInterval(t);
+  }, [tripPhase, id, meter.fare.miles, meter.fare.meter]);
 
   // Prefer store, then cloud
   const vol =
@@ -668,6 +694,17 @@ function MatchedRidePage() {
                       Begin {formatRequestedAt(vol.tripStartedAt)} → End{" "}
                       {formatRequestedAt(vol.tripEndedAt)}
                     </p>
+                    {(vol.tripMiles != null || vol.tripFare != null) && (
+                      <p className="mt-1 text-sm font-semibold text-[var(--color-primary)]">
+                        Meter{" "}
+                        {vol.tripFare != null
+                          ? formatMoney(vol.tripFare)
+                          : "—"}
+                        {vol.tripMiles != null
+                          ? ` · ${formatMiles(vol.tripMiles)}`
+                          : ""}
+                      </p>
+                    )}
                   </>
                 ) : vol.tripStartedAt ? (
                   <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
@@ -1085,6 +1122,15 @@ function MatchedRidePage() {
                     <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-[var(--color-fg)]">
                       {formatElapsed(elapsedSec)}
                     </p>
+                    {(meter.fare.meter > 0 || vol.tripFare) && (
+                      <p className="mt-1 font-display text-xl font-semibold tabular-nums text-[var(--color-primary)]">
+                        {formatMoney(
+                          vol.riderVip
+                            ? (vol.vipLocalPrice ?? 5)
+                            : meter.fare.meter || vol.tripFare || 0,
+                        )}
+                      </p>
+                    )}
                     <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
                       Safety tools are live for you and your driver
                     </p>
@@ -1165,7 +1211,7 @@ function MatchedRidePage() {
                               beginTripLocal(id, res.tripStartedAt);
                             }
                             toast.success(
-                              "Ride started — rider can open Rides for SOS",
+                              "Ride started — allow GPS for the taxi meter",
                             );
                           })
                           .catch(() =>
@@ -1182,18 +1228,13 @@ function MatchedRidePage() {
 
                   {tripPhase === "in_progress" && (
                     <>
-                      <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-elevated)] px-4 py-3 text-center">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-                          Elapsed
-                        </p>
-                        <p className="font-mono text-3xl font-semibold tabular-nums text-[var(--color-primary)]">
-                          {formatElapsed(elapsedSec)}
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
-                          {vol.pickup.split(",")[0]} →{" "}
-                          {vol.dropoff.split(",")[0]}
-                        </p>
-                      </div>
+                      <FareMeterPanel
+                        fare={meter.fare}
+                        gps={meter.gps}
+                        vipPrice={
+                          vol.riderVip ? (vol.vipLocalPrice ?? 5) : undefined
+                        }
+                      />
                       <Button
                         size="lg"
                         className="w-full"
@@ -1203,9 +1244,30 @@ function MatchedRidePage() {
                           const iso = new Date().toISOString();
                           setTripPhase("ended");
                           setEndedDuration(dur);
-                          endTripLocal(id, iso);
-                          void endVolunteerTripFn({ data: { id } })
-                            .then(() => toast.success(`Ride ended · ${dur}`))
+                          endTripLocal(id, iso, {
+                            miles: meter.fare.miles,
+                            fare: vol.riderVip
+                              ? (vol.vipLocalPrice ?? 5)
+                              : meter.fare.meter,
+                          });
+                          void endVolunteerTripFn({
+                            data: {
+                              id,
+                              miles: meter.fare.miles,
+                              fare: vol.riderVip
+                                ? (vol.vipLocalPrice ?? 5)
+                                : meter.fare.meter,
+                            },
+                          })
+                            .then(() =>
+                              toast.success(
+                                `Ride ended · ${dur} · ${formatMoney(
+                                  vol.riderVip
+                                    ? (vol.vipLocalPrice ?? 5)
+                                    : meter.fare.meter,
+                                )}`,
+                              ),
+                            )
                             .catch(() =>
                               toast.message(`Ended on this phone · ${dur}`),
                             );
@@ -1224,8 +1286,15 @@ function MatchedRidePage() {
                     <>
                       <p className="text-sm text-[var(--color-fg-muted)]">
                         Trip finished
-                        {endedDuration ? ` in ${endedDuration}` : ""}. Mark
-                        complete to close it out, or begin again if needed.
+                        {endedDuration ? ` in ${endedDuration}` : ""}
+                        {vol.tripFare != null
+                          ? ` · ${formatMoney(vol.tripFare)}`
+                          : ""}
+                        {vol.tripMiles != null
+                          ? ` · ${formatMiles(vol.tripMiles)}`
+                          : ""}
+                        . Mark complete to close it out, or begin again if
+                        needed.
                       </p>
                       <Button
                         size="lg"

@@ -971,6 +971,10 @@ export type VolunteerRide = {
   tripStartedAt?: string;
   /** Driver tapped End ride */
   tripEndedAt?: string;
+  /** GPS miles accumulated on the taxi meter */
+  tripMiles?: number;
+  /** Meter fare at end (or last pulse) */
+  tripFare?: number;
   paidOffer: number;
   matchedDriverName?: string;
   requesterName: string;

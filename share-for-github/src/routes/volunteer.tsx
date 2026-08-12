@@ -505,7 +505,16 @@ function VolunteerCard({
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-semibold">{ride.riderLegalName || ride.fullName}</p>
+            <p className="font-semibold">
+              {ride.riderLegalName || ride.fullName}
+              {ride.riderVip ? (
+                <span className="ml-2 align-middle">
+                  <Badge variant="accent">
+                    VIP ${ride.vipLocalPrice ?? 5}
+                  </Badge>
+                </span>
+              ) : null}
+            </p>
             <p className="text-sm text-[var(--color-fg-muted)]">
               {ride.pickup} → {ride.dropoff}
             <div className="mt-1.5 flex flex-wrap gap-3">

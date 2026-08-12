@@ -23,6 +23,7 @@ import {
   getMyDriverPresenceFn,
   createVolunteerRideFn,
   cancelVolunteerRideFn,
+  lookupVipFn,
 } from "@/lib/share/server-fns";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -81,6 +82,10 @@ function LocalRidePage() {
   const [doneId, setDoneId] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [submitBusy, setSubmitBusy] = useState(false);
+  const [vipHit, setVipHit] = useState<{
+    fullName?: string;
+    localPrice: number;
+  } | null>(null);
   const stored = loadStoredPresence();
   const [available, setAvailable] = useState(Boolean(stored.available));
   const [availCount, setAvailCount] = useState(0);
@@ -105,6 +110,36 @@ function LocalRidePage() {
     const pick = fromApp || guess;
     if (pick) setPhone(pick);
   }, [latestRider?.phone, latestDriver?.phone]);
+
+  useEffect(() => {
+    const p = phone.replace(/\D/g, "").slice(-10);
+    if (p.length < 10) {
+      setVipHit(null);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      void lookupVipFn({ data: { phone: p } })
+        .then((res) => {
+          if (cancelled) return;
+          if (res.vip) {
+            const price = res.localPrice ?? 5;
+            setVipHit({ fullName: res.fullName, localPrice: price });
+            setOffer(String(price));
+            setOfferTouched(true);
+          } else {
+            setVipHit(null);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setVipHit(null);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [phone]);
 
   // Restore online status after refresh + keep count honest
   useEffect(() => {
@@ -242,7 +277,9 @@ function LocalRidePage() {
     } catch {
       /* ignore */
     }
-    const offerAmt = Math.max(0, Math.round(Number(offer) || 0));
+    const offerAmt = vipHit
+      ? vipHit.localPrice
+      : Math.max(0, Math.round(Number(offer) || 0));
     const u =
       Number.isFinite(uberNum) && uberNum > 0
         ? Math.round(uberNum)
@@ -259,6 +296,7 @@ function LocalRidePage() {
     const noteBits = [
       notes.trim(),
       offerAmt > 0 ? `Offer $${offerAmt}` : "FREE / $0 local ride",
+      vipHit ? `VIP lifetime $${vipHit.localPrice}` : "",
       u > 0 || l > 0 ? `Uber ~$${u} · Lyft ~$${l}` : "",
     ].filter(Boolean);
 
@@ -669,6 +707,18 @@ function LocalRidePage() {
             )}
             <div>
               <Label htmlFor="offer">Your OFFER $</Label>
+              {vipHit ? (
+                <div className="mt-1 rounded-[var(--radius-md)] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-3 py-2">
+                  <p className="text-sm font-semibold text-[var(--color-fg)]">
+                    VIP · lifetime {formatCurrency(vipHit.localPrice)} local rides
+                  </p>
+                  <p className="text-xs text-[var(--color-fg-muted)]">
+                    {vipHit.fullName ? `${vipHit.fullName} — ` : ""}
+                    This phone is on Share VIP. Your offer is locked at{" "}
+                    {formatCurrency(vipHit.localPrice)}.
+                  </p>
+                </div>
+              ) : null}
               <Input
                 id="offer"
                 type="number"
@@ -676,8 +726,10 @@ function LocalRidePage() {
                 step={1}
                 inputMode="decimal"
                 required
-                value={offer}
+                disabled={Boolean(vipHit)}
+                value={vipHit ? String(vipHit.localPrice) : offer}
                 onChange={(e) => {
+                  if (vipHit) return;
                   setOfferTouched(true);
                   setOffer(e.target.value);
                 }}

@@ -204,6 +204,18 @@ export type RiderApplication = {
   adminNote?: string;
   /** Recent face photo for trust matching at pickup */
   selfie?: string;
+  /** Founder-granted lifetime local rate (default $5) */
+  isVip?: boolean;
+  vipLocalPrice?: number;
+};
+
+export type VipRider = {
+  id: string;
+  phone: string;
+  fullName: string;
+  localPrice: number;
+  note?: string;
+  createdAt: string;
 };
 
 export type RentalCategory =
@@ -978,6 +990,9 @@ export type VolunteerRide = {
   riderAppStatus?: ApplicationStatus | "none";
   /** Full name from approved rider application */
   riderLegalName?: string;
+  /** Founder VIP — lifetime $5 (or custom) local rides */
+  riderVip?: boolean;
+  vipLocalPrice?: number;
 };
 
 export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {

@@ -387,6 +387,7 @@ function RidesPage() {
                     <p className="font-semibold">
                       {r.category === "local" ? "Local · " : ""}
                       {r.riderLegalName || r.fullName}
+                      {r.riderVip ? " · VIP" : ""}
                     </p>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}

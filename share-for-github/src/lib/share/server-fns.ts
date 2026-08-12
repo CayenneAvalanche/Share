@@ -12,6 +12,7 @@ import type {
   Trip,
   VolunteerCategory,
   VolunteerRide,
+  VipRider,
 } from "@/lib/share/data";
 import {
   FOUNDER_NOTIFY_EMAIL_DEFAULT,
@@ -640,7 +641,134 @@ export const setRiderAppStatusFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Count unique online drivers (dedupe by email; stale rows ignored). */
+async function ensureVipTable(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`
+    create table if not exists share_vip_riders (
+      id text primary key,
+      phone10 text not null unique,
+      full_name text not null,
+      local_price int not null default 5,
+      note text,
+      created_at timestamptz not null default now()
+    )
+  `;
+}
+
+function mapVipRow(r: {
+  id: string;
+  phone10: string;
+  full_name: string;
+  local_price: number | null;
+  note: string | null;
+  created_at: string | Date;
+}): VipRider {
+  const price = Math.max(0, Math.round(Number(r.local_price ?? 5)));
+  return {
+    id: r.id,
+    phone: r.phone10,
+    fullName: r.full_name,
+    localPrice: Number.isFinite(price) ? price : 5,
+    note: r.note || undefined,
+    createdAt: iso(r.created_at) ?? new Date().toISOString(),
+  };
+}
+
+/** Founder: grant or revoke lifetime VIP local-ride pricing (keyed by phone). */
+export const setVipRiderFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      pin: string;
+      phone: string;
+      fullName: string;
+      vip: boolean;
+      localPrice?: number;
+      note?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    await ensureVipTable(sql);
+    const phone10 = last10Digits(data.phone);
+    if (phone10.length < 10) throw new Error("Need a 10-digit phone");
+    const name = String(data.fullName || "").trim() || "VIP rider";
+    const price = Math.max(
+      0,
+      Math.round(Number(data.localPrice ?? 5) || 5),
+    );
+    if (!data.vip) {
+      await sql`delete from share_vip_riders where phone10 = ${phone10}`;
+      return { ok: true as const, vip: false as const, phone10 };
+    }
+    const id = uid("vip");
+    const at = new Date().toISOString();
+    const note = String(data.note ?? "").trim() || null;
+    await sql`
+      insert into share_vip_riders (id, phone10, full_name, local_price, note, created_at)
+      values (${id}, ${phone10}, ${name}, ${price}, ${note}, ${at})
+      on conflict (phone10) do update set
+        full_name = excluded.full_name,
+        local_price = excluded.local_price,
+        note = excluded.note
+    `;
+    return {
+      ok: true as const,
+      vip: true as const,
+      phone10,
+      localPrice: price,
+      fullName: name,
+    };
+  });
+
+export const listVipRidersFn = createServerFn({ method: "POST" })
+  .validator((data: { pin: string }) => data)
+  .handler(async ({ data }) => {
+    checkPin(data.pin);
+    const sql = await getSql();
+    await ensureVipTable(sql);
+    const rows = (await sql`
+      select id, phone10, full_name, local_price, note, created_at
+      from share_vip_riders
+      order by created_at desc
+      limit 300
+    `) as {
+      id: string;
+      phone10: string;
+      full_name: string;
+      local_price: number | null;
+      note: string | null;
+      created_at: string | Date;
+    }[];
+    return { vips: rows.map(mapVipRow) };
+  });
+
+/** Public lookup so the local-ride form can apply the lifetime $5 rate. */
+export const lookupVipFn = createServerFn({ method: "POST" })
+  .validator((data: { phone: string }) => data)
+  .handler(async ({ data }) => {
+    const phone10 = last10Digits(data.phone);
+    if (phone10.length < 10) {
+      return { vip: false as const };
+    }
+    const sql = await getSql();
+    await ensureVipTable(sql);
+    const rows = await sql`
+      select full_name, local_price
+      from share_vip_riders
+      where phone10 = ${phone10}
+      limit 1
+    `;
+    const row = rows[0] as
+      | { full_name: string; local_price: number | null }
+      | undefined;
+    if (!row) return { vip: false as const };
+    const price = Math.max(0, Math.round(Number(row.local_price ?? 5)));
+    return {
+      vip: true as const,
+      fullName: row.full_name,
+      localPrice: Number.isFinite(price) ? price : 5,
+    };
+  });
 async function countFreshDrivers(
   sql: Awaited<ReturnType<typeof getSql>>,
 ): Promise<number> {
@@ -1351,10 +1479,33 @@ async function attachRiderFaces(
         name: String(row.full_name || "").trim(),
       });
     }
+    const vipByPhone = new Map<string, number>();
+    try {
+      await ensureVipTable(sql);
+      const vips = await sql`
+        select phone10, local_price from share_vip_riders
+      `;
+      for (const v of vips as { phone10: string; local_price: number | null }[]) {
+        const p = last10Digits(v.phone10);
+        if (p.length >= 10) {
+          vipByPhone.set(p, Math.max(0, Math.round(Number(v.local_price ?? 5))));
+        }
+      }
+    } catch {
+      /* vip table optional */
+    }
     return rides.map((ride) => {
-      const hit = byPhone.get(last10Digits(ride.phone));
+      const p10 = last10Digits(ride.phone);
+      const hit = byPhone.get(p10);
+      const vipPrice = vipByPhone.get(p10);
+      const riderVip = vipPrice != null;
       if (!hit) {
-        return { ...ride, riderAppStatus: "none" as const };
+        return {
+          ...ride,
+          riderAppStatus: "none" as const,
+          riderVip,
+          vipLocalPrice: riderVip ? vipPrice : undefined,
+        };
       }
       const approved =
         hit.status === "active" || hit.status === "approved";
@@ -1371,6 +1522,8 @@ async function attachRiderFaces(
             : undefined,
         riderAppStatus: hit.status,
         riderLegalName: fullFromApp || undefined,
+        riderVip,
+        vipLocalPrice: riderVip ? vipPrice : undefined,
       };
     });
   } catch {

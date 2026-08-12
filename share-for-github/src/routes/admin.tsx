@@ -8,6 +8,7 @@ import {
   Shield,
   MessageCircle,
   Phone,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -35,6 +36,8 @@ import {
   restoreVolunteerRideFn,
   escalateVolunteerRideFn,
   founderDeleteVolunteerRideFn,
+  setVipRiderFn,
+  listVipRidersFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import { SHARE_BUILD } from "@/lib/share/contact";
@@ -42,6 +45,7 @@ import type {
   DriverApplication,
   RiderApplication,
   VolunteerRide,
+  VipRider,
 } from "@/lib/share/data";
 
 export const Route = createFileRoute("/admin")({
@@ -56,7 +60,8 @@ type Tab =
   | "volunteer"
   | "trips"
   | "waitlist"
-  | "accounts";
+  | "accounts"
+  | "vip";
 
 function AdminPage() {
   const navigate = useNavigate();
@@ -68,6 +73,11 @@ function AdminPage() {
   const [cloudDrivers, setCloudDrivers] = useState<DriverApplication[] | null>(null);
   const [cloudRiders, setCloudRiders] = useState<RiderApplication[] | null>(null);
   const [cloudWaitlist, setCloudWaitlist] = useState<string[] | null>(null);
+  const [vipRiders, setVipRiders] = useState<VipRider[]>([]);
+  const [vipBusyPhone, setVipBusyPhone] = useState<string | null>(null);
+  const [vipAddName, setVipAddName] = useState("");
+  const [vipAddPhone, setVipAddPhone] = useState("");
+  const [vipAddPrice, setVipAddPrice] = useState("5");
   const [dbOk, setDbOk] = useState("…");
   const [onlineDrivers, setOnlineDrivers] = useState<
     { id: string; displayName: string; city: string; email?: string; updatedAt: string }[]
@@ -189,6 +199,12 @@ function AdminPage() {
       } catch {
         /* older deploys */
       }
+      try {
+        const v = await listVipRidersFn({ data: { pin: p } });
+        setVipRiders(v.vips);
+      } catch {
+        /* older deploys */
+      }
       toast.message(
         `Cloud · ${res.drivers.length} drivers · ${res.riders.length} riders · ${volCount} volunteer`,
       );
@@ -288,10 +304,55 @@ function AdminPage() {
     );
   }
 
+  function phone10(p?: string) {
+    return String(p || "").replace(/\D/g, "").slice(-10);
+  }
+  function vipFor(phone?: string) {
+    const p = phone10(phone);
+    if (p.length < 10) return undefined;
+    return vipRiders.find((v) => phone10(v.phone) === p);
+  }
+  async function toggleVip(opts: {
+    phone: string;
+    fullName: string;
+    next: boolean;
+    localPrice?: number;
+  }) {
+    const p = phone10(opts.phone);
+    if (p.length < 10) {
+      toast.error("Need a 10-digit phone to set VIP");
+      return;
+    }
+    setVipBusyPhone(p);
+    try {
+      await setVipRiderFn({
+        data: {
+          pin,
+          phone: p,
+          fullName: opts.fullName,
+          vip: opts.next,
+          localPrice: opts.localPrice ?? 5,
+        },
+      });
+      const list = await listVipRidersFn({ data: { pin } });
+      setVipRiders(list.vips);
+      toast.success(
+        opts.next
+          ? `${opts.fullName} is VIP · lifetime $${opts.localPrice ?? 5} local rides`
+          : `${opts.fullName} VIP removed`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "VIP update failed");
+    } finally {
+      setVipBusyPhone(null);
+    }
+  }
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "drivers", label: "Drivers" },
     { id: "riders", label: "Riders" },
     { id: "volunteer", label: "Volunteer" },
+    { id: "vip", label: `VIP${vipRiders.length ? ` · ${vipRiders.length}` : ""}` },
     { id: "trips", label: "Trips" },
     { id: "deliveries", label: "Deliveries" },
     { id: "local", label: "Local" },
@@ -674,7 +735,7 @@ function AdminPage() {
                       <p className="truncate font-semibold leading-tight">
                         {a.fullName}
                       </p>
-                      <div className="mt-0.5">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <Badge
                           variant={
                             a.status === "active" || a.status === "approved"
@@ -687,6 +748,11 @@ function AdminPage() {
                         >
                           {a.status.replace(/_/g, " ")}
                         </Badge>
+                        {vipFor(a.phone) && (
+                          <Badge variant="accent">
+                            VIP ${vipFor(a.phone)?.localPrice ?? 5}
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
                         {formatRequestedAt(a.createdAt)}
@@ -865,6 +931,23 @@ function AdminPage() {
                             </Button>
                           </>
                         )}
+                        <Button
+                          size="sm"
+                          variant={vipFor(a.phone) ? "default" : "outline"}
+                          disabled={vipBusyPhone === phone10(a.phone)}
+                          onClick={() => {
+                            const cur = vipFor(a.phone);
+                            void toggleVip({
+                              phone: a.phone,
+                              fullName: a.fullName,
+                              next: !cur,
+                              localPrice: 5,
+                            });
+                          }}
+                        >
+                          <Star className="size-3.5" />
+                          {vipFor(a.phone) ? "Remove VIP" : "Make VIP · $5"}
+                        </Button>
                         {(a.status === "approved" ||
                           a.status === "active" ||
                           a.status === "inactive") && (
@@ -1304,7 +1387,7 @@ function AdminPage() {
                       <p className="truncate font-semibold leading-tight">
                         {name}
                       </p>
-                      <div className="mt-0.5">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <Badge
                           variant={
                             r.status === "cancelled"
@@ -1318,6 +1401,11 @@ function AdminPage() {
                         >
                           {r.status.replace(/_/g, " ")}
                         </Badge>
+                        {(r.riderVip || vipFor(r.phone)) && (
+                          <Badge variant="accent">
+                            VIP ${r.vipLocalPrice ?? vipFor(r.phone)?.localPrice ?? 5}
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
                         {formatRequestedAt(r.createdAt)} ·{" "}
@@ -1375,6 +1463,31 @@ function AdminPage() {
                           )}
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        {r.phone && (
+                          <Button
+                            size="sm"
+                            variant={
+                              r.riderVip || vipFor(r.phone)
+                                ? "default"
+                                : "outline"
+                            }
+                            disabled={vipBusyPhone === phone10(r.phone)}
+                            onClick={() => {
+                              const cur = Boolean(r.riderVip || vipFor(r.phone));
+                              void toggleVip({
+                                phone: r.phone,
+                                fullName: name,
+                                next: !cur,
+                                localPrice: 5,
+                              });
+                            }}
+                          >
+                            <Star className="size-3.5" />
+                            {r.riderVip || vipFor(r.phone)
+                              ? "Remove VIP"
+                              : "Make VIP · $5 local"}
+                          </Button>
+                        )}
                         {isOpenStatus && (
                           <>
                             <Button
@@ -1972,6 +2085,113 @@ function AdminPage() {
               ))}
             </div>
           </div>
+        </section>
+      )}
+
+      {tab === "vip" && (
+        <section className="mt-3 space-y-3 pb-8">
+          <p className="text-xs text-[var(--color-fg-muted)]">
+            VIP riders get a lifetime local-ride rate (default $5). Keyed by
+            phone — works even if they never applied as a rider.
+          </p>
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <p className="text-sm font-semibold">Add VIP</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor="vip-name">Name</Label>
+                  <Input
+                    id="vip-name"
+                    value={vipAddName}
+                    onChange={(e) => setVipAddName(e.target.value)}
+                    placeholder="Malakhi Carmouche"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vip-phone">Phone</Label>
+                  <Input
+                    id="vip-phone"
+                    type="tel"
+                    value={vipAddPhone}
+                    onChange={(e) => setVipAddPhone(e.target.value)}
+                    placeholder="337-555-0100"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vip-price">Local rate $</Label>
+                  <Input
+                    id="vip-price"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={vipAddPrice}
+                    onChange={(e) => setVipAddPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={vipBusyPhone === phone10(vipAddPhone)}
+                onClick={() => {
+                  if (!vipAddName.trim()) {
+                    toast.error("Enter a name");
+                    return;
+                  }
+                  void toggleVip({
+                    phone: vipAddPhone,
+                    fullName: vipAddName.trim(),
+                    next: true,
+                    localPrice: Math.max(0, Math.round(Number(vipAddPrice) || 5)),
+                  }).then(() => {
+                    setVipAddName("");
+                    setVipAddPhone("");
+                    setVipAddPrice("5");
+                  });
+                }}
+              >
+                <Star className="size-3.5" />
+                Grant VIP
+              </Button>
+            </CardContent>
+          </Card>
+          {vipRiders.length === 0 ? (
+            <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-fg-muted)]">
+              No VIP riders yet. Open a ride or rider and tap Make VIP · $5.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {vipRiders.map((v) => (
+                <Card key={v.id}>
+                  <CardContent className="flex items-center justify-between gap-3 p-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold leading-tight">{v.fullName}</p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        {v.phone} · lifetime ${v.localPrice} local
+                        {v.note ? ` · ${v.note}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant="accent">VIP</Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={vipBusyPhone === phone10(v.phone)}
+                        onClick={() =>
+                          void toggleVip({
+                            phone: v.phone,
+                            fullName: v.fullName,
+                            next: false,
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

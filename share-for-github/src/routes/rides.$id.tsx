@@ -30,6 +30,8 @@ import {
 } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
+import { deleteTripFn } from "@/lib/share/server-fns";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   formatCurrency,
   formatDate,
@@ -55,6 +57,7 @@ function RideDetailPage() {
   const driverApps = useShareStore((s) => s.driverApps);
   const myVehicles = useShareStore((s) => s.myVehicles);
   const { latestDriver } = useMyAppStatus();
+  const user = useCurrentUser();
 
   const [mode, setMode] = useState<"ride" | "delivery">("ride");
   const [seats, setSeats] = useState(1);
@@ -126,6 +129,9 @@ function RideDetailPage() {
       return;
     }
     deleteTrip(item.id);
+    void deleteTripFn({
+      data: { id: item.id, email: user?.primaryEmail || undefined },
+    }).catch(() => {});
     toast.success("Trip deleted");
     navigate({ to: "/rides" });
   }

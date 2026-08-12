@@ -100,18 +100,23 @@ function RidesPage() {
         if (cancelled) return;
         const cloudIds = new Set(res.trips.map((tr) => tr.id));
         useShareStore.setState((s) => {
-          const byId = new Map(s.trips.map((tr) => [tr.id, tr]));
-          for (const tr of res.trips) byId.set(tr.id, tr);
+          const gone = new Set(s.deletedTripIds ?? []);
+          const byId = new Map(
+            s.trips.filter((tr) => !gone.has(tr.id)).map((tr) => [tr.id, tr]),
+          );
+          for (const tr of res.trips) {
+            if (!gone.has(tr.id)) byId.set(tr.id, tr);
+          }
           return { trips: Array.from(byId.values()) };
         });
-        // One-time push: publish this device's user posts that never hit cloud
         const localOnly = useShareStore
           .getState()
           .trips.filter(
             (tr) =>
               (tr.id.startsWith("user_") || tr.postedByEmail) &&
               !cloudIds.has(tr.id) &&
-              !tr.id.match(/^(t\d+|trip)/),
+              !tr.id.match(/^(t\d+|trip)/) &&
+              !(useShareStore.getState().deletedTripIds ?? []).includes(tr.id),
           );
         const { createTripFn } = await import("@/lib/share/server-fns");
         for (const tr of localOnly.slice(0, 20)) {

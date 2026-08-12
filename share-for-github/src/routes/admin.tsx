@@ -38,6 +38,7 @@ import {
   founderDeleteVolunteerRideFn,
   setVipRiderFn,
   listVipRidersFn,
+  deleteTripFn,
 } from "@/lib/share/server-fns";
 import { isDemoMode } from "@/lib/share/mode";
 import { SHARE_BUILD } from "@/lib/share/contact";
@@ -2093,7 +2094,12 @@ function AdminPage() {
                             )
                           )
                             return;
-                          if (deleteTrip(t.id)) toast.success("Trip deleted");
+                          if (deleteTrip(t.id)) {
+                            void deleteTripFn({
+                              data: { id: t.id },
+                            }).catch(() => {});
+                            toast.success("Trip deleted");
+                          }
                           else toast.error("Could not delete");
                         }}
                       >

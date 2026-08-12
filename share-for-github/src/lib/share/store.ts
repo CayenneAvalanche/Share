@@ -66,6 +66,7 @@ type ShareState = {
   carBookings: CarBooking[];
   rideRequests: CorridorRideRequest[];
   waitlistEmails: string[];
+  deletedTripIds: string[];
   threads: ChatThread[];
   messages: ChatMessage[];
   savedPlaces: SavedPlace[];
@@ -341,6 +342,7 @@ function emptySeed() {
     carBookings: [] as { id: string; carId: string; days: number; total: number; status: string; createdAt: string }[],
     rideRequests: [] as CorridorRideRequest[],
     waitlistEmails: [] as string[],
+    deletedTripIds: [] as string[],
     threads: [] as ChatThread[],
     messages: [] as ChatMessage[],
     savedPlaces: DEFAULT_SAVED_PLACES,
@@ -365,6 +367,7 @@ function demoSeed() {
     carBookings: [] as { id: string; carId: string; days: number; total: number; status: string; createdAt: string }[],
     rideRequests: SEED_RIDE_REQUESTS,
     waitlistEmails: [] as string[],
+    deletedTripIds: [] as string[],
     threads: SEED_THREADS,
     messages: SEED_MESSAGES,
     savedPlaces: DEFAULT_SAVED_PLACES,
@@ -613,6 +616,7 @@ export const useShareStore = create<ShareState>()(
       drivingHistoryDoc: "",
       drivingHistoryAt: undefined,
       tripRatings: {},
+      deletedTripIds: [] as string[],
 
       bookRide: (tripId, seats, cargoNote, opts) => {
         const trip = get().trips.find((t) => t.id === tripId);
@@ -673,13 +677,15 @@ export const useShareStore = create<ShareState>()(
 
       deleteTrip: (id) => {
         const exists = get().trips.some((t) => t.id === id);
-        if (!exists) return false;
         set((state) => ({
           trips: state.trips.filter((t) => t.id !== id),
-          // drop open bookings for that trip
           bookings: state.bookings.filter((b) => b.tripId !== id),
+          deletedTripIds: [id, ...state.deletedTripIds.filter((x) => x !== id)].slice(
+            0,
+            300,
+          ),
         }));
-        systemNotify(set, "Trip post removed");
+        if (exists) systemNotify(set, "Trip post removed");
         return true;
       },
 
@@ -2205,6 +2211,7 @@ export const useShareStore = create<ShareState>()(
         carBookings: s.carBookings,
         rideRequests: s.rideRequests,
         waitlistEmails: s.waitlistEmails,
+        deletedTripIds: s.deletedTripIds ?? [],
         threads: s.threads,
         messages: s.messages,
         savedPlaces: s.savedPlaces,
@@ -2266,7 +2273,12 @@ export const useShareStore = create<ShareState>()(
           return {
             ...current,
             ...p,
-            trips: (p.trips ?? []).filter((t) => t.id.startsWith("user_")),
+            trips: (p.trips ?? []).filter(
+              (t) =>
+                t.id.startsWith("user_") &&
+                !(p.deletedTripIds ?? []).includes(t.id),
+            ),
+            deletedTripIds: p.deletedTripIds ?? [],
             bookings: p.bookings ?? [],
             deliveries: (p.deliveries ?? []).filter(
               (d) => !OPEN_DELIVERIES.some((x) => x.id === d.id),
@@ -2325,10 +2337,11 @@ export const useShareStore = create<ShareState>()(
 
         // DEMO: seed + user rows
         const userTrips = p.trips ?? [];
+        const gone = new Set(p.deletedTripIds ?? []);
         const baseIds = new Set(TRIPS.map((t) => t.id));
         const mergedTrips = [
-          ...userTrips.filter((t) => !baseIds.has(t.id)),
-          ...TRIPS.map((base) => {
+          ...userTrips.filter((t) => !baseIds.has(t.id) && !gone.has(t.id)),
+          ...TRIPS.filter((t) => !gone.has(t.id)).map((base) => {
             const booked = (p.bookings ?? [])
               .filter((b) => b.tripId === base.id && b.kind === "ride")
               .reduce((sum, b) => sum + b.seats, 0);
@@ -2389,6 +2402,8 @@ export const useShareStore = create<ShareState>()(
           riderApps,
           localRides: p.localRides ?? [],
           volunteerRides,
+          waitlistEmails: p.waitlistEmails ?? [],
+          deletedTripIds: p.deletedTripIds ?? [],
           carListings: [...userCars, ...CAR_LISTINGS],
           carBookings: p.carBookings ?? [],
           rideRequests: (() => {
@@ -2398,7 +2413,6 @@ export const useShareStore = create<ShareState>()(
             );
             return [...persisted, ...seeds];
           })(),
-          waitlistEmails: p.waitlistEmails ?? [],
           favoriteDriverIds: p.favoriteDriverIds ?? current.favoriteDriverIds,
           threads:
             p.threads && p.threads.length > 0 ? p.threads : SEED_THREADS,

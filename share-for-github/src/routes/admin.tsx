@@ -1689,6 +1689,72 @@ function AdminPage() {
 
       {tab === "trips" && (
         <section className="mt-3 space-y-4 pb-8">
+          {(() => {
+            const completedVol = volunteerRides.filter(
+              (r) => r.status === "completed",
+            );
+            const matchedVol = volunteerRides.filter(
+              (r) => r.status === "matched",
+            );
+            const cancelledVol = volunteerRides.filter(
+              (r) => r.status === "cancelled",
+            );
+            const uniqueRiders = new Set(
+              completedVol
+                .map((r) => r.phone.replace(/\D/g, "").slice(-10))
+                .filter((p) => p.length >= 10),
+            );
+            return (
+              <Card className="border-[var(--color-primary)]/30 bg-[var(--color-primary)]/6">
+                <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                      Rides taken
+                    </p>
+                    <p className="font-display text-3xl font-semibold tabular-nums text-[var(--color-primary)]">
+                      {completedVol.length}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      completed trips
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                      People
+                    </p>
+                    <p className="font-display text-3xl font-semibold tabular-nums">
+                      {uniqueRiders.size}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      unique riders
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                      In progress
+                    </p>
+                    <p className="font-display text-3xl font-semibold tabular-nums">
+                      {matchedVol.length}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      matched now
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                      Cancelled
+                    </p>
+                    <p className="font-display text-3xl font-semibold tabular-nums">
+                      {cancelledVol.length}
+                    </p>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      not completed
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
           <div>
             <h3 className="mb-1 text-sm font-semibold">
               Volunteer & free rides

@@ -317,29 +317,73 @@ function RidesPage() {
     });
   }, [trips, from, to, query, nearCity, rideRadius]);
 
-  return (
-    <AppShell
-      title="Share a ride"
-      subtitle="Local now · or long-distance"
-      solidHeader
-      action={
-        <div className="flex gap-1">
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/rides/requests">Requests</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link to="/rides/post">
-              <Plus className="size-4" />
-              Post
-            </Link>
-          </Button>
+  const isDriver = driverActive || isDriverApproved;
+
+  const liveBoard = (
+    <section className={isDriver ? "mt-3" : "mt-5"}>
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Live board</h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Local + volunteer requests waiting for a driver.
+          </p>
         </div>
-      }
-    >
-      {/* Fast path: local rides (primary launch focus) */}
+        <Button size="sm" variant="outline" asChild>
+          <Link to="/volunteer">Open board</Link>
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {openLiveBoard.length === 0 ? (
+          <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-6 text-center text-sm text-[var(--color-fg-muted)]">
+            No open requests right now. New ones land here instantly.
+          </p>
+        ) : (
+          openLiveBoard.map((r) => (
+            <Link
+              key={`live-${r.id}`}
+              to="/volunteer"
+              className="block rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-primary)]/6 p-4"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {r.category === "local" ? "Local · " : ""}
+                    {r.riderLegalName || r.fullName}
+                    {r.riderVip ? " · VIP" : ""}
+                  </p>
+                  <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                    {r.pickup} → {r.dropoff}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                    {r.when} ·{" "}
+                    {r.paidOffer > 0
+                      ? formatCurrency(r.paidOffer)
+                      : "FREE / $0"}
+                    {" · "}
+                    {formatRequestedAt(r.createdAt)}
+                  </p>
+                </div>
+                <Badge
+                  variant={r.category === "local" ? "default" : "success"}
+                >
+                  {r.category === "local" ? "Local" : "Volunteer"}
+                </Badge>
+              </div>
+              <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
+                Tap to accept →
+              </p>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
+  );
+
+  const requestShortcuts = (
+    <>
       <Link
         to="/local"
-        className="mt-3 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-5 py-5 text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.99]"
+        className={`${isDriver ? "mt-5" : "mt-3"} flex items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-5 py-5 text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.99]`}
       >
         <div className="flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
@@ -355,7 +399,6 @@ function RidesPage() {
         <span className="text-2xl font-light opacity-80">→</span>
       </Link>
 
-      {/* Volunteer / free community rides */}
       <Link
         to="/volunteer"
         className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-bg-elevated)] px-5 py-4 text-[var(--color-fg)] shadow-[var(--shadow-sm)] transition-transform active:scale-[0.99]"
@@ -375,56 +418,33 @@ function RidesPage() {
           →
         </span>
       </Link>
+    </>
+  );
 
-      {openLiveBoard.length > 0 && (
-        <section className="mt-5">
-          <h2 className="font-display text-lg font-semibold">
-            Live requests
-          </h2>
-          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-            Local + volunteer rides waiting for a driver. Same board as
-            Volunteer.
-          </p>
-          <div className="mt-3 flex flex-col gap-2">
-            {openLiveBoard.map((r) => (
-              <Link
-                key={`live-${r.id}`}
-                to="/volunteer"
-                className="block rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-primary)]/6 p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold">
-                      {r.category === "local" ? "Local · " : ""}
-                      {r.riderLegalName || r.fullName}
-                      {r.riderVip ? " · VIP" : ""}
-                    </p>
-                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
-                      {r.pickup} → {r.dropoff}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                      {r.when} ·{" "}
-                      {r.paidOffer > 0
-                        ? formatCurrency(r.paidOffer)
-                        : "FREE / $0"}
-                      {" · "}
-                      {formatRequestedAt(r.createdAt)}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={r.category === "local" ? "default" : "success"}
-                  >
-                    {r.category === "local" ? "Local" : "Volunteer"}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
-                  Open live board to accept →
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+  return (
+    <AppShell
+      title="Share a ride"
+      subtitle={
+        isDriver ? "Live board first · then post a trip" : "Local now · or long-distance"
+      }
+      solidHeader
+      action={
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/rides/requests">Requests</Link>
+          </Button>
+          <Button size="sm" asChild>
+            <Link to="/rides/post">
+              <Plus className="size-4" />
+              Post
+            </Link>
+          </Button>
+        </div>
+      }
+    >
+      {isDriver ? liveBoard : requestShortcuts}
+      {isDriver ? requestShortcuts : null}
+      {!isDriver && openLiveBoard.length > 0 ? liveBoard : null}
 
       {/* Matched / active rides — rider + driver home base */}
       {(activeMatched.length > 0 || activeLocal.length > 0) && (

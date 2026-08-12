@@ -93,6 +93,39 @@ function viewerRoleForRide(
   return "unknown";
 }
 
+function RideFareReceipt({ vol }: { vol: VolunteerRide }) {
+  const fare = vol.tripFare;
+  const sec =
+    tripInCarSeconds(vol.tripStartedAt, vol.tripEndedAt) ?? 0;
+  const per = fare != null ? formatPerHour(fare, sec) : null;
+  return (
+    <Card className="border-[var(--color-primary)]/35 bg-[var(--color-primary)]/8">
+      <CardContent className="space-y-1 p-5 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+          Your fare
+        </p>
+        <p className="font-display text-4xl font-semibold tabular-nums text-[var(--color-primary)]">
+          {fare != null ? formatMoney(fare) : "—"}
+        </p>
+        <p className="text-sm text-[var(--color-fg-muted)]">
+          {sec > 0 ? formatDurationSeconds(sec) : "Trip ended"}
+          {vol.tripMiles != null ? ` · ${formatMiles(vol.tripMiles)}` : ""}
+          {per ? ` · ${per}` : ""}
+        </p>
+        {vol.riderVip ? (
+          <p className="text-xs font-semibold text-[var(--color-fg)]">
+            VIP lifetime rate applied
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--color-fg-subtle)]">
+            Pay your driver in person (pilot)
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function MatchedRidePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -569,12 +602,21 @@ function MatchedRidePage() {
 
   return (
     <AppShell
-      title={vol.status === "matched" ? "Matched ride" : "Ride request"}
+      title={
+        vol.tripEndedAt || vol.status === "completed"
+          ? "Trip fare"
+          : vol.status === "matched"
+            ? "Matched ride"
+            : "Ride request"
+      }
       subtitle={VOLUNTEER_LABELS[vol.category] ?? vol.category}
       backTo="/rides"
       solidHeader
     >
       <div className="mt-3 space-y-4 pb-10">
+        {(vol.tripEndedAt || vol.status === "completed") && (
+          <RideFareReceipt vol={vol} />
+        )}
         <Card>
           <CardContent className="space-y-3 p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -739,7 +781,7 @@ function MatchedRidePage() {
               </div>
             )}
 
-            {vol.status === "completed" && (() => {
+            {(vol.status === "completed" || !!vol.tripEndedAt) && (() => {
               const role = viewerRoleForRide(vol, {
                 displayName: user?.displayName || undefined,
                 riderName: riderName || undefined,
@@ -918,14 +960,14 @@ function MatchedRidePage() {
                       ) : (
                         <>
                           <p className="font-semibold text-[var(--color-fg)]">
-                            Rate your driver
+                            How was your driver?
                           </p>
                           <p className="text-xs text-[var(--color-fg-muted)]">
-                            How was your ride with{" "}
+                            Fare is above. Now rate{" "}
                             <strong className="text-[var(--color-fg)]">
                               {driverDisplay}
                             </strong>
-                            ? Tap a star, optional note below.
+                            .
                           </p>
                           <div className="flex flex-wrap gap-1.5">
                             {[1, 2, 3, 4, 5].map((n) => (
@@ -1271,16 +1313,21 @@ function MatchedRidePage() {
                               fare: billed,
                             },
                           })
-                            .then(() =>
+                            .then(() => {
+                              complete(id);
+                              void completeVolunteerRideFn({
+                                data: { id },
+                              }).catch(() => {});
                               toast.success(
                                 `Ride ended · ${dur} · ${formatMoney(billed)}${
                                   perHr ? ` · ${perHr}` : ""
                                 }`,
-                              ),
-                            )
-                            .catch(() =>
-                              toast.message(`Ended on this phone · ${dur}`),
-                            );
+                              );
+                            })
+                            .catch(() => {
+                              complete(id);
+                              toast.message(`Ended on this phone · ${dur}`);
+                            });
                         }}
                       >
                         <Square className="size-4" />

@@ -11,6 +11,7 @@ import { Input, Select } from "@/components/ui/input";
 import { HUB_CITIES, VOLUNTEER_LABELS, type Trip, type VolunteerRide } from "@/lib/share/data";
 import { useShareStore } from "@/lib/share/store";
 import { formatRequestedAt, formatCurrency } from "@/lib/utils";
+import { formatMoney } from "@/lib/share/fare";
 import { listVolunteerRidesFn, listTripsFn } from "@/lib/share/server-fns";
 import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
@@ -213,7 +214,11 @@ function RidesPage() {
     const phone10 = guestPhone.replace(/\D/g, "").slice(-10);
     const me = (user?.displayName || riderName || "").toLowerCase();
     return Array.from(byId.values())
-      .filter((r) => r.status === "completed")
+      .filter(
+        (r) =>
+          r.status === "completed" ||
+          (r.status === "matched" && !!r.tripEndedAt),
+      )
       .map((r) => {
         const rp = r.phone.replace(/\D/g, "").slice(-10);
         const n = (r.matchedDriverName || "").toLowerCase();
@@ -555,7 +560,7 @@ function RidesPage() {
             Rate your ride
           </h2>
           <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-            Trip complete — leave stars for the other person.
+            Trip ended — see the fare, then leave stars.
           </p>
           <div className="mt-3 flex flex-col gap-2">
             {needsReview.map(({ ride: r, asRole }) => (
@@ -570,7 +575,7 @@ function RidesPage() {
                     <p className="font-semibold">
                       {asRole === "driver"
                         ? `Rate rider · ${r.riderLegalName || r.fullName}`
-                        : `Rate driver · ${r.matchedDriverName || "Share driver"}`}
+                        : `Your fare${r.tripFare != null ? ` · ${formatMoney(r.tripFare)}` : ""} · rate driver`}
                     </p>
                     <p className="truncate text-sm text-[var(--color-fg-muted)]">
                       {r.pickup} → {r.dropoff}
@@ -579,17 +584,21 @@ function RidesPage() {
                       {asRole === "driver"
                         ? `Rider: ${r.riderLegalName || r.fullName}`
                         : `Driver: ${r.matchedDriverName || "Share driver"}`}
-                      {r.completedAt
-                        ? ` · Done ${formatRequestedAt(r.completedAt)}`
+                      {r.completedAt || r.tripEndedAt
+                        ? ` · Done ${formatRequestedAt(r.completedAt || r.tripEndedAt)}`
                         : ""}
                     </p>
                   </div>
-                  <Badge variant="accent">Rate</Badge>
+                  <Badge variant="accent">
+                    {asRole === "rider" && r.tripFare != null
+                      ? formatMoney(r.tripFare)
+                      : "Rate"}
+                  </Badge>
                 </div>
                 <p className="mt-2 text-xs font-medium text-[var(--color-accent)]">
                   {asRole === "driver"
                     ? "Open to rate your rider →"
-                    : "Open to rate your driver →"}
+                    : "See fare & rate your driver →"}
                 </p>
               </Link>
             ))}

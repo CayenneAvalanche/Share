@@ -39,7 +39,7 @@ import {
   endVolunteerTripFn,
   pulseVolunteerMeterFn,
 } from "@/lib/share/server-fns";
-import { formatMoney, formatMiles } from "@/lib/share/fare";
+import { formatMoney, formatMiles, formatPerHour } from "@/lib/share/fare";
 
 export const Route = createFileRoute("/rides/matched/$id")({
   component: MatchedRidePage,
@@ -703,6 +703,18 @@ function MatchedRidePage() {
                         {vol.tripMiles != null
                           ? ` · ${formatMiles(vol.tripMiles)}`
                           : ""}
+                        {vol.tripFare != null
+                          ? (() => {
+                              const per = formatPerHour(
+                                vol.tripFare,
+                                tripInCarSeconds(
+                                  vol.tripStartedAt,
+                                  vol.tripEndedAt,
+                                ) ?? 0,
+                              );
+                              return per ? ` · ${per}` : "";
+                            })()
+                          : ""}
                       </p>
                     )}
                   </>
@@ -1242,30 +1254,28 @@ function MatchedRidePage() {
                         onClick={() => {
                           const dur = formatElapsed(elapsedSec);
                           const iso = new Date().toISOString();
+                          const billed = vol.riderVip
+                            ? (vol.vipLocalPrice ?? 5)
+                            : meter.fare.meter;
+                          const perHr = formatPerHour(billed, elapsedSec);
                           setTripPhase("ended");
                           setEndedDuration(dur);
                           endTripLocal(id, iso, {
                             miles: meter.fare.miles,
-                            fare: vol.riderVip
-                              ? (vol.vipLocalPrice ?? 5)
-                              : meter.fare.meter,
+                            fare: billed,
                           });
                           void endVolunteerTripFn({
                             data: {
                               id,
                               miles: meter.fare.miles,
-                              fare: vol.riderVip
-                                ? (vol.vipLocalPrice ?? 5)
-                                : meter.fare.meter,
+                              fare: billed,
                             },
                           })
                             .then(() =>
                               toast.success(
-                                `Ride ended · ${dur} · ${formatMoney(
-                                  vol.riderVip
-                                    ? (vol.vipLocalPrice ?? 5)
-                                    : meter.fare.meter,
-                                )}`,
+                                `Ride ended · ${dur} · ${formatMoney(billed)}${
+                                  perHr ? ` · ${perHr}` : ""
+                                }`,
                               ),
                             )
                             .catch(() =>
@@ -1284,17 +1294,43 @@ function MatchedRidePage() {
 
                   {tripPhase === "ended" && (
                     <>
+                      {(() => {
+                        const billed =
+                          vol.tripFare ??
+                          (vol.riderVip ? (vol.vipLocalPrice ?? 5) : undefined);
+                        const sec =
+                          tripInCarSeconds(
+                            vol.tripStartedAt,
+                            vol.tripEndedAt,
+                          ) ?? elapsedSec;
+                        const perHr =
+                          billed != null
+                            ? formatPerHour(billed, sec)
+                            : null;
+                        return (
+                          <div className="rounded-[var(--radius-md)] border border-[var(--color-primary)]/25 bg-[var(--color-bg-elevated)] px-4 py-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                              Trip take
+                            </p>
+                            <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-[var(--color-primary)]">
+                              {billed != null ? formatMoney(billed) : "—"}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--color-fg)]">
+                              {perHr
+                                ? `${perHr} effective`
+                                : "Too short to rate hourly"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+                              {endedDuration ? `${endedDuration} in car` : "Ended"}
+                              {vol.tripMiles != null
+                                ? ` · ${formatMiles(vol.tripMiles)}`
+                                : ""}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       <p className="text-sm text-[var(--color-fg-muted)]">
-                        Trip finished
-                        {endedDuration ? ` in ${endedDuration}` : ""}
-                        {vol.tripFare != null
-                          ? ` · ${formatMoney(vol.tripFare)}`
-                          : ""}
-                        {vol.tripMiles != null
-                          ? ` · ${formatMiles(vol.tripMiles)}`
-                          : ""}
-                        . Mark complete to close it out, or begin again if
-                        needed.
+                        Mark complete to close it out, or begin again if needed.
                       </p>
                       <Button
                         size="lg"

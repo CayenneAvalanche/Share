@@ -72,3 +72,15 @@ export function formatMiles(miles: number) {
   if (miles < 0.05) return "0.0 mi";
   return `${miles.toFixed(1)} mi`;
 }
+
+/** Fare ÷ hours. Null if the trip is too short to be meaningful. */
+export function hourlyFromFare(fare: number, seconds: number): number | null {
+  if (!(fare >= 0) || !(seconds >= 45)) return null;
+  return Math.round((fare / (seconds / 3600)) * 100) / 100;
+}
+
+export function formatPerHour(fare: number, seconds: number): string | null {
+  const h = hourlyFromFare(fare, seconds);
+  if (h == null) return null;
+  return `${formatMoney(h)}/hr`;
+}

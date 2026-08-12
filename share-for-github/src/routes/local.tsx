@@ -409,6 +409,11 @@ function LocalRidePage() {
           <h2 className="mt-4 font-display text-2xl font-semibold">
             Drivers notified
           </h2>
+          {vipHit && (
+            <p className="mt-2 rounded-full bg-[var(--color-accent)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-fg)]">
+              VIP · lifetime {formatCurrency(vipHit.localPrice)} local rides
+            </p>
+          )}
           <p className="mt-2 max-w-sm text-sm text-[var(--color-fg-muted)]">
             Preference:{" "}
             <strong className="text-[var(--color-fg)]">
@@ -546,6 +551,16 @@ function LocalRidePage() {
           )}
         </CardContent>
       </Card>
+
+      {vipHit && (
+        <div className="mt-3 rounded-[var(--radius-lg)] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3">
+          <p className="text-sm font-semibold">You’re a Share VIP</p>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Lifetime local rides at {formatCurrency(vipHit.localPrice)}. That
+            rate is locked in below.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="mt-4 space-y-4 pb-8">
         <Card>

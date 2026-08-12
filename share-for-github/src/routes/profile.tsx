@@ -27,7 +27,8 @@ import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES, VEHICLE_TYPES } from "@/lib/share/data";
-import { updateMyProfileSelfieFn } from "@/lib/share/server-fns";
+import { updateMyProfileSelfieFn, lookupVipFn } from "@/lib/share/server-fns";
+import { formatCurrency } from "@/lib/utils";
 import {
   pullMyVehiclesFromCloud,
   pushMyVehiclesToCloud,
@@ -94,6 +95,11 @@ function ProfilePage() {
     }
   }
 
+  const [vipStatus, setVipStatus] = useState<{
+    localPrice: number;
+    fullName?: string;
+  } | null>(null);
+
   const { user, isPending } = useCurrentUserState();
   const {
     latestDriver,
@@ -105,6 +111,40 @@ function ProfilePage() {
     canApplyDriver,
     canApplyRider,
   } = useMyAppStatus();
+
+  useEffect(() => {
+    let guest = "";
+    try {
+      guest = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const phone = latestRider?.phone || latestDriver?.phone || guest;
+    const p = String(phone || "").replace(/\D/g, "").slice(-10);
+    if (p.length < 10) {
+      setVipStatus(null);
+      return;
+    }
+    let cancelled = false;
+    void lookupVipFn({ data: { phone: p } })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.vip) {
+          setVipStatus({
+            localPrice: res.localPrice ?? 5,
+            fullName: res.fullName,
+          });
+        } else {
+          setVipStatus(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVipStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latestRider?.phone, latestDriver?.phone]);
 
   // Keep display name in sync with real auth account (not email username)
   useEffect(() => {
@@ -222,6 +262,12 @@ function ProfilePage() {
                   {inviteCodeUsed && (
                     <Badge variant="accent">Invite {inviteCodeUsed}</Badge>
                   )}
+                  {vipStatus && (
+                    <Badge variant="accent">
+                      <Star className="mr-1 size-3" />
+                      VIP · {formatCurrency(vipStatus.localPrice)} local
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -287,6 +333,30 @@ function ProfilePage() {
           </CardContent>
         </Card>
 
+        {vipStatus && (
+          <Card className="border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
+            <CardContent className="space-y-2 p-5">
+              <div className="flex items-center gap-2">
+                <Star className="size-5 text-[var(--color-accent)]" />
+                <h2 className="font-display text-lg font-semibold">
+                  You’re a Share VIP
+                </h2>
+              </div>
+              <p className="text-sm text-[var(--color-fg-muted)]">
+                Lifetime local rides at{" "}
+                <strong className="text-[var(--color-fg)]">
+                  {formatCurrency(vipStatus.localPrice)}
+                </strong>
+                . When you request a local ride, that rate is already applied.
+              </p>
+              <Button size="sm" asChild>
+                <Link to="/local">
+                  Request a {formatCurrency(vipStatus.localPrice)} local ride
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-3 p-5">

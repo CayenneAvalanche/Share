@@ -196,9 +196,12 @@ async function notifyFounderVolunteerRequest(payload: {
     .filter(Boolean)
     .join("\n");
 
+  const isLocal = String(payload.category).toLowerCase() === "local";
   const smsBody = isCancel
     ? `Share CANCELLED: ${payload.fullName} · ${payload.pickup} → ${payload.dropoff}. Call ${payload.phone} if needed.`
-    : `🚨 SHARE RIDE NOW: ${payload.fullName} (${payload.category}) ${payload.pickup} → ${payload.dropoff} @ ${payload.when}. CALL ${payload.phone} — open founder inbox.`;
+    : isLocal
+      ? `🚨 SHARE LOCAL RIDE: ${payload.fullName} ${payload.pickup} → ${payload.dropoff} @ ${payload.when}. CALL ${payload.phone} — open Volunteer board.`
+      : `🚨 SHARE RIDE NOW: ${payload.fullName} (${payload.category}) ${payload.pickup} → ${payload.dropoff} @ ${payload.when}. CALL ${payload.phone} — open founder inbox.`;
 
   // --- Email via Resend ---
   const resendKey = process.env.RESEND_API_KEY?.trim();

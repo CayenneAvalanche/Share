@@ -166,7 +166,7 @@ type ShareState = {
     req: Omit<
       VolunteerRide,
       "id" | "status" | "createdAt" | "escalatedAt" | "matchedDriverName"
-    >,
+    > & { id?: string },
   ) => VolunteerRide;
   claimVolunteer: (id: string, driverName: string) => void;
   /** Rider/driver changed trip details after match — back to open board for re-accept */

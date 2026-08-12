@@ -263,14 +263,18 @@ function RidesPage() {
     [localRides],
   );
 
-  /** Open local ride offers — visible to approved active drivers */
-  const openLocalOffers = useMemo(
-    () =>
-      localRides
-        .filter((r) => r.status === "broadcasting")
-        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
-    [localRides],
-  );
+  const openLiveBoard = useMemo(() => {
+    if (!driverActive && !isDriverApproved) return [];
+    const byId = new Map<string, VolunteerRide>();
+    for (const r of cloudVol) byId.set(r.id, r);
+    for (const r of volunteerRides) byId.set(r.id, r);
+    return Array.from(byId.values())
+      .filter(
+        (r) =>
+          r.status === "seeking_volunteer" || r.status === "escalated_paid",
+      )
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  }, [cloudVol, volunteerRides, driverActive, isDriverApproved]);
 
   const filtered = useMemo(() => {
     const texted = trips
@@ -362,7 +366,55 @@ function RidesPage() {
         </span>
       </Link>
 
-      
+      {openLiveBoard.length > 0 && (
+        <section className="mt-5">
+          <h2 className="font-display text-lg font-semibold">
+            Live requests
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
+            Local + volunteer rides waiting for a driver. Same board as
+            Volunteer.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {openLiveBoard.map((r) => (
+              <Link
+                key={`live-${r.id}`}
+                to="/volunteer"
+                className="block rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-primary)]/6 p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold">
+                      {r.category === "local" ? "Local · " : ""}
+                      {r.riderLegalName || r.fullName}
+                    </p>
+                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
+                      {r.pickup} → {r.dropoff}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                      {r.when} ·{" "}
+                      {r.paidOffer > 0
+                        ? formatCurrency(r.paidOffer)
+                        : "FREE / $0"}
+                      {" · "}
+                      {formatRequestedAt(r.createdAt)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={r.category === "local" ? "default" : "success"}
+                  >
+                    {r.category === "local" ? "Local" : "Volunteer"}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs font-medium text-[var(--color-primary)]">
+                  Open live board to accept →
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Matched / active rides — rider + driver home base */}
       {(activeMatched.length > 0 || activeLocal.length > 0) && (
         <section className="mt-5">
@@ -484,79 +536,6 @@ function RidesPage() {
                       Cancel
                     </Button>
                   )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {driverActive && openLocalOffers.length > 0 && (
-        <section className="mt-5">
-          <h2 className="font-display text-lg font-semibold">
-            Local offers nearby
-          </h2>
-          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-            Open requests from riders — OFFER is what they'll pay (pilot:
-            settle in person).
-          </p>
-          <div className="mt-3 flex flex-col gap-2">
-            {openLocalOffers.map((r) => (
-              <div
-                key={`offer-${r.id}`}
-                className="rounded-[var(--radius-lg)] border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/5 p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold">{r.requesterName}</p>
-                    <p className="truncate text-sm text-[var(--color-fg-muted)]">
-                      {r.pickup} → {r.dropoff}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
-                      {r.when} · {r.seats} seat{r.seats === 1 ? "" : "s"}
-                      {r.uberEstimate > 0 || r.lyftEstimate > 0
-                        ? ` · Uber ~${formatCurrency(r.uberEstimate)} · Lyft ~${formatCurrency(r.lyftEstimate)}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-                      Offer
-                    </p>
-                    <p className="text-lg font-bold text-[var(--color-primary)]">
-                      {r.sharePrice > 0
-                        ? formatCurrency(r.sharePrice)
-                        : "$0"}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setLocalRideStatus(
-                        r.id,
-                        "matched",
-                        `Accepted by ${user?.displayName || riderName || "driver"}`,
-                      );
-                      toast.success(
-                        r.sharePrice > 0
-                          ? `Accepted · offer ${formatCurrency(r.sharePrice)}`
-                          : "Accepted · free local ride",
-                      );
-                      navigate({
-                        to: "/rides/matched/$id",
-                        params: { id: r.id },
-                      });
-                    }}
-                  >
-                    Accept offer
-                  </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to="/rides/matched/$id" params={{ id: r.id }}>
-                      Details
-                    </Link>
-                  </Button>
                 </div>
               </div>
             ))}

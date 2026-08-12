@@ -110,7 +110,10 @@ export function FounderRideAlerts({ enabled = true }: { enabled?: boolean }) {
 
         for (const r of fresh) {
           seen.add(r.id);
-          const title = `New Share ride: ${r.fullName}`;
+          const title =
+            r.category === "local"
+              ? `New LOCAL ride: ${r.fullName}`
+              : `New Share ride: ${r.fullName}`;
           const body = `${r.pickup} → ${r.dropoff} · ${r.when} · ${r.phone}`;
           toast.error(title, {
             description: body,

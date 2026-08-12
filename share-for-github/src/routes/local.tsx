@@ -21,6 +21,8 @@ import {
   countAvailableDriversFn,
   setDriverAvailableFn,
   getMyDriverPresenceFn,
+  createVolunteerRideFn,
+  cancelVolunteerRideFn,
 } from "@/lib/share/server-fns";
 import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -55,10 +57,11 @@ export const Route = createFileRoute("/local")({
 
 function LocalRidePage() {
   const requestLocalRide = useShareStore((s) => s.requestLocalRide);
+  const requestVolunteerRide = useShareStore((s) => s.requestVolunteerRide);
   const localRides = useShareStore((s) => s.localRides);
   const riderName = useShareStore((s) => s.riderName);
   const favorites = useShareStore((s) => s.favoriteDriverIds);
-  const { driverActive, latestDriver } = useMyAppStatus();
+  const { driverActive, latestDriver, latestRider } = useMyAppStatus();
   const user = useCurrentUser();
 
   const [pickup, setPickup] = useState("");
@@ -76,6 +79,8 @@ function LocalRidePage() {
     favorites[0] ?? DRIVERS[0].id,
   );
   const [doneId, setDoneId] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
+  const [submitBusy, setSubmitBusy] = useState(false);
   const stored = loadStoredPresence();
   const [available, setAvailable] = useState(Boolean(stored.available));
   const [availCount, setAvailCount] = useState(0);
@@ -88,6 +93,18 @@ function LocalRidePage() {
   const driverName =
     latestDriver?.fullName || user?.displayName || riderName || "Driver";
   const driverCity = latestDriver?.city || "Lafayette, LA";
+
+  useEffect(() => {
+    let guess = "";
+    try {
+      guess = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const fromApp = latestRider?.phone || latestDriver?.phone || "";
+    const pick = fromApp || guess;
+    if (pick) setPhone(pick);
+  }, [latestRider?.phone, latestDriver?.phone]);
 
   // Restore online status after refresh + keep count honest
   useEffect(() => {
@@ -199,7 +216,7 @@ function LocalRidePage() {
     if (guideOffer != null) setOffer(String(guideOffer));
   }, [guideOffer, offerTouched]);
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const pu = pickup.trim();
     const doff = dropoff.trim();
@@ -215,6 +232,16 @@ function LocalRidePage() {
       toast.error("Pickup and drop-off need to be different places");
       return;
     }
+    const phone10 = phone.replace(/\D/g, "").slice(-10);
+    if (phone10.length < 10) {
+      toast.error("Enter a 10-digit phone so your driver can reach you");
+      return;
+    }
+    try {
+      localStorage.setItem("share-vol-guest-phone", phone.trim());
+    } catch {
+      /* ignore */
+    }
     const offerAmt = Math.max(0, Math.round(Number(offer) || 0));
     const u =
       Number.isFinite(uberNum) && uberNum > 0
@@ -224,6 +251,58 @@ function LocalRidePage() {
       Number.isFinite(lyftNum) && lyftNum > 0
         ? Math.round(lyftNum)
         : fares.lyftEstimate;
+    const requester =
+      user?.displayName ||
+      latestRider?.fullName ||
+      riderName ||
+      "Guest";
+    const noteBits = [
+      notes.trim(),
+      offerAmt > 0 ? `Offer $${offerAmt}` : "FREE / $0 local ride",
+      u > 0 || l > 0 ? `Uber ~$${u} · Lyft ~$${l}` : "",
+    ].filter(Boolean);
+
+    setSubmitBusy(true);
+    let cloudId: string | undefined;
+    try {
+      const created = await createVolunteerRideFn({
+        data: {
+          category: "local",
+          fullName: requester,
+          phone: phone.trim(),
+          pickup: pu,
+          dropoff: doff,
+          when,
+          notes: noteBits.join(" · "),
+          paidOffer: offerAmt,
+          escalateAfterHours: 0,
+          requesterName: requester,
+        },
+      });
+      cloudId = created.id;
+      requestVolunteerRide({
+        id: created.id,
+        category: "local",
+        fullName: requester,
+        phone: phone.trim(),
+        pickup: pu,
+        dropoff: doff,
+        when,
+        notes: noteBits.join(" · "),
+        escalateAfterHours: 0,
+        paidOffer: offerAmt,
+        requesterName: requester,
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Could not reach the live board — try again",
+      );
+      setSubmitBusy(false);
+      return;
+    }
+
     const ride = requestLocalRide({
       pickup: pu,
       dropoff: doff,
@@ -233,17 +312,19 @@ function LocalRidePage() {
       sharePrice: offerAmt,
       uberEstimate: u,
       lyftEstimate: l,
-      requesterName:
-        user?.displayName || riderName || "Guest",
+      requesterName: requester,
       driverPreference,
       preferredDriverId:
         driverPreference === "preferred" ? preferredDriverId : undefined,
+      volunteerRideId: cloudId,
+      phone: phone.trim(),
     });
     setDoneId(ride.id);
+    setSubmitBusy(false);
     toast.success(
       offerAmt > 0
-        ? `Drivers notified · your offer ${formatCurrency(offerAmt)}`
-        : "Drivers notified · free / $0 offer",
+        ? `Live board + drivers notified · offer ${formatCurrency(offerAmt)}`
+        : "Live board + drivers notified · free / $0",
     );
   }
 
@@ -352,6 +433,20 @@ function LocalRidePage() {
                       "cancelled",
                       "Cancelled by rider",
                     );
+                  const volId = ride.volunteerRideId;
+                  if (volId) {
+                    useShareStore.getState().cancelVolunteerRide(volId, {
+                      cancelledBy: "rider",
+                      cancelledByName: ride.requesterName || "Rider",
+                    });
+                    void cancelVolunteerRideFn({
+                      data: {
+                        id: volId,
+                        cancelledBy: "rider",
+                        cancelledByName: ride.requesterName || "Rider",
+                      },
+                    }).catch(() => {});
+                  }
                   toast.success("Request cancelled");
                   setDoneId(null);
                 }}
@@ -441,6 +536,22 @@ function LocalRidePage() {
               onChange={setDropoff}
               placeholder="Where are you going?"
             />
+            <div>
+              <Label htmlFor="local-phone">Your phone</Label>
+              <Input
+                id="local-phone"
+                type="tel"
+                inputMode="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="337-555-0100"
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+                Driver uses this to confirm pickup. Same number as your Share
+                account if you have one.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="when">When</Label>
@@ -606,15 +717,16 @@ function LocalRidePage() {
           </CardContent>
         </Card>
         <p className="text-center text-[10px] text-[var(--color-fg-subtle)]">
-          Approved drivers see your offer under Rides · pay driver in person
-          (pilot) · {SHARE_BUILD}
+          Approved drivers see this on the live Volunteer / Rides board · pay
+          driver in person (pilot) · {SHARE_BUILD}
         </p>
 
-        <Button type="submit" size="xl" className="w-full">
-          Request local ride
-          {Number(offer) > 0
-            ? ` · offer ${formatCurrency(Math.round(Number(offer) || 0))}`
-            : " · free"}
+        <Button type="submit" size="xl" className="w-full" disabled={submitBusy}>
+          {submitBusy
+            ? "Posting to live board…"
+            : Number(offer) > 0
+              ? `Request local ride · offer ${formatCurrency(Math.round(Number(offer) || 0))}`
+              : "Request local ride · free"}
         </Button>
       </form>
     </AppShell>

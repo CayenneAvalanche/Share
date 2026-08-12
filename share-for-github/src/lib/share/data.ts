@@ -392,6 +392,9 @@ export type LocalRideRequest = {
   driverPreference: DriverPreference;
   preferredDriverId?: string;
   adminNote?: string;
+  /** Cloud volunteer ride created so drivers see this on the live board */
+  volunteerRideId?: string;
+  phone?: string;
 };
 
 export const HUB_CITIES = [
@@ -919,7 +922,8 @@ export type VolunteerCategory =
   | "elder"
   | "hardship"
   | "medical"
-  | "work";
+  | "work"
+  | "local";
 
 export type VolunteerRideStatus =
   | "seeking_volunteer"
@@ -983,6 +987,7 @@ export const VOLUNTEER_LABELS: Record<VolunteerCategory, string> = {
   hardship: "Hardship",
   medical: "Medical appointment",
   work: "Work / job interview",
+  local: "Local ride",
 };
 
 export const SEED_VOLUNTEERS: VolunteerRide[] = [

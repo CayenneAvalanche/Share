@@ -382,6 +382,8 @@ function NewVolunteerPage() {
                 <option value="hardship">Hardship</option>
                 <option value="medical">Medical appointment</option>
                 <option value="work">Work / job interview</option>
+                <option value="local">Local ride (paid or free)</option>
+
               </Select>
               <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
                 Pick the main reason. Add details in notes (e.g. dialysis, VA

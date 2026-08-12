@@ -549,7 +549,14 @@ function VolunteerCard({
             )}
           </div>
           <div className="text-right">
-            {free ? (
+            {ride.category === "local" ? (
+              <Badge variant="default">
+                Local{" "}
+                {ride.paidOffer > 0
+                  ? formatCurrency(ride.paidOffer)
+                  : "FREE"}
+              </Badge>
+            ) : free ? (
               <Badge variant="success">Free volunteer</Badge>
             ) : ride.status === "escalated_paid" ? (
               <Badge variant="accent">
@@ -633,7 +640,13 @@ function VolunteerCard({
             ride.status === "escalated_paid") && (
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={onClaim}>
-                {free ? "Volunteer for this ride" : "Accept paid ride"}
+                {ride.category === "local"
+                  ? ride.paidOffer > 0
+                    ? "Accept local ride"
+                    : "Accept free local ride"
+                  : free
+                    ? "Volunteer for this ride"
+                    : "Accept paid ride"}
               </Button>
               {demo && free && onForceEscalate && (
                 <Button size="sm" variant="ghost" onClick={onForceEscalate}>

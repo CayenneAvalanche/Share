@@ -116,6 +116,14 @@ function AdminPage() {
       (b.createdAt || "").localeCompare(a.createdAt || ""),
     );
   }, [cloudVolunteers, localVolunteerRides]);
+  const communityVolunteerRides = useMemo(
+    () => volunteerRides.filter((r) => r.category !== "local"),
+    [volunteerRides],
+  );
+  const boardLocalRides = useMemo(
+    () => volunteerRides.filter((r) => r.category === "local"),
+    [volunteerRides],
+  );
   const trips = useShareStore((s) => s.trips);
   const rideRequests = useShareStore((s) => s.rideRequests);
   const deleteTrip = useShareStore((s) => s.deleteTrip);
@@ -144,12 +152,23 @@ function AdminPage() {
       ).length +
       deliveries.filter((d) => d.status === "open").length +
       localRides.filter((r) => r.status === "broadcasting").length +
-      volunteerRides.filter(
+      boardLocalRides.filter(
+        (r) =>
+          r.status === "seeking_volunteer" || r.status === "escalated_paid",
+      ).length +
+      communityVolunteerRides.filter(
         (r) =>
           r.status === "seeking_volunteer" || r.status === "escalated_paid",
       ).length
     );
-  }, [driverApps, riderApps, deliveries, localRides, volunteerRides]);
+  }, [
+    driverApps,
+    riderApps,
+    deliveries,
+    localRides,
+    boardLocalRides,
+    communityVolunteerRides,
+  ]);
 
   useEffect(() => {
     if (!unlocked || !pin) return;
@@ -1148,14 +1167,198 @@ function AdminPage() {
           </Card>
 
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-            Local requests
+            Local ride bookings
           </p>
-          {localRides.length === 0 && (
+          {boardLocalRides.length === 0 && localRides.length === 0 && (
             <p className="text-sm text-[var(--color-fg-muted)]">
-              No local broadcasts yet.
+              No local ride bookings yet. Requests from Local ride land here.
+            </p>
+          )}
+          {boardLocalRides
+            .slice()
+            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+            .map((r) => {
+              const key = `locvol:${r.id}`;
+              const open = expandedKey === key;
+              const name =
+                r.riderLegalName || r.fullName || r.requesterName || "Rider";
+              const face =
+                r.riderSelfie && r.riderSelfie.length > 20 ? r.riderSelfie : "";
+              const seeking =
+                r.status === "seeking_volunteer" ||
+                r.status === "escalated_paid";
+              return (
+                <Card key={r.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 p-3 text-left"
+                    onClick={() => toggleExpand(key)}
+                  >
+                    {face ? (
+                      <img
+                        src={face}
+                        alt=""
+                        className="size-12 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15 text-base font-semibold text-[var(--color-primary)]">
+                        {name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold leading-tight">
+                        {name}
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <Badge
+                          variant={
+                            r.status === "cancelled"
+                              ? "outline"
+                              : r.status === "matched" ||
+                                  r.status === "completed"
+                                ? "success"
+                                : "default"
+                          }
+                          className="capitalize"
+                        >
+                          {r.status.replace(/_/g, " ")}
+                        </Badge>
+                        <Badge variant="secondary">Local</Badge>
+                        {(r.riderVip || vipFor(r.phone)) && (
+                          <Badge variant="accent">VIP</Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">
+                        {formatRequestedAt(r.createdAt)} ·{" "}
+                        {r.pickup.split(",")[0]} → {r.dropoff.split(",")[0]}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[var(--color-fg-subtle)]">
+                      {open ? "▴" : "▾"}
+                    </span>
+                  </button>
+                  {open && (
+                    <CardContent className="space-y-2 border-t border-[var(--color-border)] px-3 pb-3 pt-3">
+                      <p className="text-sm">
+                        {r.pickup} → {r.dropoff}
+                      </p>
+                      <p className="text-xs text-[var(--color-fg-muted)]">
+                        {r.phone} · {r.when}
+                        {r.paidOffer > 0
+                          ? ` · ${formatCurrency(r.paidOffer)}`
+                          : " · FREE / $0"}
+                        {r.notes ? ` · ${r.notes}` : ""}
+                        {r.matchedDriverName
+                          ? ` · Driver: ${r.matchedDriverName}`
+                          : ""}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {seeking && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                claimVolunteer(r.id, "Founder match");
+                                void claimVolunteerRideFn({
+                                  data: {
+                                    id: r.id,
+                                    driverName: "Founder match",
+                                  },
+                                }).catch(() => {});
+                                toast.success("Matched");
+                                void refreshCloud(pin);
+                              }}
+                            >
+                              Match driver
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[#b42318]/40 text-[#b42318]"
+                              onClick={() => {
+                                if (!confirm(`Cancel local ride for ${name}?`))
+                                  return;
+                                cancelVolunteerRide(r.id, {
+                                  cancelledBy: "admin",
+                                  cancelledByName: "Founder",
+                                });
+                                void cancelVolunteerRideFn({
+                                  data: {
+                                    id: r.id,
+                                    cancelledBy: "admin",
+                                    cancelledByName: "Founder",
+                                  },
+                                })
+                                  .then(() => {
+                                    toast.success("Cancelled");
+                                    void refreshCloud(pin);
+                                  })
+                                  .catch(() => toast.error("Cancel failed"));
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {(r.status === "matched" ||
+                          r.status === "completed") && (
+                          <Button size="sm" variant="secondary" asChild>
+                            <Link
+                              to="/rides/matched/$id"
+                              params={{ id: r.id }}
+                            >
+                              Open trip
+                            </Link>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-[#b42318]/40 text-[#b42318]"
+                          onClick={() => {
+                            if (!confirm(`Permanently delete ${name}?`))
+                              return;
+                            void founderDeleteVolunteerRideFn({
+                              data: { pin, id: r.id },
+                            })
+                              .then(() => {
+                                cancelVolunteerRide(r.id);
+                                setCloudVolunteers((prev) =>
+                                  (prev ?? []).filter((x) => x.id !== r.id),
+                                );
+                                toast.success("Deleted");
+                              })
+                              .catch((e) =>
+                                toast.error(
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Delete failed",
+                                ),
+                              );
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+
+          {localRides.filter((r) => {
+            const vid = r.volunteerRideId;
+            return !vid || !boardLocalRides.some((b) => b.id === vid);
+          }).length > 0 && (
+            <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+              This-device only
             </p>
           )}
           {localRides
+            .filter((r) => {
+              const vid = r.volunteerRideId;
+              return !vid || !boardLocalRides.some((b) => b.id === vid);
+            })
             .slice()
             .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
             .map((r) => {
@@ -1330,19 +1533,18 @@ function AdminPage() {
               Process escalations
             </Button>
           </div>
-          {volunteerRides.length === 0 && (
+          {communityVolunteerRides.length === 0 && (
             <p className="text-sm text-[var(--color-fg-muted)]">
-              No volunteer requests yet. New requests from the app show here
-              after Refresh.
+              No volunteer requests yet. Local ride bookings show under Local.
             </p>
           )}
           {(() => {
-            const openRides = volunteerRides.filter(
+            const openRides = communityVolunteerRides.filter(
               (r) =>
                 r.status === "seeking_volunteer" ||
                 r.status === "escalated_paid",
             );
-            const historyRides = volunteerRides.filter(
+            const historyRides = communityVolunteerRides.filter(
               (r) =>
                 r.status === "cancelled" ||
                 r.status === "matched" ||

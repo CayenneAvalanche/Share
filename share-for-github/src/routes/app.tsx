@@ -5,24 +5,18 @@ import {
   Boxes,
   ArrowRight,
   HeartHandshake,
-  MessageCircle,
   KeyRound,
   UserPlus,
 } from "lucide-react";
 import { AppShell } from "@/components/share/shell";
 import { ShareMark } from "@/components/share/logo";
 import { Card, CardContent } from "@/components/ui/card";
-import { useShareStore } from "@/lib/share/store";
 
 export const Route = createFileRoute("/app")({
   component: AppHomePage,
 });
 
 function AppHomePage() {
-  const unread = useShareStore((s) =>
-    s.threads.reduce((n, t) => n + t.unread, 0),
-  );
-
   return (
     <AppShell>
       <section className="-mx-4 overflow-hidden bg-[var(--color-bg-inverse)] px-4 pb-8 pt-7 text-[var(--color-fg-inverse)] safe-pt">
@@ -64,11 +58,6 @@ function AppHomePage() {
 
             <div className="mt-4 flex flex-col gap-2">
               <ChoiceRow to="/apply" icon={UserPlus} title="Apply" />
-              <ChoiceRow
-                to="/messages"
-                icon={MessageCircle}
-                title={unread ? `Messages (${unread})` : "Messages"}
-              />
             </div>
           </CardContent>
         </Card>

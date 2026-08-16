@@ -138,13 +138,16 @@ export function AppShell({
       to: "/app",
       label: "Home",
       icon: Home,
-      match: (p) => p === "/app" || p === "/about" || p.startsWith("/volunteer"),
+      match: (p) => p === "/app" || p === "/about",
     },
     {
       to: "/rides",
       label: "Rides",
       icon: Car,
-      match: (p) => p.startsWith("/rides") || p.startsWith("/local"),
+      match: (p) =>
+        p.startsWith("/rides") ||
+        p.startsWith("/local") ||
+        p.startsWith("/volunteer"),
     },
     {
       to: "/messages",

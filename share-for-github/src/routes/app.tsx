@@ -4,7 +4,6 @@ import {
   Package,
   Boxes,
   ArrowRight,
-  HeartHandshake,
   KeyRound,
   UserPlus,
 } from "lucide-react";
@@ -45,16 +44,6 @@ function AppHomePage() {
               <Choice to="/cars" icon={KeyRound} title="Car" />
               <Choice to="/share-stuff" icon={Boxes} title="Lagniappe" />
             </div>
-
-            <Link
-              to="/volunteer"
-              className="mt-3 flex w-full items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 px-4 py-5 text-center transition-all active:scale-[0.99]"
-            >
-              <div className="flex size-11 items-center justify-center rounded-full bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
-                <HeartHandshake className="size-5" />
-              </div>
-              <span className="text-base font-semibold">Volunteer</span>
-            </Link>
 
             <div className="mt-4 flex flex-col gap-2">
               <ChoiceRow to="/apply" icon={UserPlus} title="Apply" />

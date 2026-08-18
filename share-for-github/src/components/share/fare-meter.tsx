@@ -183,7 +183,7 @@ export function FareMeterPanel({
         </div>
       </div>
       <p className="mt-2 text-center text-[11px] text-[var(--color-fg-subtle)]">
-        {formatMoney(SHARE_TAXI_RATES.flagDrop)} drop +{" "}
+        {formatMoney(SHARE_TAXI_RATES.flagDrop)} base fare +{" "}
         {formatMoney(SHARE_TAXI_RATES.perMile)}/mi +{" "}
         {formatMoney(SHARE_TAXI_RATES.perMinute)}/min · min{" "}
         {formatMoney(SHARE_TAXI_RATES.minFare)}

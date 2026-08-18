@@ -69,7 +69,7 @@ function FareQuotePage() {
       `${quote.from.label} → ${quote.to.label}`,
       `${formatMiles(quote.miles)} · ${formatDriveTime(quote.seconds)}`,
       `Suggested fare ${formatMoney(quote.fare.meter)}`,
-      `(${formatMoney(SHARE_TAXI_RATES.flagDrop)} flag + ${formatMoney(SHARE_TAXI_RATES.perMile)}/mi + ${formatMoney(SHARE_TAXI_RATES.perMinute)}/min · min ${formatMoney(SHARE_TAXI_RATES.minFare)})`,
+      `(${formatMoney(SHARE_TAXI_RATES.flagDrop)} base + ${formatMoney(SHARE_TAXI_RATES.perMile)}/mi + ${formatMoney(SHARE_TAXI_RATES.perMinute)}/min · min ${formatMoney(SHARE_TAXI_RATES.minFare)})`,
     ].join("\n");
     void navigator.clipboard.writeText(text).then(
       () => toast.success("Quote copied"),
@@ -159,7 +159,7 @@ function FareQuotePage() {
 
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-elevated)] px-2 py-2">
-                <p className="text-[var(--color-fg-subtle)]">Flag</p>
+                <p className="text-[var(--color-fg-subtle)]">Base fare</p>
                 <p className="font-semibold tabular-nums">
                   {formatMoney(quote.fare.flagDrop)}
                 </p>
@@ -179,7 +179,7 @@ function FareQuotePage() {
             </div>
 
             <p className="text-xs leading-relaxed text-[var(--color-fg-muted)]">
-              {formatMoney(SHARE_TAXI_RATES.flagDrop)} flag +{" "}
+              {formatMoney(SHARE_TAXI_RATES.flagDrop)} base fare +{" "}
               {formatMoney(SHARE_TAXI_RATES.perMile)}/mi +{" "}
               {formatMoney(SHARE_TAXI_RATES.perMinute)}/min. Floor{" "}
               {formatMoney(SHARE_TAXI_RATES.minFare)}. No surge, no time-of-day

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Search, MapPinned, HeartHandshake } from "lucide-react";
+import { Plus, Search, MapPinned, HeartHandshake, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { NearMeBar } from "@/components/share/near-me-bar";
@@ -418,6 +418,26 @@ function RidesPage() {
           →
         </span>
       </Link>
+
+      <Link
+        to="/rides/quote"
+        className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-5 py-3.5 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-primary)]">
+            <Calculator className="size-5" />
+          </div>
+          <div>
+            <p className="font-semibold leading-tight">Fare quote</p>
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Addresses in · suggested price out · no surge
+            </p>
+          </div>
+        </div>
+        <span className="text-2xl font-light text-[var(--color-fg-subtle)]">
+          →
+        </span>
+      </Link>
     </>
   );
 
@@ -430,6 +450,9 @@ function RidesPage() {
       solidHeader
       action={
         <div className="flex gap-1">
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/rides/quote">Quote</Link>
+          </Button>
           <Button size="sm" variant="outline" asChild>
             <Link to="/rides/requests">Requests</Link>
           </Button>

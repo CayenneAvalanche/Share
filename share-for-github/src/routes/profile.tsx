@@ -13,6 +13,7 @@ import {
   DollarSign,
   CreditCard,
   Ticket,
+  Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -549,6 +550,7 @@ function ProfilePage() {
 
         <div className="grid grid-cols-2 gap-2">
           {[
+            { to: "/rides/quote", label: "Fare quote", icon: Calculator },
             { to: "/messages", label: "Messages", icon: MessageCircle },
             { to: "/earnings", label: "Earnings", icon: DollarSign },
             { to: "/checkout", label: "Checkout", icon: CreditCard },

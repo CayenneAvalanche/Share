@@ -44,6 +44,7 @@ import { Route as MessagesIdRouteImport } from './routes/messages.$id'
 import { Route as RidesIndexRouteImport } from './routes/rides.index'
 import { Route as RidesIdRouteImport } from './routes/rides.$id'
 import { Route as RidesPostRouteImport } from './routes/rides.post'
+import { Route as RidesQuoteRouteImport } from './routes/rides.quote'
 import { Route as RidesRequestsRouteImport } from './routes/rides.requests'
 import { Route as ShareStuffIdRouteImport } from './routes/share-stuff.$id'
 import { Route as ShareStuffNewRouteImport } from './routes/share-stuff.new'
@@ -231,6 +232,11 @@ const RidesPostRoute = RidesPostRouteImport.update({
   path: '/rides/post',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RidesQuoteRoute = RidesQuoteRouteImport.update({
+  id: '/rides/quote',
+  path: '/rides/quote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RidesRequestsRoute = RidesRequestsRouteImport.update({
   id: '/rides/requests',
   path: '/rides/requests',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
+  '/rides/quote': typeof RidesQuoteRoute
   '/rides/requests': typeof RidesRequestsRouteWithChildren
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
+  '/rides/quote': typeof RidesQuoteRoute
   '/rides/requests': typeof RidesRequestsRouteWithChildren
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/messages/$id': typeof MessagesIdRoute
   '/rides/$id': typeof RidesIdRoute
   '/rides/post': typeof RidesPostRoute
+  '/rides/quote': typeof RidesQuoteRoute
   '/rides/requests': typeof RidesRequestsRouteWithChildren
   '/share-stuff/$id': typeof ShareStuffIdRoute
   '/share-stuff/new': typeof ShareStuffNewRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
+    | '/rides/quote'
     | '/rides/requests'
     | '/share-stuff/$id'
     | '/share-stuff/new'
@@ -516,6 +526,7 @@ export interface FileRouteTypes {
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
+    | '/rides/quote'
     | '/rides/requests'
     | '/share-stuff/$id'
     | '/share-stuff/new'
@@ -564,6 +575,7 @@ export interface FileRouteTypes {
     | '/messages/$id'
     | '/rides/$id'
     | '/rides/post'
+    | '/rides/quote'
     | '/rides/requests'
     | '/share-stuff/$id'
     | '/share-stuff/new'
@@ -607,6 +619,7 @@ export interface RootRouteChildren {
   LocationsCityRoute: typeof LocationsCityRouteWithChildren
   RidesIdRoute: typeof RidesIdRoute
   RidesPostRoute: typeof RidesPostRoute
+  RidesQuoteRoute: typeof RidesQuoteRoute
   RidesRequestsRoute: typeof RidesRequestsRouteWithChildren
   TrackCodeRoute: typeof TrackCodeRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
@@ -863,6 +876,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RidesPostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rides/quote': {
+      id: '/rides/quote'
+      path: '/rides/quote'
+      fullPath: '/rides/quote'
+      preLoaderRoute: typeof RidesQuoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rides/requests': {
       id: '/rides/requests'
       path: '/rides/requests'
@@ -1071,6 +1091,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsCityRoute: LocationsCityRouteWithChildren,
   RidesIdRoute: RidesIdRoute,
   RidesPostRoute: RidesPostRoute,
+  RidesQuoteRoute: RidesQuoteRoute,
   RidesRequestsRoute: RidesRequestsRouteWithChildren,
   TrackCodeRoute: TrackCodeRoute,
   LocationsIndexRoute: LocationsIndexRoute,

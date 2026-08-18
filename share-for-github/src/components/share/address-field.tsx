@@ -9,6 +9,8 @@ const BIAS = { lat: 30.2241, lon: -92.0198 };
 type Suggestion = {
   id: string;
   label: string;
+  lat?: number;
+  lng?: number;
 };
 
 type Props = {
@@ -17,6 +19,8 @@ type Props = {
   hint?: string;
   value: string;
   onChange: (value: string) => void;
+  /** Fired when the rider picks a suggestion (includes map coords). */
+  onResolved?: (point: { label: string; lat: number; lng: number }) => void;
   placeholder?: string;
   required?: boolean;
   className?: string;
@@ -58,7 +62,10 @@ async function searchAddresses(q: string): Promise<Suggestion[]> {
   });
   if (!res.ok) throw new Error("Address lookup failed");
   const data = (await res.json()) as {
-    features?: { properties?: Record<string, unknown>; geometry?: unknown }[];
+    features?: {
+      properties?: Record<string, unknown>;
+      geometry?: { coordinates?: number[] };
+    }[];
   };
   const out: Suggestion[] = [];
   const seen = new Set<string>();
@@ -68,9 +75,14 @@ async function searchAddresses(q: string): Promise<Suggestion[]> {
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
+    const coords = f.geometry?.coordinates;
+    const lng = Number(coords?.[0]);
+    const lat = Number(coords?.[1]);
     out.push({
       id: `${key}-${out.length}`,
       label,
+      lat: Number.isFinite(lat) ? lat : undefined,
+      lng: Number.isFinite(lng) ? lng : undefined,
     });
   }
   return out;
@@ -86,6 +98,7 @@ export function AddressField({
   hint,
   value,
   onChange,
+  onResolved,
   placeholder,
   required,
   className,
@@ -138,9 +151,18 @@ export function AddressField({
     };
   }, [value]);
 
-  function pick(label: string) {
+  function pick(s: Suggestion) {
     skipNextSearch.current = true;
-    onChange(label);
+    onChange(s.label);
+    if (
+      onResolved &&
+      s.lat != null &&
+      s.lng != null &&
+      Number.isFinite(s.lat) &&
+      Number.isFinite(s.lng)
+    ) {
+      onResolved({ label: s.label, lat: s.lat, lng: s.lng });
+    }
     setItems([]);
     setOpen(false);
     setActive(-1);
@@ -183,7 +205,7 @@ export function AddressField({
               setActive((i) => Math.max(i - 1, 0));
             } else if (e.key === "Enter" && active >= 0) {
               e.preventDefault();
-              pick(items[active].label);
+              pick(items[active]);
             } else if (e.key === "Escape") {
               setOpen(false);
             }
@@ -215,7 +237,7 @@ export function AddressField({
                 )}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  pick(s.label);
+                  pick(s);
                 }}
               >
                 <MapPin className="mt-0.5 size-3.5 shrink-0 text-[var(--color-primary)]" />

@@ -18,6 +18,11 @@ import {
   FOUNDER_NOTIFY_EMAIL_DEFAULT,
   FOUNDER_NOTIFY_PHONE_DEFAULT,
 } from "@/lib/share/contact";
+import {
+  DEFAULT_RADIUS_NEARBY,
+  DEFAULT_SEARCH_CITY,
+  isNearbyRide,
+} from "@/lib/share/geo";
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1660,6 +1665,42 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
       rides: await attachRiderFaces(sql, mapped),
       scope: isDriver ? ("driver" as const) : ("self" as const),
     };
+  });
+
+/** Public count only — no names. Open requests inside the default nearby radius. */
+export const countNearbyOpenRidesFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: { city?: string; radiusMiles?: number }) => data,
+  )
+  .handler(async ({ data }) => {
+    const city = (data.city || DEFAULT_SEARCH_CITY).trim() || DEFAULT_SEARCH_CITY;
+    const radius =
+      Number.isFinite(data.radiusMiles) && (data.radiusMiles ?? 0) > 0
+        ? Number(data.radiusMiles)
+        : DEFAULT_RADIUS_NEARBY;
+    const sql = await getSql();
+    try {
+      const rows = await sql.query<{
+        pickup: string;
+        dropoff: string;
+        category: string;
+      }>(
+        `select pickup, dropoff, category from share_volunteer_rides
+         where status in ('seeking_volunteer', 'escalated_paid')
+         limit 200`,
+      );
+      const count = rows.filter((r) =>
+        isNearbyRide(r.pickup, {
+          dropoff: r.dropoff,
+          category: r.category,
+          city,
+          radiusMiles: radius,
+        }),
+      ).length;
+      return { count, radius };
+    } catch {
+      return { count: 0, radius };
+    }
   });
 
 /**

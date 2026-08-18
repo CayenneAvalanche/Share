@@ -120,6 +120,8 @@ export const DEFAULT_RADIUS_CARS = 50;
  */
 export const DEFAULT_RADIUS_RIDE_HUB = 150;
 export const DEFAULT_RADIUS_RIDE_PATH = 90;
+/** Open ride requests counted as “nearby” on the Rides tab */
+export const DEFAULT_RADIUS_NEARBY = 25;
 
 export function normalizeCityKey(input: string): string {
   return input
@@ -182,6 +184,28 @@ export function haversineMiles(a: LatLng, b: LatLng): number {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** True if a pickup (or drop-off) sits inside radius of search city. */
+export function isNearbyRide(
+  pickup: string,
+  opts?: {
+    dropoff?: string;
+    category?: string;
+    city?: string;
+    radiusMiles?: number;
+  },
+): boolean {
+  const city = opts?.city || DEFAULT_SEARCH_CITY;
+  const radius = opts?.radiusMiles ?? DEFAULT_RADIUS_NEARBY;
+  const origin = geocodePlace(city);
+  if (!origin) return true;
+  const loc = geocodePlace(pickup) || geocodePlace(opts?.dropoff || "");
+  if (loc) return haversineMiles(origin, loc) <= radius;
+  const cityBit = city.split(",")[0]?.trim().toLowerCase() || "";
+  const hay = `${pickup} ${opts?.dropoff || ""}`.toLowerCase();
+  if (cityBit.length >= 4 && hay.includes(cityBit)) return true;
+  return opts?.category === "local";
 }
 
 /** Shortest distance from point P to segment A→B (miles, great-circle approx). */

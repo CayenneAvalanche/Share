@@ -12,7 +12,7 @@ import { HUB_CITIES, VOLUNTEER_LABELS, type Trip, type VolunteerRide } from "@/l
 import { useShareStore } from "@/lib/share/store";
 import { formatRequestedAt, formatCurrency } from "@/lib/utils";
 import { formatMoney } from "@/lib/share/fare";
-import { listVolunteerRidesFn, listTripsFn } from "@/lib/share/server-fns";
+import { listVolunteerRidesFn, listTripsFn, countNearbyOpenRidesFn } from "@/lib/share/server-fns";
 import { Badge } from "@/components/ui/badge";
 import { useEffect } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -20,6 +20,7 @@ import { useMyAppStatus } from "@/lib/share/use-my-apps";
 import {
   DEFAULT_RADIUS_RIDE_HUB,
   DEFAULT_RADIUS_RIDE_PATH,
+  DEFAULT_RADIUS_NEARBY,
   filterSortCorridors,
   formatMiles,
   loadSearchCity,
@@ -87,6 +88,7 @@ function RidesPage() {
   const [cloudVol, setCloudVol] = useState<VolunteerRide[]>([]);
   const [nearCity, setNearCity] = useState("Lafayette, LA");
   const [rideRadius, setRideRadius] = useState(DEFAULT_RADIUS_RIDE_HUB);
+  const [nearbyRiders, setNearbyRiders] = useState<number | null>(null);
 
   useEffect(() => {
     setNearCity(loadSearchCity());
@@ -166,6 +168,27 @@ function RidesPage() {
     const t = window.setInterval(pull, 5000);
     return () => window.clearInterval(t);
   }, [user?.primaryEmail, user?.displayName, riderName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    function pullCount() {
+      countNearbyOpenRidesFn({
+        data: { city: nearCity, radiusMiles: DEFAULT_RADIUS_NEARBY },
+      })
+        .then((res) => {
+          if (!cancelled) setNearbyRiders(res.count);
+        })
+        .catch(() => {
+          if (!cancelled) setNearbyRiders(null);
+        });
+    }
+    pullCount();
+    const t = window.setInterval(pullCount, 12_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [nearCity]);
 
   const activeMatched = useMemo(() => {
     const byId = new Map<string, VolunteerRide>();
@@ -322,12 +345,7 @@ function RidesPage() {
   const liveBoard = (
     <section className={isDriver ? "mt-3" : "mt-5"}>
       <div className="flex items-end justify-between gap-2">
-        <div>
-          <h2 className="font-display text-lg font-semibold">Live board</h2>
-          <p className="mt-0.5 text-xs text-[var(--color-fg-muted)]">
-            Local + volunteer requests waiting for a driver.
-          </p>
-        </div>
+        <h2 className="font-display text-lg font-semibold">Live board</h2>
         <Button size="sm" variant="outline" asChild>
           <Link to="/volunteer">Open board</Link>
         </Button>
@@ -445,7 +463,11 @@ function RidesPage() {
     <AppShell
       title="Share a ride"
       subtitle={
-        isDriver ? "Live board first · then post a trip" : "Local now · or long-distance"
+        nearbyRiders == null
+          ? undefined
+          : nearbyRiders === 1
+            ? "1 rider nearby"
+            : `${nearbyRiders} riders nearby`
       }
       solidHeader
       action={

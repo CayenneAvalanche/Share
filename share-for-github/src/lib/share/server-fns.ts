@@ -1667,65 +1667,128 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
     };
   });
 
-/** House-number search via Nominatim (Photon often returns the street only). */
+/** House-number search: US Census first (free, official), then Nominatim. */
 export const searchStreetAddressesFn = createServerFn({ method: "POST" })
   .validator((data: { q: string }) => data)
   .handler(async ({ data }) => {
     const q = data.q.trim();
     if (q.length < 3) return { items: [] as { label: string; lat: number; lng: number }[] };
-    const params = new URLSearchParams({
-      format: "jsonv2",
-      addressdetails: "1",
-      limit: "5",
-      countrycodes: "us",
+
+    const hasCity = /,\s*[A-Za-z].{1,}|,\s*[A-Z]{2}\b|\b(lafayette|broussard|youngsville|opelousas|new iberia|scott|carencro|breaux bridge)\b/i.test(
       q,
-    });
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?${params}`,
-      {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Share/1.0 (share.myendeavors.me; rideshare quote)",
-        },
-      },
     );
-    if (!res.ok) return { items: [] };
-    const rows = (await res.json()) as {
-      lat?: string;
-      lon?: string;
-      display_name?: string;
-      address?: Record<string, string>;
-    }[];
+    const lookups = [q];
+    if (/^\d/.test(q) && !hasCity) {
+      lookups.push(`${q}, Lafayette, LA`);
+    }
+
     const items: { label: string; lat: number; lng: number }[] = [];
     const seen = new Set<string>();
-    for (const r of rows) {
-      const lat = Number(r.lat);
-      const lng = Number(r.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-      const a = r.address ?? {};
-      const num = (a.house_number || "").trim();
-      const street = (a.road || a.pedestrian || a.residential || "").trim();
-      const city = (
-        a.city ||
-        a.town ||
-        a.village ||
-        a.hamlet ||
-        a.county ||
-        ""
-      ).trim();
-      const state = (a.state || "").trim();
-      const postcode = (a.postcode || "").trim();
-      const line1 = [num, street].filter(Boolean).join(" ").trim();
-      const cityLine = [city, state, postcode].filter(Boolean).join(", ");
-      const label =
-        [line1, cityLine].filter(Boolean).join(", ") ||
-        (r.display_name || "").split(",").slice(0, 4).join(",").trim();
-      if (!label || label.length < 4) continue;
+
+    function push(label: string, lat: number, lng: number) {
+      if (!label || label.length < 4) return;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       const key = label.toLowerCase();
-      if (seen.has(key)) continue;
+      if (seen.has(key)) return;
       seen.add(key);
       items.push({ label, lat, lng });
     }
+
+    for (const query of lookups) {
+      try {
+        const censusUrl =
+          "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?" +
+          new URLSearchParams({
+            address: query,
+            benchmark: "Public_AR_Current",
+            format: "json",
+          });
+        const cres = await fetch(censusUrl, {
+          headers: { Accept: "application/json" },
+        });
+        if (cres.ok) {
+          const cdata = (await cres.json()) as {
+            result?: {
+              addressMatches?: {
+                matchedAddress?: string;
+                coordinates?: { x?: number; y?: number };
+              }[];
+            };
+          };
+          for (const m of cdata.result?.addressMatches ?? []) {
+            const lat = Number(m.coordinates?.y);
+            const lng = Number(m.coordinates?.x);
+            const raw = (m.matchedAddress || "").trim();
+            // "401 JOHNSTON ST, LAFAYETTE, LA, 70501" → title case-ish
+            const label = raw
+              .split(",")
+              .map((part) =>
+                part
+                  .trim()
+                  .toLowerCase()
+                  .replace(/\b[a-z]/g, (c) => c.toUpperCase()),
+              )
+              .join(", ");
+            push(label, lat, lng);
+          }
+        }
+      } catch {
+        /* census optional */
+      }
+    }
+
+    try {
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        addressdetails: "1",
+        limit: "5",
+        countrycodes: "us",
+        q: lookups[lookups.length - 1] || q,
+      });
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?${params}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "Share/1.0 (share.myendeavors.me; rideshare quote)",
+          },
+        },
+      );
+      if (res.ok) {
+        const rows = (await res.json()) as {
+          lat?: string;
+          lon?: string;
+          display_name?: string;
+          address?: Record<string, string>;
+        }[];
+        for (const r of rows) {
+          const lat = Number(r.lat);
+          const lng = Number(r.lon);
+          const a = r.address ?? {};
+          const num = (a.house_number || "").trim();
+          const street = (a.road || a.pedestrian || a.residential || "").trim();
+          const city = (
+            a.city ||
+            a.town ||
+            a.village ||
+            a.hamlet ||
+            a.county ||
+            ""
+          ).trim();
+          const state = (a.state || "").trim();
+          const postcode = (a.postcode || "").trim();
+          const line1 = [num, street].filter(Boolean).join(" ").trim();
+          const cityLine = [city, state, postcode].filter(Boolean).join(", ");
+          const label =
+            [line1, cityLine].filter(Boolean).join(", ") ||
+            (r.display_name || "").split(",").slice(0, 4).join(",").trim();
+          push(label, lat, lng);
+        }
+      }
+    } catch {
+      /* nominatim optional */
+    }
+
     return { items };
   });
 

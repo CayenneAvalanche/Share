@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { searchStreetAddressesFn } from "@/lib/share/server-fns";
 
 /** Bias autocomplete toward Acadiana / corridor. */
 const BIAS = { lat: 30.2241, lon: -92.0198 };
@@ -26,16 +27,30 @@ type Props = {
   className?: string;
 };
 
-function formatFeature(props: Record<string, unknown>): string {
+function leadingHouseNumber(q: string): string {
+  const m = q.trim().match(/^(\d+[A-Za-z]?)\b/);
+  return m?.[1] ?? "";
+}
+
+function withHouseNumber(label: string, house: string): string {
+  if (!house) return label;
+  const t = label.trim();
+  if (new RegExp(`^${house}\\b`, "i").test(t)) return t;
+  return `${house} ${t}`.replace(/\s{2,}/g, " ");
+}
+
+function formatFeature(
+  props: Record<string, unknown>,
+  typedHouse = "",
+): string {
   const name = String(props.name ?? "").trim();
-  const num = String(props.housenumber ?? "").trim();
+  const num = String(props.housenumber ?? "").trim() || typedHouse;
   const street = String(props.street ?? "").trim();
   const city = String(props.city ?? props.locality ?? props.county ?? "").trim();
   const state = String(props.state ?? "").trim();
   const postcode = String(props.postcode ?? "").trim();
 
   const line1 = [num, street || name].filter(Boolean).join(" ").trim();
-  // If name is a place (hospital) and we have street, put name first
   if (name && street && name !== street) {
     const placeLine = [name, num ? `${num} ${street}` : street]
       .filter(Boolean)
@@ -47,16 +62,15 @@ function formatFeature(props: Record<string, unknown>): string {
   return [line1 || name, cityLine].filter(Boolean).join(", ");
 }
 
-async function searchAddresses(q: string): Promise<Suggestion[]> {
-  const query = q.trim();
-  if (query.length < 3) return [];
+async function searchPhoton(q: string, typedHouse: string): Promise<Suggestion[]> {
   const params = new URLSearchParams({
-    q: query,
+    q,
     lat: String(BIAS.lat),
     lon: String(BIAS.lon),
     limit: "6",
     lang: "en",
   });
+  if (typedHouse) params.set("layer", "house");
   const res = await fetch(`https://photon.komoot.io/api/?${params}`, {
     headers: { Accept: "application/json" },
   });
@@ -70,7 +84,7 @@ async function searchAddresses(q: string): Promise<Suggestion[]> {
   const out: Suggestion[] = [];
   const seen = new Set<string>();
   for (const f of data.features ?? []) {
-    const label = formatFeature(f.properties ?? {});
+    const label = formatFeature(f.properties ?? {}, typedHouse);
     if (!label || label.length < 4) continue;
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
@@ -85,12 +99,83 @@ async function searchAddresses(q: string): Promise<Suggestion[]> {
       lng: Number.isFinite(lng) ? lng : undefined,
     });
   }
+  // Also fetch streets (no layer) so we can attach the typed house number
+  if (typedHouse) {
+    try {
+      const p2 = new URLSearchParams({
+        q,
+        lat: String(BIAS.lat),
+        lon: String(BIAS.lon),
+        limit: "3",
+        lang: "en",
+      });
+      const r2 = await fetch(`https://photon.komoot.io/api/?${p2}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (r2.ok) {
+        const d2 = (await r2.json()) as {
+          features?: {
+            properties?: Record<string, unknown>;
+            geometry?: { coordinates?: number[] };
+          }[];
+        };
+        for (const f of d2.features ?? []) {
+          const label = formatFeature(f.properties ?? {}, typedHouse);
+          const key = label.toLowerCase();
+          if (!label || seen.has(key)) continue;
+          seen.add(key);
+          const coords = f.geometry?.coordinates;
+          const lng = Number(coords?.[0]);
+          const lat = Number(coords?.[1]);
+          out.push({
+            id: `${key}-${out.length}`,
+            label,
+            lat: Number.isFinite(lat) ? lat : undefined,
+            lng: Number.isFinite(lng) ? lng : undefined,
+          });
+        }
+      }
+    } catch {
+      /* street fallback optional */
+    }
+  }
   return out;
 }
 
+async function searchAddresses(q: string): Promise<Suggestion[]> {
+  const query = q.trim();
+  if (query.length < 2) return [];
+  const house = leadingHouseNumber(query);
+  const [photon, nomi] = await Promise.all([
+    searchPhoton(query, house).catch(() => [] as Suggestion[]),
+    house
+      ? searchStreetAddressesFn({ data: { q: query } })
+          .then((r) =>
+            r.items.map((it, i) => ({
+              id: `n-${i}-${it.label}`,
+              label: withHouseNumber(it.label, house),
+              lat: it.lat,
+              lng: it.lng,
+            })),
+          )
+          .catch(() => [] as Suggestion[])
+      : Promise.resolve([] as Suggestion[]),
+  ]);
+  const seen = new Set<string>();
+  const merged: Suggestion[] = [];
+  // Nominatim first when we typed a house number — it keeps 401, not just the street
+  for (const s of [...nomi, ...photon]) {
+    const key = s.label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(s);
+  }
+  return merged.slice(0, 8);
+}
+
 /**
- * Free-text address with as-you-type suggestions (OpenStreetMap / Photon).
- * Always allows typing a full custom address if suggestions miss.
+ * Free-text address with as-you-type suggestions (OpenStreetMap).
+ * House numbers are kept even when the map only knows the street.
  */
 export function AddressField({
   id: idProp,
@@ -128,7 +213,7 @@ export function AddressField({
     }
     if (timer.current) clearTimeout(timer.current);
     const q = value.trim();
-    if (q.length < 3) {
+    if (q.length < 2) {
       setItems([]);
       setLoading(false);
       return;
@@ -145,7 +230,7 @@ export function AddressField({
           setItems([]);
         })
         .finally(() => setLoading(false));
-    }, 280);
+    }, 320);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
@@ -153,7 +238,9 @@ export function AddressField({
 
   function pick(s: Suggestion) {
     skipNextSearch.current = true;
-    onChange(s.label);
+    const house = leadingHouseNumber(value);
+    const label = withHouseNumber(s.label, house);
+    onChange(label);
     if (
       onResolved &&
       s.lat != null &&
@@ -161,7 +248,7 @@ export function AddressField({
       Number.isFinite(s.lat) &&
       Number.isFinite(s.lng)
     ) {
-      onResolved({ label: s.label, lat: s.lat, lng: s.lng });
+      onResolved({ label, lat: s.lat, lng: s.lng });
     }
     setItems([]);
     setOpen(false);
@@ -183,11 +270,10 @@ export function AddressField({
           id={id}
           required={required}
           rows={2}
+          inputMode="text"
           value={value}
           autoComplete="street-address"
-          placeholder={
-            placeholder ?? "Start typing an address…"
-          }
+          placeholder={placeholder ?? "401 Johnston St, Lafayette, LA"}
           onChange={(e) => {
             onChange(e.target.value);
             setOpen(true);
@@ -247,9 +333,6 @@ export function AddressField({
           ))}
         </ul>
       )}
-      <p className="text-[11px] text-[var(--color-fg-subtle)]">
-        Suggestions appear as you type — or type the full address yourself.
-      </p>
     </div>
   );
 }

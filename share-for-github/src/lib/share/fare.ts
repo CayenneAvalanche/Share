@@ -1,14 +1,15 @@
 /** Taxi-style meter for in-progress Share rides. Easy to retune. */
 export const SHARE_TAXI_RATES = {
   /** Flag drop when Begin ride is tapped */
-  flagDrop: 2.5,
-  /** Dollars per GPS mile */
-  perMile: 2,
+  flagDrop: 2,
+  /** Dollars per GPS mile — under Uber all-in, no booking fee */
+  perMile: 1.1,
   /** Dollars per minute while the ride is live */
-  perMinute: 0.35,
+  perMinute: 0.25,
   /** Floor so short hops still pay something (also VIP default) */
   minFare: 5,
 } as const;
+
 
 export type TaxiFare = {
   miles: number;

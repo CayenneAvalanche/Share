@@ -1667,6 +1667,68 @@ export const listVolunteerRidesFn = createServerFn({ method: "POST" })
     };
   });
 
+/** House-number search via Nominatim (Photon often returns the street only). */
+export const searchStreetAddressesFn = createServerFn({ method: "POST" })
+  .validator((data: { q: string }) => data)
+  .handler(async ({ data }) => {
+    const q = data.q.trim();
+    if (q.length < 3) return { items: [] as { label: string; lat: number; lng: number }[] };
+    const params = new URLSearchParams({
+      format: "jsonv2",
+      addressdetails: "1",
+      limit: "5",
+      countrycodes: "us",
+      q,
+    });
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "Share/1.0 (share.myendeavors.me; rideshare quote)",
+        },
+      },
+    );
+    if (!res.ok) return { items: [] };
+    const rows = (await res.json()) as {
+      lat?: string;
+      lon?: string;
+      display_name?: string;
+      address?: Record<string, string>;
+    }[];
+    const items: { label: string; lat: number; lng: number }[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const lat = Number(r.lat);
+      const lng = Number(r.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const a = r.address ?? {};
+      const num = (a.house_number || "").trim();
+      const street = (a.road || a.pedestrian || a.residential || "").trim();
+      const city = (
+        a.city ||
+        a.town ||
+        a.village ||
+        a.hamlet ||
+        a.county ||
+        ""
+      ).trim();
+      const state = (a.state || "").trim();
+      const postcode = (a.postcode || "").trim();
+      const line1 = [num, street].filter(Boolean).join(" ").trim();
+      const cityLine = [city, state, postcode].filter(Boolean).join(", ");
+      const label =
+        [line1, cityLine].filter(Boolean).join(", ") ||
+        (r.display_name || "").split(",").slice(0, 4).join(",").trim();
+      if (!label || label.length < 4) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ label, lat, lng });
+    }
+    return { items };
+  });
+
 /** Public count only — no names. Open requests inside the default nearby radius. */
 export const countNearbyOpenRidesFn = createServerFn({ method: "POST" })
   .validator(

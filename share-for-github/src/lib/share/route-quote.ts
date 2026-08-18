@@ -5,6 +5,7 @@ import {
   SHARE_TAXI_RATES,
   type TaxiFare,
 } from "@/lib/share/fare";
+import { searchStreetAddressesFn } from "@/lib/share/server-fns";
 
 const PHOTON = "https://photon.komoot.io/api/";
 const OSRM = "https://router.project-osrm.org/route/v1/driving";
@@ -39,6 +40,16 @@ function formatPhoton(props: Record<string, unknown>): string {
 export async function geocodeAddress(q: string): Promise<GeoPoint> {
   const query = q.trim();
   if (query.length < 3) throw new Error("Type a fuller address");
+  const hasHouse = /^\d+/.test(query);
+  if (hasHouse) {
+    try {
+      const nomi = await searchStreetAddressesFn({ data: { q: query } });
+      const hit = nomi.items[0];
+      if (hit) return { lat: hit.lat, lng: hit.lng, label: hit.label };
+    } catch {
+      /* fall through to Photon */
+    }
+  }
   const params = new URLSearchParams({
     q: query,
     lat: String(BIAS.lat),

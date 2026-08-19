@@ -42,6 +42,8 @@ import { fakeStripeId } from "./payments";
 import { makeTrackingCode, shouldEscalate, trackLabel } from "./tracking";
 import { matchedFare } from "./corridor";
 import { isDemoMode } from "./mode";
+import { stripDemoSeedChat } from "./messages";
+
 
 type CarBooking = {
   id: string;
@@ -2425,10 +2427,17 @@ export const useShareStore = create<ShareState>()(
             return [...persisted, ...seeds];
           })(),
           favoriteDriverIds: p.favoriteDriverIds ?? current.favoriteDriverIds,
-          threads:
-            p.threads && p.threads.length > 0 ? p.threads : SEED_THREADS,
-          messages:
-            p.messages && p.messages.length > 0 ? p.messages : SEED_MESSAGES,
+          threads: DEMO
+            ? p.threads && p.threads.length > 0
+              ? p.threads
+              : SEED_THREADS
+            : stripDemoSeedChat(p.threads ?? []),
+          messages: DEMO
+            ? p.messages && p.messages.length > 0
+              ? p.messages
+              : SEED_MESSAGES
+            : stripDemoSeedChat(p.messages ?? []),
+
           savedPlaces:
             p.savedPlaces && p.savedPlaces.length > 0
               ? p.savedPlaces

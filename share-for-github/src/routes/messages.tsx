@@ -5,7 +5,7 @@ import { AppShell } from "@/components/share/shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useShareStore } from "@/lib/share/store";
-import { sortThreads, threadPreview, enrichThreadsWithRiderNames } from "@/lib/share/messages";
+import { sortThreads, threadPreview, enrichThreadsWithRiderNames, isDemoSeedThread } from "@/lib/share/messages";
 import { formatTime } from "@/lib/utils";
 import { listChatFn } from "@/lib/share/server-fns";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -20,27 +20,37 @@ function MessagesLayout() {
   return <MessagesPage />;
 }
 
+function guestPhone10() {
+  try {
+    return (localStorage.getItem("share-vol-guest-phone") || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+  } catch {
+    return "";
+  }
+}
+
 function MessagesPage() {
   const threads = useShareStore((s) => s.threads);
   const messages = useShareStore((s) => s.messages);
   const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
-  const riderName = useShareStore((s) => s.riderName);
   const volunteerRides = useShareStore((s) => s.volunteerRides);
   const riderApps = useShareStore((s) => s.riderApps);
   const user = useCurrentUser();
-  const sorted = sortThreads(
-    enrichThreadsWithRiderNames(threads, volunteerRides, riderApps),
-  );
+  const phone10 = guestPhone10();
+  const identified = Boolean(user?.primaryEmail) || phone10.length >= 10;
+  const sorted = identified
+    ? sortThreads(
+        enrichThreadsWithRiderNames(threads, volunteerRides, riderApps).filter(
+          (t) => !isDemoSeedThread(t.id),
+        ),
+      )
+    : [];
 
   useEffect(() => {
+    if (!identified) return;
     let cancelled = false;
     async function pull() {
-      let phone = "";
-      try {
-        phone = localStorage.getItem("share-vol-guest-phone") || "";
-      } catch {
-        /* ignore */
-      }
       try {
         let pin = "";
         try {
@@ -51,8 +61,7 @@ function MessagesPage() {
         const res = await listChatFn({
           data: {
             email: user?.primaryEmail || undefined,
-            phone: phone || undefined,
-            name: user?.displayName || riderName || undefined,
+            phone: phone10 || undefined,
             pin: pin || undefined,
           },
         });
@@ -68,7 +77,7 @@ function MessagesPage() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [user?.primaryEmail, user?.displayName, riderName, mergeCloudChat]);
+  }, [identified, user?.primaryEmail, phone10, mergeCloudChat]);
 
   return (
     <AppShell
@@ -91,11 +100,22 @@ function MessagesPage() {
         {sorted.length === 0 ? (
           <div className="py-16 text-center">
             <MessageCircle className="mx-auto size-8 text-[var(--color-fg-subtle)]" />
-            <p className="mt-3 font-semibold">No conversations yet</p>
-            <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
-              Book a ride or accept a volunteer trip and chat opens here on every
-              device.
+            <p className="mt-3 font-semibold">
+              {identified ? "No conversations yet" : "Sign in to see chat"}
             </p>
+            <p className="mt-1 text-sm text-[var(--color-fg-muted)]">
+              {identified
+                ? "Book a ride and chat with your driver here."
+                : "Chats stay private. Sign in or request a ride with your phone first."}
+            </p>
+            {!identified && (
+              <Link
+                to="/login"
+                className="mt-4 inline-block text-sm font-semibold text-[var(--color-primary)]"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         ) : (
           sorted.map((th) => (

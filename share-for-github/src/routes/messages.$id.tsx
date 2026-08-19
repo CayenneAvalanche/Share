@@ -64,6 +64,8 @@ function ThreadPage() {
       } catch {
         /* ignore */
       }
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      if (!user?.primaryEmail && digits.length < 10) return;
       try {
         let pin = "";
         try {
@@ -74,8 +76,7 @@ function ThreadPage() {
         const res = await listChatFn({
           data: {
             email: user?.primaryEmail || undefined,
-            phone: phone || undefined,
-            name: user?.displayName || riderName || undefined,
+            phone: digits || undefined,
             pin: pin || undefined,
           },
         });
@@ -91,7 +92,7 @@ function ThreadPage() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [user?.primaryEmail, user?.displayName, riderName, mergeCloudChat]);
+  }, [user?.primaryEmail, mergeCloudChat]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

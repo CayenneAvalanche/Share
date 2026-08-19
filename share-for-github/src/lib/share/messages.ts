@@ -1,5 +1,21 @@
 import type { ChatMessage, ChatThread, VolunteerRide, RiderApplication } from "./data";
 
+/** Fake tour threads — never show these on the live site. */
+const DEMO_SEED_THREAD_IDS = new Set(["th1", "th2", "th3"]);
+
+export function isDemoSeedThread(id: string) {
+  return DEMO_SEED_THREAD_IDS.has(id);
+}
+
+export function stripDemoSeedChat<T extends { id?: string; threadId?: string }>(
+  items: T[],
+): T[] {
+  return items.filter((x) => {
+    const id = x.threadId || x.id || "";
+    return !isDemoSeedThread(id);
+  });
+}
+
 export function sortThreads(threads: ChatThread[]) {
   return [...threads].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),

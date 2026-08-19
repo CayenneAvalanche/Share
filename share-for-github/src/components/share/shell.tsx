@@ -15,8 +15,8 @@ import { useShareStore } from "@/lib/share/store";
 import { SHARE_BUILD } from "@/lib/share/contact";
 import { FounderRideAlerts } from "./founder-ride-alerts";
 import { listChatFn } from "@/lib/share/server-fns";
+import { isDemoSeedThread } from "@/lib/share/messages";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-
 
 type NavItem = {
   to: string;
@@ -86,12 +86,24 @@ export function AppShell({
   solidHeader?: boolean;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const unread = useShareStore((s) =>
-    s.threads.reduce((n, t) => n + t.unread, 0),
-  );
-  const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
-  const riderName = useShareStore((s) => s.riderName);
   const user = useCurrentUser();
+  const threads = useShareStore((s) => s.threads);
+  const mergeCloudChat = useShareStore((s) => s.mergeCloudChat);
+  let guestPhone = "";
+  try {
+    guestPhone = (localStorage.getItem("share-vol-guest-phone") || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+  } catch {
+    /* ignore */
+  }
+  const identified = Boolean(user?.primaryEmail) || guestPhone.length >= 10;
+  const unread = identified
+    ? threads.reduce(
+        (n, t) => (isDemoSeedThread(t.id) ? n : n + t.unread),
+        0,
+      )
+    : 0;
 
   // Keep Chat badge live across devices
   useEffect(() => {
@@ -99,11 +111,13 @@ export function AppShell({
     async function pull() {
       let phone = "";
       try {
-        phone = localStorage.getItem("share-vol-guest-phone") || "";
+        phone = (localStorage.getItem("share-vol-guest-phone") || "")
+          .replace(/\D/g, "")
+          .slice(-10);
       } catch {
         /* ignore */
       }
-      if (!user?.primaryEmail && !phone) return;
+      if (!user?.primaryEmail && phone.length < 10) return;
       try {
         let pin = "";
         try {
@@ -115,7 +129,6 @@ export function AppShell({
           data: {
             email: user?.primaryEmail || undefined,
             phone: phone || undefined,
-            name: user?.displayName || riderName || undefined,
             pin: pin || undefined,
           },
         });
@@ -131,7 +144,7 @@ export function AppShell({
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [user?.primaryEmail, user?.displayName, riderName, mergeCloudChat]);
+  }, [user?.primaryEmail, mergeCloudChat]);
 
   const NAV: NavItem[] = [
     {

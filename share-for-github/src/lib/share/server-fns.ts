@@ -2943,7 +2943,6 @@ export const listChatFn = createServerFn({ method: "POST" })
     await ensureChatTables(sql);
     const email = (data.email || "").trim().toLowerCase();
     const phone = last10Digits(data.phone);
-    const name = (data.name || "").trim().toLowerCase();
     const key = readerKey(email, data.phone);
 
     let founder = false;
@@ -2961,6 +2960,12 @@ export const listChatFn = createServerFn({ method: "POST" })
       FOUNDER_NOTIFY_EMAIL_DEFAULT
     ).toLowerCase();
     if (email && founderEmail && email === founderEmail) founder = true;
+
+    // No identity → no inbox. Never leak other riders' chats to guests.
+    if (!founder && !email && phone.length < 10) {
+      return { threads: [] as ChatThread[], messages: [] as ChatMessage[] };
+    }
+
 
     const rows = await sql`
       select * from share_chat_threads
@@ -2995,25 +3000,8 @@ export const listChatFn = createServerFn({ method: "POST" })
       const phones = parseJsonArr(r.participant_phones_json).map((x) =>
         last10Digits(x),
       );
-      const parts = parseJsonArr(r.participants_json).map((x) =>
-        x.toLowerCase(),
-      );
       if (email && emails.includes(email)) return true;
       if (phone.length >= 10 && phones.some((p) => p === phone)) return true;
-      // name match as soft fallback (pilot) — full name or first name ≥3
-      if (name.length >= 3) {
-        const first = name.split(/\s+/)[0] || "";
-        if (
-          parts.some(
-            (p) =>
-              p.includes(name) ||
-              name.includes(p) ||
-              (first.length >= 3 && (p.includes(first) || first.includes(p))),
-          )
-        ) {
-          return true;
-        }
-      }
       return false;
     });
 

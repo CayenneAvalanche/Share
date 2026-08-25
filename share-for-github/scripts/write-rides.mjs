@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const b64 = (
-  readFileSync(join(dir, "rides-ui.b64.part0"), "utf8"),
-  readFileSync(join(dir, "rides-ui.b64.part1"), "utf8"),
-  readFileSync(join(dir, "rides-ui.b64.part2"), "utf8"),
-  readFileSync(join(dir, "rides-ui.b64.part3"), "utf8"),
+  readFileSync(join(dir, "rides-ui.b64.part0"), "utf8") +
+  readFileSync(join(dir, "rides-ui.b64.part1"), "utf8") +
+  readFileSync(join(dir, "rides-ui.b64.part2"), "utf8") +
+  readFileSync(join(dir, "rides-ui.b64.part3"), "utf8") +
   readFileSync(join(dir, "rides-ui.b64.part4"), "utf8")
 ).replace(/\s+/g, "");
 const buf = gunzipSync(Buffer.from(b64, "base64"));

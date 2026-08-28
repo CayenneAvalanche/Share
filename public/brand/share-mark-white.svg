@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Share">
+  <title>Share mark white</title>
+  <path
+    d="M144 112c64-48 176-32 208 48 24 64-16 112-80 128-64 16-96 48-80 112 16 64 112 96 192 48"
+    stroke="#ffffff"
+    stroke-width="48"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

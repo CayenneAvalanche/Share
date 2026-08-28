@@ -1,33 +1,7 @@
 # Share — Netlify → share.myendeavors.me
-#
-# Required env (Site configuration → Environment variables):
-#   DATABASE_URL   = Neon connection string (Site UI only — never commit)
-#   FOUNDER_PIN    = admin inbox PIN (Site UI only — never put the real value in git)
-# Optional:
-#   VITE_APP_MODE  = demo | beta
-#   STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY = payments later
-#
-# Founder alerts (volunteer ride requests):
-#   RESEND_API_KEY          = Resend API key for email
-#   RESEND_FROM             = optional, default "Share <onboarding@resend.dev>"
-#   TWILIO_ACCOUNT_SID      = Twilio Account SID
-#   TWILIO_AUTH_TOKEN       = Twilio Auth Token
-#   TWILIO_FROM_NUMBER      = Twilio phone number (E.164)
-#   FOUNDER_NOTIFY_EMAIL    = override default tmd5458@me.com
-#   FOUNDER_NOTIFY_PHONE    = override default +13375010195
-#
-# Domains:
-#   share.myendeavors.me      → public beta (empty marketplace)
-#   demo.share.myendeavors.me → demo mode (hostname starts with demo.)
-#
-# To wire demo.share (DNS + Netlify):
-#   1. Netlify → Domain management → Add domain alias: demo.share.myendeavors.me
-#   2. DNS at registrar (Hover/etc) for myendeavors.me:
-#        Type CNAME | Host: demo.share | Value: share337.netlify.app
-#        (or the target Netlify shows for that domain)
-#   Until DNS propagates, use sticky demo mode:
-#        https://share.myendeavors.me/app?mode=demo
-
+# App sources are at repo root AND in share-for-github/ (kept in sync).
+# Do not set `base` here — if the Netlify UI already uses share-for-github,
+# a toml `base` would nest the path and fail the build.
 [build]
   command = "npm run build"
   publish = "dist"
@@ -36,8 +10,6 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  # DATABASE_URL is used by server functions at runtime; omit from scan so
-  # Netlify does not fail the build when server bundles reference the env key.
   SECRETS_SCAN_OMIT_KEYS = "DATABASE_URL,FOUNDER_PIN,RESEND_API_KEY,TWILIO_AUTH_TOKEN,TWILIO_ACCOUNT_SID"
 
 [[headers]]

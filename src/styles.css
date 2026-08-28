@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-sans: "DM Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Fraunces", "Georgia", "Times New Roman", serif;
+
+  --color-bg: #eef5f0;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #dde9e1;
+  --color-bg-inverse: #163d28;
+  --color-fg: #12261b;
+  --color-fg-muted: #4d6356;
+  --color-fg-subtle: #7a8f82;
+  --color-fg-inverse: #eef5f0;
+  --color-primary: #1f6b45;
+  --color-primary-hover: #185637;
+  --color-primary-fg: #f6f4ef;
+  --color-accent: #c45c26;
+  --color-accent-fg: #ffffff;
+  --color-border: #c5d4ca;
+  --color-border-strong: #9bb0a3;
+  --color-success: #1f6b45;
+  --color-warning: #b45309;
+  --color-danger: #b42318;
+  --color-ring: #1f6b45;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.75rem;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgb(20 36 28 / 0.05);
+  --shadow-md: 0 8px 24px rgb(20 36 28 / 0.08);
+  --shadow-lg: 0 16px 40px rgb(20 36 28 / 0.12);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-pt {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+}
+
+@keyframes share-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-share-rise {
+  animation: share-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-share-rise-delay-1 {
+  animation-delay: 60ms;
+}
+.animate-share-rise-delay-2 {
+  animation-delay: 120ms;
+}
+.animate-share-rise-delay-3 {
+  animation-delay: 180ms;
+}
+.animate-share-rise-delay-4 {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-share-rise,
+  .animate-share-rise-delay-1,
+  .animate-share-rise-delay-2,
+  .animate-share-rise-delay-3,
+  .animate-share-rise-delay-4 {
+    animation: none;
+  }
+}

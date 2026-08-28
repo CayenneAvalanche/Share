@@ -13,6 +13,7 @@ import {
   DollarSign,
   CreditCard,
   Ticket,
+  Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
@@ -27,6 +28,12 @@ import { signOut, authEnabled } from "@/lib/auth/client";
 import { isDemoMode } from "@/lib/share/mode";
 import { statusLabel, useMyAppStatus } from "@/lib/share/use-my-apps";
 import { INTERVIEW_LABELS, PILOT_INVITE_CODES, VEHICLE_TYPES } from "@/lib/share/data";
+import { updateMyProfileSelfieFn, lookupVipFn } from "@/lib/share/server-fns";
+import { formatCurrency } from "@/lib/utils";
+import {
+  pullMyVehiclesFromCloud,
+  pushMyVehiclesToCloud,
+} from "@/lib/share/sync-vehicles";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/profile")({
@@ -61,16 +68,12 @@ function ProfilePage() {
   const [newVehLabel, setNewVehLabel] = useState("");
   const [newVehType, setNewVehType] = useState("SUV / Crossover");
   const [newVehPhoto, setNewVehPhoto] = useState("");
+  const [addingVehicle, setAddingVehicle] = useState(false);
   const [invite, setInvite] = useState("");
   const [placeLabel, setPlaceLabel] = useState("");
   const [placeAddr, setPlaceAddr] = useState("");
-  const emergencyContactName = useShareStore((s) => s.emergencyContactName);
-  const emergencyContactPhone = useShareStore((s) => s.emergencyContactPhone);
-  const setEmergencyContact = useShareStore((s) => s.setEmergencyContact);
   const idVerified = useShareStore((s) => s.idVerified);
   const setIdVerified = useShareStore((s) => s.setIdVerified);
-  const [ecName, setEcName] = useState(emergencyContactName);
-  const [ecPhone, setEcPhone] = useState(emergencyContactPhone);
   const demo = isDemoMode();
   const navigate = useNavigate();
   const founderTapRef = useRef({ n: 0, t: 0 });
@@ -93,6 +96,11 @@ function ProfilePage() {
     }
   }
 
+  const [vipStatus, setVipStatus] = useState<{
+    localPrice: number;
+    fullName?: string;
+  } | null>(null);
+
   const { user, isPending } = useCurrentUserState();
   const {
     latestDriver,
@@ -105,6 +113,40 @@ function ProfilePage() {
     canApplyRider,
   } = useMyAppStatus();
 
+  useEffect(() => {
+    let guest = "";
+    try {
+      guest = localStorage.getItem("share-vol-guest-phone") || "";
+    } catch {
+      /* ignore */
+    }
+    const phone = latestRider?.phone || latestDriver?.phone || guest;
+    const p = String(phone || "").replace(/\D/g, "").slice(-10);
+    if (p.length < 10) {
+      setVipStatus(null);
+      return;
+    }
+    let cancelled = false;
+    void lookupVipFn({ data: { phone: p } })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.vip) {
+          setVipStatus({
+            localPrice: res.localPrice ?? 5,
+            fullName: res.fullName,
+          });
+        } else {
+          setVipStatus(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVipStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latestRider?.phone, latestDriver?.phone]);
+
   // Keep display name in sync with real auth account (not email username)
   useEffect(() => {
     if (user?.displayName && user.displayName.trim()) {
@@ -112,6 +154,17 @@ function ProfilePage() {
       setName(user.displayName.trim());
     }
   }, [user?.displayName, setRiderName]);
+
+  // Garage + car photos: pull from cloud (or push this phone if cloud empty)
+  useEffect(() => {
+    const email = user?.primaryEmail;
+    if (!email) return;
+    void pullMyVehiclesFromCloud(email).then((r) => {
+      if (r.ok && r.count > 0) {
+        /* silent — list updates via store */
+      }
+    });
+  }, [user?.primaryEmail]);
 
   const accountLabel =
     (user?.displayName && user.displayName.trim()) ||
@@ -161,9 +214,9 @@ function ProfilePage() {
                 }}
                 onContextMenu={(e) => e.preventDefault()}
               >
-                {profileSelfie || user?.profileImageUrl ? (
+                {profileSelfie ? (
                   <img
-                    src={profileSelfie || user?.profileImageUrl || ""}
+                    src={profileSelfie}
                     alt=""
                     className="size-full object-cover"
                   />
@@ -210,6 +263,12 @@ function ProfilePage() {
                   {inviteCodeUsed && (
                     <Badge variant="accent">Invite {inviteCodeUsed}</Badge>
                   )}
+                  {vipStatus && (
+                    <Badge variant="accent">
+                      <Star className="mr-1 size-3" />
+                      VIP · {formatCurrency(vipStatus.localPrice)} local
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -246,15 +305,59 @@ function ProfilePage() {
             <PhotoField
               id="profile-selfie"
               label="Your photo"
-              hint="One selfie for rider, driver, and trip posts. Update anytime."
+              hint="Saved on this phone and to your Share account so every device matches."
               value={profileSelfie}
-              onChange={setProfileSelfie}
+              onChange={(dataUrl) => {
+                setProfileSelfie(dataUrl);
+                const email = user?.primaryEmail;
+                if (!email) {
+                  toast.message(
+                    "Photo saved on this phone — sign in to sync it everywhere",
+                  );
+                  return;
+                }
+                void updateMyProfileSelfieFn({
+                  data: { email, selfie: dataUrl },
+                })
+                  .then(() => {
+                    toast.success("Profile photo saved on all devices");
+                  })
+                  .catch(() => {
+                    toast.message(
+                      "Saved on this phone — cloud sync pending (try again on Wi‑Fi)",
+                    );
+                  });
+              }}
               facing="user"
               kind="selfie"
             />
           </CardContent>
         </Card>
 
+        {vipStatus && (
+          <Card className="border-[var(--color-accent)]/40 bg-[var(--color-accent)]/8">
+            <CardContent className="space-y-2 p-5">
+              <div className="flex items-center gap-2">
+                <Star className="size-5 text-[var(--color-accent)]" />
+                <h2 className="font-display text-lg font-semibold">
+                  You’re a Share VIP
+                </h2>
+              </div>
+              <p className="text-sm text-[var(--color-fg-muted)]">
+                Lifetime local rides at{" "}
+                <strong className="text-[var(--color-fg)]">
+                  {formatCurrency(vipStatus.localPrice)}
+                </strong>
+                . When you request a local ride, that rate is already applied.
+              </p>
+              <Button size="sm" asChild>
+                <Link to="/local">
+                  Request a {formatCurrency(vipStatus.localPrice)} local ride
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-3 p-5">
@@ -298,7 +401,14 @@ function ProfilePage() {
                           size="sm"
                           variant="ghost"
                           type="button"
-                          onClick={() => setDefaultVehicle(v.id)}
+                          onClick={() => {
+                            setDefaultVehicle(v.id);
+                            void pushMyVehiclesToCloud(user?.primaryEmail).then(
+                              (r) => {
+                                if (r.ok) toast.success("Default car synced");
+                              },
+                            );
+                          }}
                         >
                           Make default
                         </Button>
@@ -308,8 +418,17 @@ function ProfilePage() {
                         variant="ghost"
                         type="button"
                         onClick={() => {
-                          if (window.confirm(`Remove ${v.label}?`))
-                            removeVehicle(v.id);
+                          if (!window.confirm(`Remove ${v.label}?`)) return;
+                          removeVehicle(v.id);
+                          void pushMyVehiclesToCloud(user?.primaryEmail).then(
+                            (r) => {
+                              if (r.ok) toast.success("Garage updated in cloud");
+                              else if (r.error === "sign-in-required")
+                                toast.message(
+                                  "Removed on this phone — sign in to sync",
+                                );
+                            },
+                          );
                         }}
                       >
                         Remove
@@ -320,66 +439,118 @@ function ProfilePage() {
               ))}
             </div>
             <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-              <p className="text-sm font-semibold">Add vehicle</p>
-              <PhotoField
-                id="new-veh-photo"
-                label="Car photo"
-                value={newVehPhoto}
-                onChange={setNewVehPhoto}
-                facing="environment"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="new-vtype">Type</Label>
-                  <Select
-                    id="new-vtype"
-                    value={newVehType}
-                    onChange={(e) => setNewVehType(e.target.value)}
-                  >
-                    {VEHICLE_TYPES.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="new-vlabel">Year / make / model</Label>
-                  <Input
-                    id="new-vlabel"
-                    value={newVehLabel}
-                    onChange={(e) => setNewVehLabel(e.target.value)}
-                    placeholder="2018 CR-V"
+              {!addingVehicle ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setAddingVehicle(true)}
+                >
+                  Add vehicle
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">New vehicle</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingVehicle(false);
+                        setNewVehLabel("");
+                        setNewVehPhoto("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <PhotoField
+                    id="new-veh-photo"
+                    label="Car photo"
+                    hint="Take a photo first — then it syncs to your Share account on every device."
+                    value={newVehPhoto}
+                    onChange={setNewVehPhoto}
+                    facing="environment"
+                    kind="vehicle"
+                    captureFirst
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="new-vtype">Type</Label>
+                      <Select
+                        id="new-vtype"
+                        value={newVehType}
+                        onChange={(e) => setNewVehType(e.target.value)}
+                      >
+                        {VEHICLE_TYPES.map((x) => (
+                          <option key={x} value={x}>
+                            {x}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="new-vlabel">Year / make / model</Label>
+                      <Input
+                        id="new-vlabel"
+                        value={newVehLabel}
+                        onChange={(e) => setNewVehLabel(e.target.value)}
+                        placeholder="2018 CR-V"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => {
+                      if (!newVehLabel.trim()) {
+                        toast.error("Add year / make / model");
+                        return;
+                      }
+                      if (!newVehPhoto) {
+                        toast.error("Take a car photo first");
+                        return;
+                      }
+                      addVehicle({
+                        label: newVehLabel.trim(),
+                        vehicleType: newVehType,
+                        photoUrl: newVehPhoto || undefined,
+                        isDefault: myVehicles.length === 0,
+                      });
+                      setNewVehLabel("");
+                      setNewVehPhoto("");
+                      setAddingVehicle(false);
+                      const email = user?.primaryEmail;
+                      if (!email) {
+                        toast.message(
+                          "Saved on this phone — sign in to push the car photo everywhere",
+                        );
+                        return;
+                      }
+                      void pushMyVehiclesToCloud(email).then((r) => {
+                        if (r.ok) {
+                          toast.success("Vehicle + photo saved on all devices");
+                        } else {
+                          toast.message(
+                            r.error ||
+                              "Saved on this phone — cloud sync pending (retry on Wi‑Fi)",
+                          );
+                        }
+                      });
+                    }}
+                  >
+                    Save vehicle
+                  </Button>
                 </div>
-              </div>
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => {
-                  if (!newVehLabel.trim()) {
-                    toast.error("Add year / make / model");
-                    return;
-                  }
-                  addVehicle({
-                    label: newVehLabel.trim(),
-                    vehicleType: newVehType,
-                    photoUrl: newVehPhoto || undefined,
-                    isDefault: myVehicles.length === 0,
-                  });
-                  setNewVehLabel("");
-                  setNewVehPhoto("");
-                  toast.success("Vehicle saved");
-                }}
-              >
-                Save vehicle
-              </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-2">
           {[
+            { to: "/rides/quote", label: "Fare quote", icon: Calculator },
             { to: "/messages", label: "Messages", icon: MessageCircle },
             { to: "/earnings", label: "Earnings", icon: DollarSign },
             { to: "/checkout", label: "Checkout", icon: CreditCard },
@@ -433,31 +604,11 @@ function ProfilePage() {
         
         <Card>
           <CardContent className="space-y-3 p-5">
-            <h2 className="font-display text-lg font-semibold">Safety & ID</h2>
+            <h2 className="font-display text-lg font-semibold">ID verification</h2>
             <p className="text-sm text-[var(--color-fg-muted)]">
-              Emergency contact for SOS. ID verify required before car rentals in pilot.
+              Required before car rentals in pilot. Emergency contact is collected
+              when you create your account (for SOS).
             </p>
-            <div className="grid gap-2">
-              <Input
-                placeholder="Emergency contact name"
-                value={ecName}
-                onChange={(e) => setEcName(e.target.value)}
-              />
-              <Input
-                placeholder="Their phone"
-                value={ecPhone}
-                onChange={(e) => setEcPhone(e.target.value)}
-              />
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setEmergencyContact(ecName, ecPhone);
-                  toast.success("Emergency contact saved");
-                }}
-              >
-                Save emergency contact
-              </Button>
-            </div>
             <div className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2 text-sm">
               <span>ID verification</span>
               <Badge variant={idVerified ? "success" : "outline"}>
@@ -617,7 +768,7 @@ function ProfilePage() {
           {
             to: "/volunteer",
             title: "Volunteer rides",
-            sub: "Veterans · disabled · elders",
+            sub: "Elders · veterans · medical · hardship",
             icon: Star,
           },
         ].map((link) => (

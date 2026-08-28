@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" fill="none" role="img" aria-label="Share">
+  <title>Share logo on dark</title>
+  <rect width="720" height="200" rx="24" fill="#0f1a14"/>
+  <rect x="24" y="28" width="144" height="144" rx="32" fill="#1f6b45"/>
+  <path
+    d="M60 58c22-16 58-11 70 16 8 22-5 38-27 43-22 5-32 16-27 38 5 22 38 32 65 16"
+    stroke="#ffffff"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text x="200" y="128" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="92" font-weight="650" fill="#f4f7f5" letter-spacing="-2">Share</text>
+</svg>

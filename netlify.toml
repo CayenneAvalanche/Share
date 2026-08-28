@@ -1,7 +1,8 @@
-# Share lives in share-for-github/. This root file exists so Netlify still
-# builds if the site "Base directory" UI field is empty.
+# Share — Netlify → share.myendeavors.me
+# App sources are at repo root AND in share-for-github/ (kept in sync).
+# Do not set `base` here — if the Netlify UI already uses share-for-github,
+# a toml `base` would nest the path and fail the build.
 [build]
-  base = "share-for-github"
   command = "npm run build"
   publish = "dist"
   functions = ".netlify/functions-internal"
@@ -10,3 +11,8 @@
 [build.environment]
   NODE_VERSION = "22"
   SECRETS_SCAN_OMIT_KEYS = "DATABASE_URL,FOUNDER_PIN,RESEND_API_KEY,TWILIO_AUTH_TOKEN,TWILIO_ACCOUNT_SID"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

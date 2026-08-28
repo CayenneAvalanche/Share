@@ -1,0 +1,12 @@
+# Share lives in share-for-github/. This root file exists so Netlify still
+# builds if the site "Base directory" UI field is empty.
+[build]
+  base = "share-for-github"
+  command = "npm run build"
+  publish = "dist"
+  functions = ".netlify/functions-internal"
+  ignore = "exit 1"
+
+[build.environment]
+  NODE_VERSION = "22"
+  SECRETS_SCAN_OMIT_KEYS = "DATABASE_URL,FOUNDER_PIN,RESEND_API_KEY,TWILIO_AUTH_TOKEN,TWILIO_ACCOUNT_SID"

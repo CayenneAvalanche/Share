@@ -32,6 +32,7 @@
   command = "npm run build"
   publish = "dist"
   functions = ".netlify/functions-internal"
+  ignore = "exit 1"
 
 [build.environment]
   NODE_VERSION = "22"

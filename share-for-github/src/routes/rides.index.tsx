@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Search, MapPinned, HeartHandshake, Calculator, Armchair, ThumbsUp, ArrowLeft } from "lucide-react";
+import { Plus, Search, MapPinned, HeartHandshake, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/share/shell";
 import { NearMeBar } from "@/components/share/near-me-bar";
@@ -89,8 +89,6 @@ function RidesPage() {
   const [nearCity, setNearCity] = useState("Lafayette, LA");
   const [rideRadius, setRideRadius] = useState(DEFAULT_RADIUS_RIDE_HUB);
   const [nearbyRiders, setNearbyRiders] = useState<number | null>(null);
-  /** pick = Local vs Out of town chooser; corridor = long-distance board */
-  const [rideMode, setRideMode] = useState<"pick" | "corridor">("pick");
 
   useEffect(() => {
     setNearCity(loadSearchCity());
@@ -400,68 +398,70 @@ function RidesPage() {
   );
 
   const requestShortcuts = (
-    <div className={isDriver ? "mt-5" : "mt-3"}>
+    <>
       <Link
         to="/local"
-        className="flex items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-5 py-6 text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.99]"
+        className={`${isDriver ? "mt-5" : "mt-3"} flex items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--color-primary)] px-5 py-5 text-[var(--color-primary-fg)] shadow-[var(--shadow-md)] transition-transform active:scale-[0.99]`}
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-14 items-center justify-center rounded-full bg-white/15">
-            <Armchair className="size-7" />
+          <div className="flex size-12 items-center justify-center rounded-full bg-white/15">
+            <MapPinned className="size-6" />
           </div>
           <div>
-            <p className="text-xl font-semibold leading-tight">Local ride</p>
-            <p className="mt-0.5 text-sm opacity-90">
-              In town · Uber-style · Lafayette now
+            <p className="text-lg font-semibold leading-tight">Local ride</p>
+            <p className="text-sm opacity-90">
+              Nearby now · fastest way to request
             </p>
           </div>
         </div>
         <span className="text-2xl font-light opacity-80">→</span>
       </Link>
 
-      <button
-        type="button"
-        onClick={() => setRideMode("corridor")}
-        className="mt-3 flex w-full items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-bg-elevated)] px-5 py-6 text-left text-[var(--color-fg)] shadow-[var(--shadow-sm)] transition-transform active:scale-[0.99]"
+      <Link
+        to="/volunteer"
+        className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] border-2 border-[var(--color-primary)]/35 bg-[var(--color-bg-elevated)] px-5 py-4 text-[var(--color-fg)] shadow-[var(--shadow-sm)] transition-transform active:scale-[0.99]"
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-14 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
-            <ThumbsUp className="size-7" />
+          <div className="flex size-12 items-center justify-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)]">
+            <HeartHandshake className="size-6" />
           </div>
           <div>
-            <p className="text-xl font-semibold leading-tight">Out of town</p>
-            <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
-              Corridor seats · Lafayette ↔ cities
+            <p className="text-lg font-semibold leading-tight">Volunteer ride</p>
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Free help for elders, vets, medical, hardship & work
             </p>
           </div>
         </div>
         <span className="text-2xl font-light text-[var(--color-fg-subtle)]">
           →
         </span>
-      </button>
+      </Link>
 
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-1 text-sm">
-        <Link
-          to="/volunteer"
-          className="inline-flex items-center gap-1.5 font-medium text-[var(--color-primary)]"
-        >
-          <HeartHandshake className="size-3.5" />
-          Volunteer
-        </Link>
-        <Link
-          to="/rides/quote"
-          className="inline-flex items-center gap-1.5 font-medium text-[var(--color-primary)]"
-        >
-          <Calculator className="size-3.5" />
-          Fare quote
-        </Link>
-      </div>
-    </div>
+      <Link
+        to="/rides/quote"
+        className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-5 py-3.5 text-[var(--color-fg)] transition-transform active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-primary)]">
+            <Calculator className="size-5" />
+          </div>
+          <div>
+            <p className="font-semibold leading-tight">Fare quote</p>
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Addresses in · suggested price out · no surge
+            </p>
+          </div>
+        </div>
+        <span className="text-2xl font-light text-[var(--color-fg-subtle)]">
+          →
+        </span>
+      </Link>
+    </>
   );
 
   return (
     <AppShell
-      title={rideMode === "corridor" ? "Out of town" : "Share a ride"}
+      title="Share a ride"
       subtitle={
         nearbyRiders == null
           ? undefined
@@ -487,28 +487,9 @@ function RidesPage() {
         </div>
       }
     >
-      {rideMode === "pick" ? (
-        <>
-          {isDriver ? liveBoard : null}
-          {requestShortcuts}
-          {!isDriver && openLiveBoard.length > 0 ? liveBoard : null}
-        </>
-      ) : (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setRideMode("pick")}
-            className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-primary)]"
-          >
-            <ArrowLeft className="size-4" />
-            Back to ride type
-          </button>
-          <h2 className="font-display text-lg font-semibold">Out of town</h2>
-          <p className="mt-0.5 text-sm text-[var(--color-fg-muted)]">
-            Long-distance seats and corridor trips — like air traffic for cars.
-          </p>
-        </div>
-      )}
+      {isDriver ? liveBoard : requestShortcuts}
+      {isDriver ? requestShortcuts : null}
+      {!isDriver && openLiveBoard.length > 0 ? liveBoard : null}
 
       {/* Matched / active rides — rider + driver home base */}
       {(activeMatched.length > 0 || activeLocal.length > 0) && (
@@ -690,10 +671,8 @@ function RidesPage() {
         </section>
       )}
 
-      {rideMode === "corridor" && (
-      <>
       <p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
-        Corridor board
+        Long-distance / corridor
       </p>
 
       <div className="mt-2">
@@ -804,8 +783,6 @@ function RidesPage() {
           ))
         )}
       </div>
-      </>
-      )}
     </AppShell>
   );
 }
